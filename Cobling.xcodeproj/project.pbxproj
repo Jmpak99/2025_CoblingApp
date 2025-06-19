@@ -1,0 +1,574 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		8857E7F32E049D00001FBEFC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8857E7D42E049CFF001FBEFC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8857E7DB2E049CFF001FBEFC;
+			remoteInfo = Cobling;
+		};
+		8857E7FD2E049D00001FBEFC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8857E7D42E049CFF001FBEFC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8857E7DB2E049CFF001FBEFC;
+			remoteInfo = Cobling;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		8857E7DC2E049CFF001FBEFC /* Cobling.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cobling.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8857E7F22E049D00001FBEFC /* CoblingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoblingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8857E7FC2E049D00001FBEFC /* CoblingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoblingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8857E8042E049D00001FBEFC /* Exceptions for "Cobling" folder in "Cobling" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8857E7DB2E049CFF001FBEFC /* Cobling */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		8857E7DE2E049CFF001FBEFC /* Cobling */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8857E8042E049D00001FBEFC /* Exceptions for "Cobling" folder in "Cobling" target */,
+			);
+			path = Cobling;
+			sourceTree = "<group>";
+		};
+		8857E7F52E049D00001FBEFC /* CoblingTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CoblingTests;
+			sourceTree = "<group>";
+		};
+		8857E7FF2E049D00001FBEFC /* CoblingUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CoblingUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8857E7D92E049CFF001FBEFC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8857E7EF2E049D00001FBEFC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8857E7F92E049D00001FBEFC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		8857E7D32E049CFF001FBEFC = {
+			isa = PBXGroup;
+			children = (
+				8857E7DE2E049CFF001FBEFC /* Cobling */,
+				8857E7F52E049D00001FBEFC /* CoblingTests */,
+				8857E7FF2E049D00001FBEFC /* CoblingUITests */,
+				8857E7DD2E049CFF001FBEFC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8857E7DD2E049CFF001FBEFC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8857E7DC2E049CFF001FBEFC /* Cobling.app */,
+				8857E7F22E049D00001FBEFC /* CoblingTests.xctest */,
+				8857E7FC2E049D00001FBEFC /* CoblingUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8857E7DB2E049CFF001FBEFC /* Cobling */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8857E8052E049D00001FBEFC /* Build configuration list for PBXNativeTarget "Cobling" */;
+			buildPhases = (
+				8857E7D82E049CFF001FBEFC /* Sources */,
+				8857E7D92E049CFF001FBEFC /* Frameworks */,
+				8857E7DA2E049CFF001FBEFC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8857E7DE2E049CFF001FBEFC /* Cobling */,
+			);
+			name = Cobling;
+			packageProductDependencies = (
+			);
+			productName = Cobling;
+			productReference = 8857E7DC2E049CFF001FBEFC /* Cobling.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8857E7F12E049D00001FBEFC /* CoblingTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8857E80A2E049D00001FBEFC /* Build configuration list for PBXNativeTarget "CoblingTests" */;
+			buildPhases = (
+				8857E7EE2E049D00001FBEFC /* Sources */,
+				8857E7EF2E049D00001FBEFC /* Frameworks */,
+				8857E7F02E049D00001FBEFC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8857E7F42E049D00001FBEFC /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8857E7F52E049D00001FBEFC /* CoblingTests */,
+			);
+			name = CoblingTests;
+			packageProductDependencies = (
+			);
+			productName = CoblingTests;
+			productReference = 8857E7F22E049D00001FBEFC /* CoblingTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		8857E7FB2E049D00001FBEFC /* CoblingUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8857E80D2E049D00001FBEFC /* Build configuration list for PBXNativeTarget "CoblingUITests" */;
+			buildPhases = (
+				8857E7F82E049D00001FBEFC /* Sources */,
+				8857E7F92E049D00001FBEFC /* Frameworks */,
+				8857E7FA2E049D00001FBEFC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8857E7FE2E049D00001FBEFC /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8857E7FF2E049D00001FBEFC /* CoblingUITests */,
+			);
+			name = CoblingUITests;
+			packageProductDependencies = (
+			);
+			productName = CoblingUITests;
+			productReference = 8857E7FC2E049D00001FBEFC /* CoblingUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8857E7D42E049CFF001FBEFC /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					8857E7DB2E049CFF001FBEFC = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					8857E7F12E049D00001FBEFC = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 8857E7DB2E049CFF001FBEFC;
+					};
+					8857E7FB2E049D00001FBEFC = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 8857E7DB2E049CFF001FBEFC;
+					};
+				};
+			};
+			buildConfigurationList = 8857E7D72E049CFF001FBEFC /* Build configuration list for PBXProject "Cobling" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 8857E7D32E049CFF001FBEFC;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8857E7DD2E049CFF001FBEFC /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8857E7DB2E049CFF001FBEFC /* Cobling */,
+				8857E7F12E049D00001FBEFC /* CoblingTests */,
+				8857E7FB2E049D00001FBEFC /* CoblingUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8857E7DA2E049CFF001FBEFC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8857E7F02E049D00001FBEFC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8857E7FA2E049D00001FBEFC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8857E7D82E049CFF001FBEFC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8857E7EE2E049D00001FBEFC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8857E7F82E049D00001FBEFC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8857E7F42E049D00001FBEFC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8857E7DB2E049CFF001FBEFC /* Cobling */;
+			targetProxy = 8857E7F32E049D00001FBEFC /* PBXContainerItemProxy */;
+		};
+		8857E7FE2E049D00001FBEFC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8857E7DB2E049CFF001FBEFC /* Cobling */;
+			targetProxy = 8857E7FD2E049D00001FBEFC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		8857E8062E049D00001FBEFC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YS4C5YKT5U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Cobling/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jmpak99.Cobling;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8857E8072E049D00001FBEFC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YS4C5YKT5U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Cobling/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jmpak99.Cobling;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8857E8082E049D00001FBEFC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		8857E8092E049D00001FBEFC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		8857E80B2E049D00001FBEFC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YS4C5YKT5U;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jmpak99.CoblingTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cobling.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Cobling";
+			};
+			name = Debug;
+		};
+		8857E80C2E049D00001FBEFC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YS4C5YKT5U;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jmpak99.CoblingTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cobling.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Cobling";
+			};
+			name = Release;
+		};
+		8857E80E2E049D00001FBEFC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YS4C5YKT5U;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jmpak99.CoblingUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Cobling;
+			};
+			name = Debug;
+		};
+		8857E80F2E049D00001FBEFC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YS4C5YKT5U;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jmpak99.CoblingUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Cobling;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8857E7D72E049CFF001FBEFC /* Build configuration list for PBXProject "Cobling" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8857E8082E049D00001FBEFC /* Debug */,
+				8857E8092E049D00001FBEFC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8857E8052E049D00001FBEFC /* Build configuration list for PBXNativeTarget "Cobling" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8857E8062E049D00001FBEFC /* Debug */,
+				8857E8072E049D00001FBEFC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8857E80A2E049D00001FBEFC /* Build configuration list for PBXNativeTarget "CoblingTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8857E80B2E049D00001FBEFC /* Debug */,
+				8857E80C2E049D00001FBEFC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8857E80D2E049D00001FBEFC /* Build configuration list for PBXNativeTarget "CoblingUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8857E80E2E049D00001FBEFC /* Debug */,
+				8857E80F2E049D00001FBEFC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8857E7D42E049CFF001FBEFC /* Project object */;
+}
