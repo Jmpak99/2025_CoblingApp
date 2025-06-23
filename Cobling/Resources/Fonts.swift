@@ -39,6 +39,7 @@ extension Font {
     
     // Gmarket-Bold
     static let gmarketBold16 : Font = .custom( "GmarketSansBold", size: 16)
+    static let gmarketBold34 : Font = .custom( "GmarketSansBold", size: 34)
     
     // LeeSeoyun
     static let leeseoyun48 : Font = .custom("LeeSeoyun", size: 48)
