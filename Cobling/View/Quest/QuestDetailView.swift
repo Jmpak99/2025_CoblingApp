@@ -41,7 +41,7 @@ struct QuestDetailView: View {
             ]
         default:
             return [
-                SubQuest(title: "1. 공통 미션", description: "기본 미션입니다.", state: .inProgress)
+                SubQuest(title: "공통 미션", description: "기본 미션입니다.", state: .inProgress)
             ]
         }
     }
@@ -94,6 +94,7 @@ struct QuestDetailView: View {
 
 struct SubQuestCard: View {
     let subQuest: SubQuest
+    let backgroundColor: Color
     let onTap: () -> Void
 
     var body: some View {
@@ -135,6 +136,7 @@ struct SubQuestCard: View {
                 .frame(height: 80)
             }
             .frame(width: 355, height: 140)
+            .background(backgroundColor)
             .background(Color(hex: backgroundColorHex))
             .clipShape(RoundedRectangle(cornerRadius: 20))
             .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 4)
