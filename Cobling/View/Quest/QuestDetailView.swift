@@ -7,11 +7,13 @@
 
 import SwiftUI
 
-// MARK: - 모델 정의
+// MARK: - 하위 퀘스트 상태
 
 enum SubQuestState {
     case completed, inProgress, locked
 }
+
+// MARK: - 하위 퀘스트 데이터 모델
 
 struct SubQuest: Identifiable {
     let id = UUID()
@@ -20,44 +22,48 @@ struct SubQuest: Identifiable {
     let state: SubQuestState
 }
 
+// MARK: - QuestDetailView
 
-// MARK: - 상세화면 View
-
-struct ChapterDetailView: View {
+struct QuestDetailView: View {
+    let chapter: Quest  // 전달받은 챕터 정보
     @State private var showLockedAlert = false
 
-    // 내부 고정 챕터 타이틀
-    private let chapterTitle = "잠든 알의 속삭임"
-
-    // 내부 고정 하위 퀘스트 리스트
-    private let subQuests: [SubQuest] = [
-        SubQuest(title: "잠든 알의 속삭임", description: "무언가 꿈틀거려요. 알 속에서 소리가 나요", state: .completed),
-        SubQuest(title: "잠든 알의 속삭임", description: "무언가 꿈틀거려요. 알 속에서 소리가 나요", state: .inProgress),
-        SubQuest(title: "잠든 알의 속삭임", description: "무언가 꿈틀거려요. 알 속에서 소리가 나요", state: .locked),
-        SubQuest(title: "잠든 알의 속삭임", description: "무언가 꿈틀거려요. 알 속에서 소리가 나요", state: .locked),
-        SubQuest(title: "잠든 알의 속삭임", description: "무언가 꿈틀거려요. 알 속에서 소리가 나요", state: .locked),
-    ]
+    // 샘플 하위 퀘스트 리스트 (임시 하드코딩)
+    private var subQuests: [SubQuest] {
+        switch chapter.title {
+        case "잠든 알의 속삭임":
+            return [
+                SubQuest(title: "1. 알 속의 꿈틀", description: "무언가 꿈틀거려요.", state: .completed),
+                SubQuest(title: "2. 알 속의 소리", description: "알 속에서 소리가 나요.", state: .inProgress),
+                SubQuest(title: "3. 아직 잠든 알", description: "깨어날 준비가 덜 됐어요.", state: .locked),
+                SubQuest(title: "4. 온기의 기척", description: "따뜻함이 스며들어요.", state: .locked),
+                SubQuest(title: "5. 깨지는 순간", description: "알이 흔들리고 있어요.", state: .locked)
+            ]
+        default:
+            return [
+                SubQuest(title: "1. 공통 미션", description: "기본 미션입니다.", state: .inProgress)
+            ]
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // ✅ 중앙 정렬된 타이틀
-            Text(chapterTitle)
+            // 챕터 타이틀
+            Text(chapter.title)
                 .font(.gmarketBold34)
-                .frame(maxWidth: .infinity, alignment: .center) // 가운데 정렬
-                .padding(.top)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 18)
             
             Spacer().frame(height: 32)
-            
+
             VStack(alignment: .leading, spacing: 0) {
                 Text("코블링의 퀘스트")
                     .font(.pretendardBold24)
                     .padding(.bottom, 4)
-                Text("코블링과 함께 코딩 문제를 해결해보세요!")
-                    .font(.pretendardMedium14)
+                Text("코블링과 함께 문제를 해결해 보세요!")
+                    .font(.pretendardBold14)
                     .foregroundColor(.gray)
             }
-
-            
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -66,21 +72,26 @@ struct ChapterDetailView: View {
                             if quest.state == .locked {
                                 showLockedAlert = true
                             } else {
-                                // TODO: 진행중/완료 시 화면 이동 처리 예정
+                                // TODO: 게임 화면으로 이동
                             }
                         }
                     }
                 }
             }
+
+            Spacer()
         }
         .padding()
         .alert("잠긴 퀘스트입니다", isPresented: $showLockedAlert) {
             Button("확인", role: .cancel) {}
         }
+        .navigationBarHidden(true)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
 // MARK: - 하위 퀘스트 카드 컴포넌트
+
 struct SubQuestCard: View {
     let subQuest: SubQuest
     let onTap: () -> Void
@@ -90,7 +101,7 @@ struct SubQuestCard: View {
             ZStack {
                 VStack(spacing: 0) {
                     Spacer()
-                        .frame(height: 80) // 상단 여백 (140-60)
+                        .frame(height: 80)
 
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
@@ -118,7 +129,6 @@ struct SubQuestCard: View {
                     }
                 }
 
-                // 상단 이미지 (필요 시 배치 가능)
                 VStack {
                     Spacer()
                 }
@@ -126,7 +136,7 @@ struct SubQuestCard: View {
             }
             .frame(width: 355, height: 140)
             .background(Color(hex: backgroundColorHex))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
             .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
@@ -148,10 +158,16 @@ struct SubQuestCard: View {
         }
     }
 }
-// MARK: - 미리보기
 
-struct ChapterDetailView_Previews: PreviewProvider {
+// MARK: - Preview
+
+struct QuestDetailView_Previews: PreviewProvider {
     static var previews: some View {
-        ChapterDetailView()
+        QuestDetailView(chapter: Quest(
+            title: "잠든 알의 속삭임",
+            subtitle: "깨어날 시간이에요, 코블링",
+            status: .completed,
+            backgroundColor: Color(hex: "#FFEEEF")
+        ))
     }
 }
