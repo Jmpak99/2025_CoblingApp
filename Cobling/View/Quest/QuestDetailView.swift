@@ -26,10 +26,10 @@ struct SubQuest: Identifiable {
 struct ChapterDetailView: View {
     @State private var showLockedAlert = false
 
-    // ✅ 내부 고정 챕터 타이틀
+    // 내부 고정 챕터 타이틀
     private let chapterTitle = "잠든 알의 속삭임"
 
-    // ✅ 내부 고정 하위 퀘스트 리스트
+    // 내부 고정 하위 퀘스트 리스트
     private let subQuests: [SubQuest] = [
         SubQuest(title: "잠든 알의 속삭임", description: "무언가 꿈틀거려요. 알 속에서 소리가 나요", state: .completed),
         SubQuest(title: "잠든 알의 속삭임", description: "무언가 꿈틀거려요. 알 속에서 소리가 나요", state: .inProgress),
@@ -45,14 +45,19 @@ struct ChapterDetailView: View {
                 .font(.gmarketBold34)
                 .frame(maxWidth: .infinity, alignment: .center) // 가운데 정렬
                 .padding(.top)
+            
+            Spacer().frame(height: 32)
+            
+            VStack(alignment: .leading, spacing: 0) {
+                Text("코블링의 퀘스트")
+                    .font(.pretendardBold24)
+                    .padding(.bottom, 4)
+                Text("코블링과 함께 코딩 문제를 해결해보세요!")
+                    .font(.pretendardMedium14)
+                    .foregroundColor(.gray)
+            }
 
-            Text("코블링의 퀘스트")
-                .font(.pretendardBold24)
-                .padding(.bottom, 4)
-
-            Text("코블링과 함께 코딩 문제를 해결해보세요!")
-                .font(.pretendardMedium14)
-                .foregroundColor(.gray)
+            
 
             ScrollView {
                 VStack(spacing: 16) {
