@@ -10,6 +10,8 @@ import SwiftUI
 @main
 struct CoblingApp: App {
     
+    @StateObject var appState = AppState()
+    
     init() {
         for family in UIFont.familyNames.sorted() {
             print("Family: \(family)")
@@ -20,7 +22,7 @@ struct CoblingApp: App {
     }
     var body: some Scene {
         WindowGroup {
-            SplashView() // 앱 진입 화면
+            AppRootView().environmentObject(appState)
         }
     }
 }
