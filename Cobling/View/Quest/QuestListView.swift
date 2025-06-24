@@ -43,7 +43,7 @@ struct QuestListView: View {
         NavigationView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("퀘스트")
-                    .font(.title)
+                    .font(.pretendardBold34)
                     .padding(.horizontal)
                     .padding(.top, 20)
 

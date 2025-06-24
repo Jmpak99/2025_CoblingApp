@@ -68,7 +68,8 @@ struct QuestDetailView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     ForEach(subQuests) { quest in
-                        SubQuestCard(subQuest: quest) {
+                        SubQuestCard(subQuest: quest,
+                                     backgroundColor: chapter.backgroundColor) {
                             if quest.state == .locked {
                                 showLockedAlert = true
                             } else {
