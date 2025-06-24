@@ -40,7 +40,6 @@ struct QuestListView: View {
     ]
 
     var body: some View {
-        NavigationView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("퀘스트")
                     .font(.pretendardBold34)
@@ -55,13 +54,13 @@ struct QuestListView: View {
                     }
                     .padding()
                 }
+                .scrollIndicators(.hidden) // 스크롤 바 숨기기
             }
-            .navigationBarHidden(true)
+            .navigationBarHidden(true) 
             .alert(isPresented: $showLockedAlert) {
                 Alert(title: Text("잠긴 퀘스트입니다"))
             }
         }
-    }
 }
 
 // MARK: - View 분리 (컴파일 최적화 핵심)
@@ -139,6 +138,8 @@ struct QuestCardView: View {
 
 struct QuestListView_Previews: PreviewProvider {
     static var previews: some View {
-        QuestListView()
+        NavigationStack{
+            QuestListView()
+        }
     }
 }

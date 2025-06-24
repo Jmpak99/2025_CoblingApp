@@ -27,6 +27,7 @@ struct SubQuest: Identifiable {
 struct QuestDetailView: View {
     let chapter: Quest  // 전달받은 챕터 정보
     @State private var showLockedAlert = false
+    
 
     // 샘플 하위 퀘스트 리스트 (임시 하드코딩)
     private var subQuests: [SubQuest] {
@@ -79,6 +80,7 @@ struct QuestDetailView: View {
                     }
                 }
             }
+            .scrollIndicators(.hidden) // 스크롤 바 숨기기
 
             Spacer()
         }
@@ -86,7 +88,7 @@ struct QuestDetailView: View {
         .alert("잠긴 퀘스트입니다", isPresented: $showLockedAlert) {
             Button("확인", role: .cancel) {}
         }
-        .navigationBarHidden(true)
+//        .navigationBarHidden(true)
         .navigationBarTitleDisplayMode(.inline)
     }
 }
