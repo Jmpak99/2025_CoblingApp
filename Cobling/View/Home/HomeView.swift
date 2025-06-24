@@ -13,6 +13,7 @@ struct HomeView: View {
     // 경험치 퍼센트 하드코딩 (0.0 ~ 1.0 사이 값으로 설정됨, 추후 퍼센트 변환됨)
     @State private var experience: Double = 0.5
     // 미션 완료 여부 하드코딩 (true면 체크됨)
+    @EnvironmentObject var appState : AppState
     private let isMissionCompleted = false
 
     var body: some View {
@@ -51,7 +52,9 @@ struct HomeView: View {
                 
 
                 // MARK: - 키우러 가기 버튼 (중앙 정렬)
-                NavigationLink(destination: QuestListView()) { // 버튼을 누르면 QuestListView로 이동
+                Button(action: {
+                    appState.selectedTab = .quest
+                }) { // 버튼을 누르면 QuestListView로 이동
                     Text("키우러 가기") // 버튼 텍스트
                         .font(.pretendardRegular16) // 텍스트 폰트 설정
                         .foregroundColor(.black) // 텍스트 색상
@@ -159,4 +162,6 @@ struct HomeView: View {
 
 #Preview {
     HomeView()
+        .environmentObject(AppState())
 }
+
