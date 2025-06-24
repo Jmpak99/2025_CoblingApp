@@ -12,6 +12,8 @@
 		<string>Pretendard-Regular.otf</string>
 		<string>Pretendard-SemiBold.otf</string>
 	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
