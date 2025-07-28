@@ -34,6 +34,7 @@ enum Direction {
 class QuestViewModel: ObservableObject {
     @Published var characterPosition: (row: Int, col: Int) = (4, 0)
     @Published var characterDirection: Direction = .right
+    @Published var showFailureDialog: Bool = false
     @Published var mapData: [[Int]] = [
         [1, 1, 1, 1, 1, 1, 2],
         [1, 0, 0, 0, 0, 0, 1],
@@ -124,7 +125,16 @@ class QuestViewModel: ObservableObject {
         isExecuting = false
         characterPosition = initialPosition
         characterDirection = .right
+        showFailureDialog = true
         print("🔁 캐릭터를 시작 위치로 되돌림")
     }
+    
+    func resetExecution() {
+           isExecuting = false
+           characterPosition = initialPosition
+           characterDirection = .right
+           showFailureDialog = false
+           print("🔄 다시하기: 캐릭터 초기화 및 다이얼로그 종료")
+       }
 }
 
