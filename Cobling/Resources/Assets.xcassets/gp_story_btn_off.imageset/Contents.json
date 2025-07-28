@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "시작버튼.png",
+      "filename" : "gameplay_story_btn_off.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
