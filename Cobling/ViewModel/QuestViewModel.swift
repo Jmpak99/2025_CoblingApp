@@ -34,7 +34,6 @@ enum Direction {
 class QuestViewModel: ObservableObject {
     @Published var characterPosition: (row: Int, col: Int) = (4, 0)
     @Published var characterDirection: Direction = .right
-
     @Published var mapData: [[Int]] = [
         [1, 1, 1, 1, 1, 1, 2],
         [1, 0, 0, 0, 0, 0, 1],
@@ -42,18 +41,14 @@ class QuestViewModel: ObservableObject {
         [1, 0, 0, 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1]
     ]
-
     @Published var startBlock = Block(type: .start)
-
+    
     private var isExecuting = false
+    private let initialPosition = (row: 4, col: 0)
+    private let goalTile = 2
 
     func startExecution() {
-        guard !isExecuting else {
-            print("⚠️ 이미 실행 중입니다.")
-            return
-        }
-
-        print("🚀 블록 실행 시작")
+        guard !isExecuting else { return }
         isExecuting = true
         executeBlocks(startBlock.children)
     }
@@ -61,7 +56,14 @@ class QuestViewModel: ObservableObject {
     func executeBlocks(_ blocks: [Block], index: Int = 0) {
         guard index < blocks.count else {
             print("✅ 모든 블록 실행 완료")
-            isExecuting = false
+            // ✅ 모든 블록이 끝났는데 도착 타일(2)이 아니면 실패 처리
+            if mapData[characterPosition.row][characterPosition.col] != goalTile {
+                print("❌ 실패: 깃발에 도달하지 못함")
+                resetToStart()
+            } else {
+                print("🎉 성공: 깃발 도착!")
+                isExecuting = false
+            }
             return
         }
 
@@ -70,7 +72,6 @@ class QuestViewModel: ObservableObject {
 
         switch current.type {
         case .moveForward:
-            print("➡️ 앞으로 가기 실행")
             moveForward {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.executeBlocks(blocks, index: index + 1)
@@ -78,27 +79,23 @@ class QuestViewModel: ObservableObject {
             }
 
         case .turnLeft:
-            print("↩️ 왼쪽으로 회전")
             characterDirection = characterDirection.turnedLeft()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.executeBlocks(blocks, index: index + 1)
             }
 
         case .turnRight:
-            print("↪️ 오른쪽으로 회전")
             characterDirection = characterDirection.turnedRight()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.executeBlocks(blocks, index: index + 1)
             }
 
         default:
-            print("⏩ 다른 블록 (미구현), 넘어감")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.executeBlocks(blocks, index: index + 1)
             }
         }
     }
-
 
     func moveForward(completion: @escaping () -> Void) {
         var newRow = characterPosition.row
@@ -116,10 +113,18 @@ class QuestViewModel: ObservableObject {
            mapData[newRow][newCol] != 0 {
             characterPosition = (newRow, newCol)
             print("✅ 캐릭터 이동 → 위치: (\(newRow), \(newCol))")
+            completion()
         } else {
             print("❌ 이동 실패: 벽 또는 범위 밖입니다.")
+            resetToStart()
         }
+    }
 
-        completion()
+    func resetToStart() {
+        isExecuting = false
+        characterPosition = initialPosition
+        characterDirection = .right
+        print("🔁 캐릭터를 시작 위치로 되돌림")
     }
 }
+
