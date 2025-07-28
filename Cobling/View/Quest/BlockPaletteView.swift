@@ -45,8 +45,12 @@ struct BlockPaletteView: View {
                     }
                     .frame(height: 40)
                 }
+                
+                Spacer() // 아래 공간 채우기
             }
-            .padding()
+            .padding(.top, 16)
+            .padding(.leading, 30)
+            .padding(.trailing, 8)
         }
     }
     
