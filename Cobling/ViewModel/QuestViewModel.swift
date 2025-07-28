@@ -35,6 +35,7 @@ class QuestViewModel: ObservableObject {
     @Published var characterPosition: (row: Int, col: Int) = (4, 0)
     @Published var characterDirection: Direction = .right
     @Published var showFailureDialog: Bool = false
+    @Published var showSuccessDialog: Bool = false
     @Published var mapData: [[Int]] = [
         [1, 1, 1, 1, 1, 1, 2],
         [1, 0, 0, 0, 0, 0, 1],
@@ -63,6 +64,7 @@ class QuestViewModel: ObservableObject {
                 resetToStart()
             } else {
                 print("🎉 성공: 깃발 도착!")
+                showSuccessDialog = true // 성공 다이얼로그 띄우기
                 isExecuting = false
             }
             return
@@ -130,11 +132,12 @@ class QuestViewModel: ObservableObject {
     }
     
     func resetExecution() {
-           isExecuting = false
-           characterPosition = initialPosition
-           characterDirection = .right
-           showFailureDialog = false
-           print("🔄 다시하기: 캐릭터 초기화 및 다이얼로그 종료")
-       }
+        isExecuting = false
+        characterPosition = initialPosition
+        characterDirection = .right
+        showFailureDialog = false
+        showSuccessDialog = false // ✅ 이 줄 추가!
+        print("🔄 다시하기: 캐릭터 초기화 및 다이얼로그 종료")
+    }
 }
 

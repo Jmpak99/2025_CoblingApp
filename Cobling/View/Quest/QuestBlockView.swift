@@ -1,7 +1,5 @@
 import SwiftUI
 
-import SwiftUI
-
 struct QuestBlockView: View {
     @StateObject private var dragManager = DragManager()
     @StateObject private var viewModel = QuestViewModel()
@@ -47,7 +45,8 @@ struct QuestBlockView: View {
                     }
 
                     if dragManager.isDragging,
-                       let type = dragManager.draggingType, dragManager.dragSource == .palette {
+                       let type = dragManager.draggingType,
+                       dragManager.dragSource == .palette {
                         GhostBlockView(
                             type: type,
                             position: dragManager.dragPosition,
@@ -59,21 +58,32 @@ struct QuestBlockView: View {
                 .coordinateSpace(name: "global")
             }
 
-            // ✅ 실패 시 다이얼로그 오버레이 표시
+            // ✅ 실패 다이얼로그 오버레이
             if viewModel.showFailureDialog {
-                let retryAction = {
-                    viewModel.resetExecution() // 다시하기 눌렀을 때 초기화
+                FailureDialogView {
+                    viewModel.resetExecution() // 실패 후 다시하기
                 }
+                .transition(.opacity)
+            }
 
-                FailureDialogView(onRetry: retryAction)
-                    .transition(.opacity)
+            // ✅ 성공 다이얼로그 오버레이
+            if viewModel.showSuccessDialog {
+                SuccessDialogView(
+                    onRetry: {
+                        viewModel.resetExecution() // 다시하기
+                    },
+                    onNext: {
+                        print("➡️ 다음 퀘스트로 이동 예정") // 이후 확장
+                        viewModel.resetExecution()
+                    }
+                )
+                .transition(.opacity)
             }
         }
-        // ✅ ViewModel과 동기화
         .onChange(of: startBlock.children) { newChildren in
             viewModel.startBlock.children = newChildren
         }
-        .animation(.easeInOut, value: viewModel.showFailureDialog)
+        .animation(.easeInOut, value: viewModel.showFailureDialog || viewModel.showSuccessDialog)
     }
 }
 
