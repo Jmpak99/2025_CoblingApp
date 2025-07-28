@@ -25,7 +25,7 @@ struct GhostBlockView: View {
             Image(type.imageName)
                 .resizable()
                 .frame(width: 120, height: 30)
-                .opacity(0.7)
+                .opacity(0.6)
                 .shadow(radius: 4)
                 .position(x: position.x - offset.width, y: position.y - offset.height)
         }
