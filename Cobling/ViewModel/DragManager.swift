@@ -1,33 +1,36 @@
 import Foundation
 import SwiftUI
 
-/// 전역 드래그 상태를 관리하는 ObservableObject
 class DragManager: ObservableObject {
-    @Published var isDragging: Bool = false
-    @Published var draggingType: BlockType? = nil
+    @Published var isDragging = false
+    @Published var draggingType: BlockType?
     @Published var dragPosition: CGPoint = .zero
     @Published var dragStartOffset: CGSize = .zero
-    
-    func prepareDragging(type: BlockType, at position: CGPoint, offset: CGSize) {
-        // 위치는 먼저 설정하지만 isDragging은 아직 false
-        self.draggingType = type
-        self.dragStartOffset = offset
-        self.dragPosition = position
-    }
+    var dragEndedAt: CGPoint?
 
+    func prepareDragging(type: BlockType, at position: CGPoint, offset: CGSize) {
+        draggingType = type
+        dragPosition = position
+        dragStartOffset = offset
+    }
 
     func startDragging() {
-        self.isDragging = true
+        isDragging = true
     }
 
-    func updatePosition(to position: CGPoint) {
-        self.dragPosition = position
+    func updateDragPosition(_ position: CGPoint) {
+        dragPosition = position
     }
 
-    func endDragging() {
-        self.isDragging = false
-        self.draggingType = nil
-        self.dragPosition = .zero
-        self.dragStartOffset = .zero
+    func endDragging(at position: CGPoint) {
+        dragEndedAt = position
+        isDragging = false
+    }
+
+    func reset() {
+        draggingType = nil
+        dragPosition = .zero
+        dragStartOffset = .zero
+        dragEndedAt = nil
     }
 }

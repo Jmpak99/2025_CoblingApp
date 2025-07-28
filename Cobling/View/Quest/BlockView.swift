@@ -7,18 +7,15 @@
 
 import SwiftUI
 
-/// 단일 블록을 표시하는 뷰 - 드래그 가능, 자식 블록이 있다면 재귀 렌더링
 struct BlockView: View {
     @ObservedObject var block: Block
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // MARK: - 블록 이미지 + 텍스트 오버레이
+        VStack(alignment: .leading, spacing: 0) {
             Image(block.type.imageName)
                 .resizable()
-                .aspectRatio(contentMode: .fit)
                 .frame(width: blockSize.width, height: blockSize.height)
                 .overlay(
                     Group {
@@ -46,30 +43,30 @@ struct BlockView: View {
                         }
                 )
 
-            // MARK: - 자식 블록이 있는 경우 재귀 렌더링
-            if block.type.isContainer && !block.children.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+            if !block.children.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
                     ForEach(block.children) { child in
                         BlockView(block: child)
                     }
                 }
                 .padding(.leading, 20)
+                .padding(.top, block.type == .start ? 2 : 0) // ✅ 시작블록만 약간 띄움
             }
         }
-        .padding(4)
+        .padding(.zero)
         .background(Color.clear)
     }
 
-    // MARK: - 블록 크기 설정 (시작 블록만 크게)
     private var blockSize: CGSize {
         switch block.type {
         case .start:
-            return CGSize(width: 160, height: 60)
+            return CGSize(width: 160, height: 50) // ✅ 시작 블록은 크게
         default:
             return CGSize(width: 120, height: 30)
         }
     }
 }
+
 
 
 // MARK: - 미리보기 Preview
