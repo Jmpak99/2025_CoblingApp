@@ -2,25 +2,15 @@ import SwiftUI
 
 struct QuestBlockView: View {
     @StateObject private var dragManager = DragManager()
+    @StateObject private var viewModel = QuestViewModel()
+
     @State private var startBlock = Block(type: .start)
-
     @State private var paletteFrame: CGRect = .zero
-    
-    private let mapData: [[Int]] = [
-        [1, 1, 1, 1, 1, 1, 2],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1]
-    ]
-
-    @State private var characterPosition = (row: 4, col: 0)
 
     var body: some View {
         VStack(spacing: 0) {
-            GameMapView(mapData: mapData, characterPosition: characterPosition)
+            GameMapView(viewModel: viewModel)
                 .frame(height: 450)
-
 
             ZStack {
                 HStack(spacing: 0) {
@@ -38,13 +28,15 @@ struct QuestBlockView: View {
                     .frame(width: 200)
 
                     BlockCanvasView(
-                        startBlock: startBlock,
+                        startBlock: $startBlock, // ✅ Binding
                         onDropBlock: { droppedType in
                             let newBlock = Block(type: droppedType)
                             startBlock.children.append(newBlock)
+                            print("✅ 블록 추가됨: \(newBlock.type)")
                         },
                         onRemoveBlock: { removedBlock in
                             startBlock.children.removeAll { $0.id == removedBlock.id }
+                            print("🗑️ 블록 삭제됨: \(removedBlock.type)")
                         },
                         paletteFrame: $paletteFrame
                     )
@@ -63,20 +55,21 @@ struct QuestBlockView: View {
             .environmentObject(dragManager)
             .coordinateSpace(name: "global")
         }
+        // ✅ ViewModel과 동기화
+        .onChange(of: startBlock.children) { newChildren in
+            viewModel.startBlock.children = newChildren
+        }
     }
 }
 
-
-
-
-// MARK: - 미리보기
+// MARK: - Preview
 #if DEBUG
 struct QuestBlockView_Previews: PreviewProvider {
     static var previews: some View {
         QuestBlockView()
             .previewLayout(.device)
             .previewDisplayName("블록코딩 미리보기")
-            .frame(width: 430, height: 932) // iPhone 14 Pro Max 사이즈
+            .frame(width: 430, height: 932)
     }
 }
 #endif
