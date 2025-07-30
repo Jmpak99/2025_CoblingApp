@@ -41,7 +41,9 @@ class QuestViewModel: ObservableObject {
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1]
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1],
     ]
     @Published var startBlock = Block(type: .start)
     

@@ -22,7 +22,7 @@ class DragManager: ObservableObject {
     func prepareDragging(
         type: BlockType,
         at position: CGPoint,
-        offset: CGSize,
+        offset: CGSize, 
         block: Block? = nil,
         source: DragSource = .palette
     ) {

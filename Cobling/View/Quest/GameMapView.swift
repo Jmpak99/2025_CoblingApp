@@ -154,7 +154,11 @@ struct GameMapView_Previews: PreviewProvider {
             [1, 0, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 1],
-            [1, 1, 1, 1, 1, 1, 1]
+            [1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1],
+            
+            
         ]
         
         return GameMapView(viewModel: previewViewModel)

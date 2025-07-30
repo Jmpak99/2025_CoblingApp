@@ -7,37 +7,62 @@ struct QuestBlockView: View {
     @State private var startBlock = Block(type: .start)
     @State private var paletteFrame: CGRect = .zero
 
+    // 팔레트위에 올려진 상태 여부
+    private func isOverPalette() -> Bool {
+        print(
+            "isDragging:", dragManager.isDragging,
+            "dragSource:", dragManager.dragSource,
+            "dragPosition:", dragManager.dragPosition,
+            "paletteFrame:", paletteFrame,
+            "-> contains:", paletteFrame.contains(dragManager.dragPosition)
+        )
+        return dragManager.isDragging &&
+            dragManager.dragSource == .canvas &&
+            paletteFrame.contains(dragManager.dragPosition)
+    }
+    
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
                 GameMapView(viewModel: viewModel)
-                    .frame(height: 450)
+                    .frame(height: 500)
 
                 ZStack {
                     HStack(spacing: 0) {
                         GeometryReader { geo in
-                            BlockPaletteView()
-                                .frame(width: 200)
-                                .background(Color.white)
-                                .onAppear {
-                                    paletteFrame = geo.frame(in: .named("global"))
+                            ZStack {
+                                if isOverPalette() {
+                                    Color.red.opacity(0.3)
+                                        .overlay(
+                                            Text("삭제")
+                                                .font(.caption)
+                                                .foregroundColor(.white)
+                                        )
+                                } else {
+                                    Color.white
                                 }
-                                .onChange(of: dragManager.dragPosition) { _ in
-                                    paletteFrame = geo.frame(in: .named("global"))
-                                }
+                                BlockPaletteView()
+                                    .environmentObject(dragManager)
+                            }
+                            .onAppear {
+                                paletteFrame = geo.frame(in: .named("global"))
+                            }
+                            .onChange(of: dragManager.dragPosition) {
+                                paletteFrame = geo.frame(in: .named("global"))
+                            }
+
                         }
                         .frame(width: 200)
+
 
                         BlockCanvasView(
                             startBlock: $startBlock,
                             onDropBlock: { droppedType in
                                 let newBlock = Block(type: droppedType)
                                 startBlock.children.append(newBlock)
-                                print("✅ 블록 추가됨: \(newBlock.type)")
                             },
                             onRemoveBlock: { removedBlock in
                                 startBlock.children.removeAll { $0.id == removedBlock.id }
-                                print("🗑️ 블록 삭제됨: \(removedBlock.type)")
                             },
                             paletteFrame: $paletteFrame
                         )
@@ -58,24 +83,16 @@ struct QuestBlockView: View {
                 .coordinateSpace(name: "global")
             }
 
-            // ✅ 실패 다이얼로그 오버레이
             if viewModel.showFailureDialog {
                 FailureDialogView {
-                    viewModel.resetExecution() // 실패 후 다시하기
+                    viewModel.resetExecution()
                 }
                 .transition(.opacity)
             }
-
-            // ✅ 성공 다이얼로그 오버레이
             if viewModel.showSuccessDialog {
                 SuccessDialogView(
-                    onRetry: {
-                        viewModel.resetExecution() // 다시하기
-                    },
-                    onNext: {
-                        print("➡️ 다음 퀘스트로 이동 예정") // 이후 확장
-                        viewModel.resetExecution()
-                    }
+                    onRetry: { viewModel.resetExecution() },
+                    onNext: { viewModel.resetExecution() }
                 )
                 .transition(.opacity)
             }
