@@ -105,6 +105,7 @@ struct FloatingTabBar_Previews: PreviewProvider {
                 Spacer() // 상단 공간 확보
                 FloatingTabBar(selectedTab: selectedTab) // 플로팅 탭바 표시
             }
+            .environmentObject(TabBarViewModel())
             .background(Color.gray.opacity(0.1)) // 배경색 설정
             .edgesIgnoringSafeArea(.bottom) // 탭바가 화면 하단까지 표시되도록 설정
 
