@@ -147,6 +147,7 @@ struct QuestBlockView_Previews: PreviewProvider {
             description: "무언가 꿈틀거려요.",
             state: .inProgress
         ))
+        .environmentObject(TabBarViewModel())
         .previewLayout(.device)
         .previewDisplayName("퀘스트 블록 뷰 미리보기")
         .frame(width: 430, height: 932)
