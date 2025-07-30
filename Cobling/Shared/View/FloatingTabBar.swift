@@ -39,40 +39,43 @@ enum TabItem: Int, CaseIterable { // Int와 CaseIterable 프로토콜 채택
 
 struct FloatingTabBar: View {
     @Binding var selectedTab: TabItem // 선택된 탭을 바인딩으로 전달받음
+    @EnvironmentObject var tabBarViewModel: TabBarViewModel
 
     var body: some View {
-        HStack(spacing: 0) { // 수평 정렬, 탭 사이 간격 없음
-            ForEach(TabItem.allCases, id: \.self) { tab in // 모든 탭에 대해 반복
-                Button(action: {
-                    selectedTab = tab // 버튼 클릭 시 해당 탭을 선택
-                }) {
-                    VStack(spacing: 6) {  // 아이콘과 텍스트 수직 정렬
-                        Image(tab.iconName) // 탭 아이콘 이미지
-                            .resizable() // 크기 조절 가능하도록
-                            .scaledToFit() // 비율 유지하며 맞춤
-                            .frame(width: 28, height: 28) // 아이콘 크기 지정
+        if tabBarViewModel.isTabBarVisible {
+            HStack(spacing: 0) {
+                ForEach(TabItem.allCases, id: \.self) { tab in
+                    Button(action: {
+                        selectedTab = tab
+                    }) {
+                        VStack(spacing: 6) {
+                            Image(tab.iconName)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 28, height: 28)
 
-                        Text(tab.title) // 탭 이름 텍스트
-                            .font(.pretendardRegular12) // 폰트
-                            .foregroundColor(.black) // 글자색 검정
+                            Text(tab.title)
+                                .font(.pretendardRegular12)
+                                .foregroundColor(.black)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            selectedTab == tab ? Color(hex: "FFF7E9") : Color.white
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
-                    .frame(maxWidth: .infinity) // 버튼의 가로 크기 균등하게
-                    .padding(.vertical, 12) // 상하 패딩
-                    .background(
-                        selectedTab == tab ? Color(hex: "FFF7E9") :  Color.white // 선택된 탭이면 배경색 강조
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 16)) // 둥근 배경 처리
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                Color.white
+                    .clipShape(RoundedRectangle(cornerRadius: 32))
+                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+            )
+            .padding(.horizontal, 16)
         }
-        .padding(.horizontal, 16) // 탭바 양옆 여백
-        .padding(.vertical, 10) // 탭바 위아래 여백
-        .background( // 전체 탭바 배경
-            Color.white
-                .clipShape(RoundedRectangle(cornerRadius: 32)) // 모서리 둥글게
-                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2) // 가벼운 그림자
-        )
-        .padding(.horizontal, 16) // 바깥쪽 여백
     }
 }
 

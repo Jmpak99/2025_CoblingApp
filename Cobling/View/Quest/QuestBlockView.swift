@@ -2,7 +2,7 @@ import SwiftUI
 
 struct QuestBlockView: View {
     let subQuest: SubQuest
-    
+    @EnvironmentObject var tabBarViewModel: TabBarViewModel
     @StateObject private var dragManager = DragManager()
     @StateObject private var viewModel = QuestViewModel()
     @StateObject private var startBlock = Block(type: .start)
@@ -52,6 +52,12 @@ struct QuestBlockView: View {
                 .transition(.opacity)
                 .zIndex(10)
             }
+        }
+        .onAppear {
+            tabBarViewModel.isTabBarVisible = false
+        }
+        .onDisappear {
+            tabBarViewModel.isTabBarVisible = true
         }
         .onChange(of: startBlock.children) { newChildren in
             viewModel.startBlock.children = newChildren
