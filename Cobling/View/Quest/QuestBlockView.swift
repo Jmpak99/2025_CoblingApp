@@ -63,6 +63,8 @@ struct QuestBlockView: View {
             viewModel.startBlock.children = newChildren
         }
         .animation(.easeInOut, value: viewModel.showFailureDialog || viewModel.showSuccessDialog)
+        .navigationBarBackButtonHidden(true) // 백버튼 지우기
+        .ignoresSafeArea(.all, edges: .top) // 상단 여백 제거
     }
 
     // MARK: - Main Content
