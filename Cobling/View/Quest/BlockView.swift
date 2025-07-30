@@ -5,13 +5,6 @@
 //  Created by 박종민 on 2025/07/02.
 //
 
-//
-//  BlockView.swift
-//  Cobling
-//
-//  Created by 박종민 on 2025/07/02.
-//
-
 import SwiftUI
 
 struct BlockView: View {
@@ -21,68 +14,61 @@ struct BlockView: View {
     @State private var isDragging: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Image(block.type.imageName)
-                .resizable()
-                .frame(width: blockSize.width, height: blockSize.height)
-                .overlay(
-                    Group {
-                        if let value = block.value, !value.isEmpty {
-                            Text(value)
-                                .font(.caption)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                        }
-                    },
-                    alignment: .trailing
-                )
-                .scaleEffect(isDragging ? 1.05 : 1.0)
-                .opacity(isDragging ? 0.8 : 1.0)
-                .offset(dragOffset)
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            let globalPoint = CGPoint(
-                                x: value.startLocation.x + value.translation.width,
-                                y: value.startLocation.y + value.translation.height
-                            )
-                            dragOffset = value.translation
-                            isDragging = true
+        GeometryReader { blockGeo in
+            let blockGlobal = blockGeo.frame(in: .named("global"))
 
-                            // ✅ 드래그 출처를 .canvas로 명시!
-                            dragManager.prepareDragging(
-                                type: block.type,
-                                at: globalPoint,
-                                offset: .zero,
-                                block: block,
-                                source: DragSource.canvas
-                            )
-                            dragManager.updateDragPosition(globalPoint)
-                            dragManager.startDragging()
-                        }
-                        .onEnded { value in
-                            let end = CGPoint(
-                                x: value.startLocation.x + value.translation.width,
-                                y: value.startLocation.y + value.translation.height
-                            )
-                            isDragging = false
-                            dragOffset = .zero
-                            dragManager.endDragging(at: end)
-                        }
-                )
+            VStack(alignment: .leading, spacing: 0) {
+                Image(block.type.imageName)
+                    .resizable()
+                    .frame(width: blockSize.width, height: blockSize.height)
+                    .scaleEffect(isDragging ? 1.05 : 1.0)
+                    .opacity(isDragging ? 0.8 : 1.0)
+                    .offset(dragOffset)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                let dragLocation = CGPoint(
+                                    x: blockGlobal.origin.x + value.location.x,
+                                    y: blockGlobal.origin.y + value.location.y
+                                )
+                                dragOffset = value.translation
+                                isDragging = true
 
-            if !block.children.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(block.children) { child in
-                        BlockView(block: child)
+                                dragManager.prepareDragging(
+                                    type: block.type,
+                                    at: dragLocation,
+                                    offset: value.translation,
+                                    block: block,
+                                    source: .canvas
+                                )
+                                dragManager.updateDragPosition(dragLocation)
+                                dragManager.startDragging()
+                            }
+                            .onEnded { value in
+                                let dragLocation = CGPoint(
+                                    x: blockGlobal.origin.x + value.location.x,
+                                    y: blockGlobal.origin.y + value.location.y
+                                )
+                                isDragging = false
+                                dragOffset = .zero
+                                dragManager.endDragging(at: dragLocation)
+                            }
+                    )
+
+                if !block.children.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(block.children) { child in
+                            BlockView(block: child)
+                        }
                     }
+                    .padding(.leading, 20)
+                    .padding(.top, block.type == .start ? 2 : 0)
                 }
-                .padding(.leading, 20)
-                .padding(.top, block.type == .start ? 2 : 0)
             }
+            .padding(1)
+            .background(Color.clear)
         }
-        .padding(1)
-        .background(Color.clear)
+        .frame(height: blockSize.height)
     }
 
     private var blockSize: CGSize {
@@ -94,6 +80,8 @@ struct BlockView: View {
         }
     }
 }
+
+
 
 // MARK: - 미리보기 Preview
 #if DEBUG

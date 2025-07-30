@@ -19,31 +19,26 @@ struct BlockCanvasView: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 0) {
                     BlockView(block: startBlock)
-                    
-                    Spacer()
-                        .frame(height: 80)
+                    Spacer().frame(height: 80)
                 }
                 .padding(.top, 16)
                 .padding(.bottom, 100)
-                .frame(maxWidth : .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color(hex: "#F2F2F2"))
             .onChange(of: dragManager.isDragging) { dragging in
                 if !dragging,
                    let end = dragManager.dragEndedAt,
                    let type = dragManager.draggingType {
 
-                    let canvasArea = geo.frame(in: .named("global"))
+                    let extendedPaletteFrame = paletteFrame.insetBy(dx: -20, dy: -20)
 
-                    if paletteFrame.contains(end) {
-                        if let blockToRemove = dragManager.draggingBlock {
-                            onRemoveBlock(blockToRemove)
-                            print("🗑️ 삭제됨: \(type)")
-                        }
-                    } else if canvasArea.contains(end) {
+                    if extendedPaletteFrame.contains(end),
+                       let blockToRemove = dragManager.draggingBlock {
+                        onRemoveBlock(blockToRemove)
+                        print("🗑️ 삭제됨: \(blockToRemove.type)")
+                    } else {
                         onDropBlock(type)
-                        print("✅ 블록 캔버스에 추가됨: \(type)")
+                        print("✅ 캔버스에 블록 추가됨: \(type)")
                     }
 
                     dragManager.reset()
