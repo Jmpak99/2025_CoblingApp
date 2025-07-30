@@ -27,6 +27,7 @@ struct BlockCanvasView: View {
                 }
                 .padding(.top, 16)
                 .padding(.bottom, 100)
+                .padding(.leading, 20) // 왼쪽 여백 추가
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .onChange(of: startBlock.children.count) { newCount in
