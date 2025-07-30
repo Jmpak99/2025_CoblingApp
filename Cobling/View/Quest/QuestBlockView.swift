@@ -108,6 +108,7 @@ struct QuestBlockView: View {
                                 .font(.caption)
                                 .foregroundColor(.white)
                         )
+                        .ignoresSafeArea(.all, edges: .bottom)
                 } else {
                     Color.white
                 }
