@@ -85,16 +85,40 @@ struct QuestBlockView: View {
 
             if viewModel.showFailureDialog {
                 FailureDialogView {
-                    viewModel.resetExecution()
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        viewModel.showFailureDialog = false
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                        viewModel.resetExecution()
+                    }
                 }
                 .transition(.opacity)
+                .zIndex(10)
             }
             if viewModel.showSuccessDialog {
                 SuccessDialogView(
-                    onRetry: { viewModel.resetExecution() },
-                    onNext: { viewModel.resetExecution() }
+                    onRetry: {
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            viewModel.showSuccessDialog = false
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                            // "다시하기" 로직
+                            viewModel.resetExecution()
+                        }
+                    },
+                    onNext: {
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            viewModel.showSuccessDialog = false
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                            // "다음 퀘스트" 이동 로직 (원하면 viewModel도 초기화)
+                            viewModel.resetExecution()
+                            // 또는 다음 챕터/퀘스트 이동 등 추가 처리
+                        }
+                    }
                 )
                 .transition(.opacity)
+                .zIndex(10)
             }
         }
         .onChange(of: startBlock.children) { newChildren in
