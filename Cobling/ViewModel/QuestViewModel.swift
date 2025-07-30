@@ -137,8 +137,6 @@ class QuestViewModel: ObservableObject {
         isExecuting = false
         characterPosition = initialPosition
         characterDirection = .right
-        showFailureDialog = false
-        showSuccessDialog = false // ✅ 이 줄 추가!
         print("🔄 다시하기: 캐릭터 초기화 및 다이얼로그 종료")
     }
 }
