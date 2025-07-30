@@ -25,11 +25,11 @@ struct SubQuest: Identifiable {
 // MARK: - QuestDetailView
 
 struct QuestDetailView: View {
-    let chapter: Quest  // 전달받은 챕터 정보
+    let chapter: Quest
     @State private var showLockedAlert = false
-    
+    @State private var selectedSubQuest: SubQuest? = nil
+    @State private var isNavigatingToBlock = false
 
-    // 샘플 하위 퀘스트 리스트 (임시 하드코딩)
     private var subQuests: [SubQuest] {
         switch chapter.title {
         case "잠든 알의 속삭임":
@@ -54,7 +54,7 @@ struct QuestDetailView: View {
                 .font(.gmarketBold34)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 18)
-            
+
             Spacer().frame(height: 32)
 
             VStack(alignment: .leading, spacing: 0) {
@@ -74,13 +74,16 @@ struct QuestDetailView: View {
                             if quest.state == .locked {
                                 showLockedAlert = true
                             } else {
-                                // TODO: 게임 화면으로 이동
+                                selectedSubQuest = quest
+                                DispatchQueue.main.async {
+                                    isNavigatingToBlock = true
+                                }
                             }
                         }
                     }
                 }
             }
-            .scrollIndicators(.hidden) // 스크롤 바 숨기기
+            .scrollIndicators(.hidden)
 
             Spacer()
         }
@@ -88,7 +91,18 @@ struct QuestDetailView: View {
         .alert("잠긴 퀘스트입니다", isPresented: $showLockedAlert) {
             Button("확인", role: .cancel) {}
         }
-//        .navigationBarHidden(true)
+        .overlay(
+            Group {
+                if let subQuest = selectedSubQuest {
+                    NavigationLink(
+                        destination: QuestBlockView(subQuest: subQuest),
+                        isActive: $isNavigatingToBlock
+                    ) {
+                        EmptyView()
+                    }
+                }
+            }
+        )
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -104,8 +118,7 @@ struct SubQuestCard: View {
         Button(action: onTap) {
             ZStack {
                 VStack(spacing: 0) {
-                    Spacer()
-                        .frame(height: 80)
+                    Spacer().frame(height: 80)
 
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
@@ -168,11 +181,13 @@ struct SubQuestCard: View {
 
 struct QuestDetailView_Previews: PreviewProvider {
     static var previews: some View {
-        QuestDetailView(chapter: Quest(
-            title: "잠든 알의 속삭임",
-            subtitle: "깨어날 시간이에요, 코블링",
-            status: .completed,
-            backgroundColor: Color(hex: "#FFEEEF")
-        ))
+        NavigationStack {
+            QuestDetailView(chapter: Quest(
+                title: "잠든 알의 속삭임",
+                subtitle: "깨어날 시간이에요, 코블링",
+                status: .completed,
+                backgroundColor: Color(hex: "#FFEEEF")
+            ))
+        }
     }
 }
