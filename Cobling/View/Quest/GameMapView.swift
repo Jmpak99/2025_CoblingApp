@@ -4,6 +4,9 @@
 import SwiftUI
 struct GameMapView: View {
     @ObservedObject var viewModel: QuestViewModel
+    var questTitle: String
+    
+    
     @State private var isHintOn = false
     @State private var isStoryOn = false
 
@@ -17,7 +20,7 @@ struct GameMapView: View {
                 
                 HStack {
                     Spacer()
-                    Text("잠든 알의 속삭임")
+                    Text(questTitle)
                         .font(.gmarketBold34)
                         .foregroundColor(Color(hex: "#3A3A3A"))
                         .padding(.top, 12)
@@ -137,35 +140,4 @@ struct GameMapView: View {
 }
 
 
-// MARK: - 예제 미리보기
-#if DEBUG
-import SwiftUI
-
-struct GameMapView_Previews: PreviewProvider {
-    static var previews: some View {
-        // 1. 미리보기용 뷰모델 생성
-        let previewViewModel = QuestViewModel()
-        
-        // 2. 필요한 초기 상태 설정 (선택)
-        previewViewModel.characterPosition = (row: 4, col: 0)
-        previewViewModel.characterDirection = .right
-        previewViewModel.mapData = [
-            [1, 1, 1, 1, 1, 1, 2],
-            [1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1],
-            [1, 1, 1, 1, 1, 1, 1],
-            
-            
-        ]
-        
-        return GameMapView(viewModel: previewViewModel)
-            .previewLayout(.sizeThatFits)
-            .frame(height: 500)
-            .padding()
-    }
-}
-#endif
 

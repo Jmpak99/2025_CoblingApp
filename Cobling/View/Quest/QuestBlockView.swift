@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct QuestBlockView: View {
+    let subQuest: SubQuest
+    
     @StateObject private var dragManager = DragManager()
     @StateObject private var viewModel = QuestViewModel()
     @StateObject private var startBlock = Block(type: .start)
@@ -61,7 +63,7 @@ struct QuestBlockView: View {
     @ViewBuilder
     private func mainContent() -> some View {
         VStack(spacing: 0) {
-            GameMapView(viewModel: viewModel)
+            GameMapView(viewModel: viewModel, questTitle: subQuest.title)
                 .frame(height: 500)
             ZStack {
                 HStack(spacing: 0) {
@@ -128,14 +130,18 @@ struct QuestBlockView: View {
     }
 }
 
-// MARK: - Preview
 #if DEBUG
 struct QuestBlockView_Previews: PreviewProvider {
     static var previews: some View {
-        QuestBlockView()
-            .previewLayout(.device)
-            .previewDisplayName("블록코딩 미리보기")
-            .frame(width: 430, height: 932)
+        QuestBlockView(subQuest: SubQuest(
+            title: "1. 알 속의 꿈틀",
+            description: "무언가 꿈틀거려요.",
+            state: .inProgress
+        ))
+        .previewLayout(.device)
+        .previewDisplayName("퀘스트 블록 뷰 미리보기")
+        .frame(width: 430, height: 932)
     }
 }
 #endif
+
