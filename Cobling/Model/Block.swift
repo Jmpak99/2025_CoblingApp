@@ -7,7 +7,6 @@
 import Foundation
 import SwiftUI
 
-// MARK: - 블록 타입 정의
 enum BlockType: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 
@@ -49,7 +48,6 @@ enum BlockType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - 블록 모델 정의
 class Block: Identifiable, ObservableObject, Equatable {
     static func == (lhs: Block, rhs: Block) -> Bool {
         lhs.id == rhs.id

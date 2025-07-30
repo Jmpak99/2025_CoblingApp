@@ -4,7 +4,6 @@
 //
 //  Created by 박종민 on 2025/07/02.
 //
-
 import SwiftUI
 
 struct BlockView: View {
@@ -14,10 +13,9 @@ struct BlockView: View {
     @State private var isDragging: Bool = false
 
     var body: some View {
-        GeometryReader { blockGeo in
-            let blockGlobal = blockGeo.frame(in: .named("global"))
-
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            // 👉 최상위 BlockView에만 GeometryReader 적용
+            GeometryReader { blockGeo in
                 Image(block.type.imageName)
                     .resizable()
                     .frame(width: blockSize.width, height: blockSize.height)
@@ -27,13 +25,13 @@ struct BlockView: View {
                     .gesture(
                         DragGesture()
                             .onChanged { value in
+                                dragOffset = value.translation
+                                isDragging = true
+                                let blockGlobal = blockGeo.frame(in: .named("global"))
                                 let dragLocation = CGPoint(
                                     x: blockGlobal.origin.x + value.location.x,
                                     y: blockGlobal.origin.y + value.location.y
                                 )
-                                dragOffset = value.translation
-                                isDragging = true
-
                                 dragManager.prepareDragging(
                                     type: block.type,
                                     at: dragLocation,
@@ -45,59 +43,39 @@ struct BlockView: View {
                                 dragManager.startDragging()
                             }
                             .onEnded { value in
+                                isDragging = false
+                                dragOffset = .zero
+                                let blockGlobal = blockGeo.frame(in: .named("global"))
                                 let dragLocation = CGPoint(
                                     x: blockGlobal.origin.x + value.location.x,
                                     y: blockGlobal.origin.y + value.location.y
                                 )
-                                isDragging = false
-                                dragOffset = .zero
                                 dragManager.endDragging(at: dragLocation)
                             }
                     )
-
-                if !block.children.isEmpty {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(block.children) { child in
-                            BlockView(block: child)
-                        }
-                    }
-                    .padding(.leading, 20)
-                    .padding(.top, block.type == .start ? 2 : 0)
-                }
             }
-            .padding(1)
-            .background(Color.clear)
+            .frame(height: blockSize.height)
+
+            // 자식 블록: **GeometryReader 없이**
+            if !block.children.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(block.children, id: \.id) { child in
+                        BlockView(block: child)
+                            .environmentObject(dragManager)
+                    }
+                }
+                .padding(.leading, 20)
+                .padding(.top, block.type == .start ? 2 : 0)
+            }
         }
-        .frame(height: blockSize.height)
+        .padding(1)
+        .background(Color.clear)
     }
 
     private var blockSize: CGSize {
         switch block.type {
-        case .start:
-            return CGSize(width: 160, height: 50)
-        default:
-            return CGSize(width: 120, height: 30)
+        case .start:   return CGSize(width: 160, height: 50)
+        default:       return CGSize(width: 120, height: 30)
         }
     }
 }
-
-
-
-// MARK: - 미리보기 Preview
-#if DEBUG
-struct BlockView_Previews: PreviewProvider {
-    static var previews: some View {
-        let start = Block(type: .start)
-        start.children = [
-            Block(type: .moveForward),
-            Block(type: .turnLeft)
-        ]
-
-        return BlockView(block: start)
-            .previewLayout(.sizeThatFits)
-            .padding()
-            .background(Color.white)
-            .environmentObject(DragManager())
-    }
-}
-#endif
