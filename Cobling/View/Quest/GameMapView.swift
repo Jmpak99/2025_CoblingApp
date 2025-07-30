@@ -11,10 +11,10 @@ struct GameMapView: View {
         ZStack(alignment: .topLeading) {
             Color(hex: "#FFF2DC")
                 .ignoresSafeArea()
-
+            
             VStack(spacing: 8) {
                 Spacer().frame(height: 48)
-
+                
                 HStack {
                     Spacer()
                     Text("잠든 알의 속삭임")
@@ -24,7 +24,7 @@ struct GameMapView: View {
                     Spacer()
                 }
                 .padding(.top, 16)
-
+                
                 HStack {
                     HStack(spacing: 12) {
                         Button(action: {
@@ -34,7 +34,7 @@ struct GameMapView: View {
                                 .resizable()
                                 .frame(width: 28, height: 28)
                         }
-
+                        
                         Button(action: {
                             isHintOn.toggle()
                         }) {
@@ -44,9 +44,9 @@ struct GameMapView: View {
                         }
                     }
                     .padding(.leading, 40)
-
+                    
                     Spacer()
-
+                    
                     Button(action: {
                         // 나가기 처리
                     }) {
@@ -57,12 +57,12 @@ struct GameMapView: View {
                     .padding(.trailing, 40)
                     .padding(.top, 10)
                 }
-
+                
                 // MARK: - 맵 타일
                 ZStack {
                     let tileSize: CGFloat = 40
                     let map = viewModel.mapData
-
+                    
                     VStack(spacing: 0) {
                         ForEach(map.indices, id: \.self) { row in
                             HStack(spacing: 0) {
@@ -74,7 +74,7 @@ struct GameMapView: View {
                                                 .scaledToFit()
                                                 .frame(width: tileSize, height: tileSize)
                                         }
-
+                                        
                                         if map[row][col] == 2 {
                                             Image("gp_flag")
                                                 .resizable()
@@ -88,11 +88,11 @@ struct GameMapView: View {
                             }
                         }
                     }
-
+                    
                     GeometryReader { geo in
                         let characterX = CGFloat(viewModel.characterPosition.col) * tileSize + tileSize / 2
                         let characterY = CGFloat(viewModel.characterPosition.row) * tileSize + tileSize / 2
-
+                        
                         Image("cobling_character_super")
                             .resizable()
                             .scaledToFit()
@@ -103,22 +103,35 @@ struct GameMapView: View {
                 }
                 .padding(16)
             }
-
+            
+            // MARK: - 말풍선과 버튼
             VStack {
                 Spacer()
-                HStack {
+                HStack(alignment: .bottom, spacing: 8) {
                     Spacer()
-                    Button(action: {
-                        isStoryOn.toggle()
-                    }) {
-                        Image(isStoryOn ? "gp_story_btn_on" : "gp_story_btn_off")
-                            .resizable()
-                            .frame(width: 40, height: 40)
+                    
+                    ZStack(alignment: .trailing) {
+                        if isStoryOn {
+                            SpeechBubbleView(message: "응응..?? 여기 어디지??\n앞에 뭐가 보여!\n나 앞으로 4칸 가야 해!")
+                                .transition(.opacity)
+                                .padding(.trailing, 50) // 버튼과의 간격 확보
+                        }
+                        
+                        // 버튼은 항상 오른쪽 하단 고정
+                        Button(action: {
+                            withAnimation {
+                                isStoryOn.toggle()
+                            }
+                        }) {
+                            Image(isStoryOn ? "gp_story_btn_on" : "gp_story_btn_off")
+                                .resizable()
+                                .frame(width: 40, height: 40)
+                        }
                     }
+                    .padding(.trailing, 30)
                 }
-                .padding(.trailing, 30)
+                .padding(.bottom, 12)
             }
-            .padding(12)
         }
     }
 }
