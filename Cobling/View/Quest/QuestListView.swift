@@ -53,6 +53,7 @@ struct QuestListView: View {
                         }
                     }
                     .padding()
+                    .padding(.bottom, 100)
                 }
                 .scrollIndicators(.hidden) // 스크롤 바 숨기기
             }

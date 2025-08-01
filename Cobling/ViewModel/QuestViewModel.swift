@@ -37,13 +37,13 @@ class QuestViewModel: ObservableObject {
     @Published var showFailureDialog: Bool = false
     @Published var showSuccessDialog: Bool = false
     @Published var mapData: [[Int]] = [
-        [1, 1, 1, 1, 1, 1, 2],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 0, 0, 2],
+        [0, 0, 0, 0, 1, 1, 1],
+        [0, 0, 0, 0, 1, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0],
+        [1, 1, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
     ]
     @Published var startBlock = Block(type: .start)
     
