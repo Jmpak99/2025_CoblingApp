@@ -56,12 +56,28 @@ struct AppInfoRow: View {
         HStack {
             Text(title)
                 .font(.system(size: 16))
+            
             Spacer()
-            Image(systemName: "chevron.right")
-                .foregroundColor(.gray)
+            
+            // 버전정보일 경우 버전 텍스트 표시, 그 외는 chevron
+            if title == "버전정보" {
+                Text("v1.0.0")
+                    .font(.pretendardMedium18)
+                    .foregroundColor(.gray)
+            } else {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.gray)
+            }
         }
         .padding(.vertical, 12)
     }
+    
+    
+    // 앱 버전 정보 동적으로 가져오기
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        return "v\(version)"
+        }
 }
 
 // MARK: - Preview
