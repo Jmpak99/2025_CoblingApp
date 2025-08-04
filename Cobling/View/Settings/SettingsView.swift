@@ -33,15 +33,15 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Button("내 정보 수정") {
-                    // 수정 화면 이동
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color(hex: "#E9E8DD"))
-                .foregroundColor(.black)
-                .cornerRadius(8)
-                .font(.pretendardMedium14)
+                NavigationLink(destination: EditProfileView()) {
+                       Text("내 정보 수정")
+                           .padding(.horizontal, 12)
+                           .padding(.vertical, 6)
+                           .background(Color(hex: "#E9E8DD"))
+                           .foregroundColor(.black)
+                           .cornerRadius(8)
+                           .font(.pretendardMedium14)
+                   }
             }
             .padding()
             .background(RoundedRectangle(cornerRadius: 12)
