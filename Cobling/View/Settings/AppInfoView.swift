@@ -36,11 +36,11 @@ struct AppInfoView: View {
 
             List {
                 AppInfoRow(title: "버전정보")
-                AppInfoRow(title: "앱스토어 후기쓰기")
-                AppInfoRow(title: "앱 문의")
-                AppInfoRow(title: "오픈소스 라이선스")
-                AppInfoRow(title: "이용약관")
-                AppInfoRow(title: "개인정보 처리방침")
+                // AppInfoRow(title: "앱스토어 후기쓰기")
+                // AppInfoRow(title: "앱 문의")
+                // AppInfoRow(title: "오픈소스 라이선스")
+                // AppInfoRow(title: "이용약관")
+                // AppInfoRow(title: "개인정보 처리방침")
             }
             .listStyle(.plain)
         }
