@@ -23,7 +23,10 @@ struct RootTabContainer: View {
                 case .home:
                     HomeView()
                 case .profile:
-                    SettingsView()
+                    NavigationStack {
+                        SettingsView()
+                    }
+                    
                     
                 case .journal, .ranking:
                     EmptyView()
