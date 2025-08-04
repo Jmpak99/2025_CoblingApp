@@ -53,27 +53,27 @@ struct EditProfileView: View {
             }
             .padding(.horizontal)
             .padding(.top, 20)
-            .padding(.bottom, 18)
+            .padding(.bottom, 20)
 
             
             ScrollView {
                 VStack(spacing: 24) {
                     // 프로필 이미지
-                    VStack(spacing: 12) {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(width: 96, height: 96)
-                            .overlay(Image(systemName: "photo")
-                                        .font(.system(size: 30))
-                                        .foregroundColor(.gray))
-                        Text("개인")
-                            .font(.pretendardMedium14)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 4)
-                            .background(Color(hex: "#E9E8DD"))
-                            .cornerRadius(8)
-                    }
-                    .padding(.top, 20)
+//                    VStack(spacing: 12) {
+//                        RoundedRectangle(cornerRadius: 16)
+//                            .fill(Color.gray.opacity(0.2))
+//                            .frame(width: 96, height: 96)
+//                            .overlay(Image(systemName: "photo")
+//                                        .font(.system(size: 30))
+//                                        .foregroundColor(.gray))
+//                        Text("개인")
+//                            .font(.pretendardMedium14)
+//                            .padding(.horizontal, 16)
+//                            .padding(.vertical, 4)
+//                            .background(Color(hex: "#E9E8DD"))
+//                            .cornerRadius(8)
+//                    }
+//                    .padding(.top, 20)
                     
                     Group {
                         VStack(alignment: .leading, spacing: 8) {
@@ -145,7 +145,7 @@ struct EditProfileView: View {
                     .disabled(!isFormValid)
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 40)
+                .padding(.bottom, 100)
             }
         }
         .background(Color.white.ignoresSafeArea())
