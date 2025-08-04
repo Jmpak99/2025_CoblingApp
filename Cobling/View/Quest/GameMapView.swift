@@ -140,4 +140,16 @@ struct GameMapView: View {
 }
 
 
+#Preview {
+    let dummyViewModel = QuestViewModel()
+    dummyViewModel.mapData = [
+        [1, 1, 1, 1, 1, 1, 2],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1]
+    ]
+    dummyViewModel.characterPosition = (row: 4, col: 0)
 
+    return GameMapView(viewModel: dummyViewModel, questTitle: "잠든 알의 속삭임")
+}
