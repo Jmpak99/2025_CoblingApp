@@ -8,6 +8,9 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @State private var isEditProfileActive = false
+    
+    
     var body: some View {
         VStack(spacing: 0) {
             // 상단 제목
@@ -33,21 +36,26 @@ struct SettingsView: View {
 
                 Spacer()
 
-                NavigationLink(destination: EditProfileView()) {
-                       Text("내 정보 수정")
-                           .padding(.horizontal, 12)
-                           .padding(.vertical, 6)
-                           .background(Color(hex: "#E9E8DD"))
-                           .foregroundColor(.black)
-                           .cornerRadius(8)
-                           .font(.pretendardMedium14)
-                   }
+                Button("내 정보 수정") {
+                    isEditProfileActive = true
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(hex: "#E9E8DD"))
+                .foregroundColor(.black)
+                .cornerRadius(8)
+                .font(.pretendardMedium14)
             }
             .padding()
             .background(RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.gray.opacity(0.3), lineWidth: 1))
             .padding(.horizontal)
             .padding(.bottom, 8)
+            
+            NavigationLink(destination: EditProfileView(), isActive: $isEditProfileActive) {
+                EmptyView()
+            }
+            .hidden()
 
             // 설정 메뉴 리스트
             List {
