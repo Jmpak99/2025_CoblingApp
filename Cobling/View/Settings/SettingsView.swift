@@ -38,7 +38,7 @@ struct SettingsView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color(hex : "#E9E8DD"))
+                .background(Color(hex: "#E9E8DD"))
                 .foregroundColor(.black)
                 .cornerRadius(8)
                 .font(.pretendardMedium14)
@@ -52,10 +52,11 @@ struct SettingsView: View {
             // 설정 메뉴 리스트
             List {
                 SettingRow(title: "코블링 인스타그램")
-                // SettingRow(title: "알림 설정")
-                // SettingRow(title: "공지사항")
-                // SettingRow(title: "자주 묻는 질문")
-                SettingRow(title: "앱 정보")
+
+                // ✅ 앱 정보 항목은 NavigationLink로 연결
+                NavigationLink(destination: AppInfoView()) {
+                    SettingRow(title: "앱 정보")
+                }
             }
             .listStyle(.plain)
 
@@ -82,5 +83,7 @@ struct SettingRow: View {
 
 // MARK: - Preview
 #Preview {
-    SettingsView()
+    NavigationStack { // ✅ NavigationStack으로 감싸야 작동합니다
+        SettingsView()
+    }
 }
