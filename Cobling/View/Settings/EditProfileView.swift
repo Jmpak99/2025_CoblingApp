@@ -9,6 +9,7 @@ import SwiftUI
 
 struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var tabBarViewModel: TabBarViewModel // 하단 탭바 상태 제어하는 뷰모델
     
     @State private var nickname: String = ""
     @State private var email: String = ""
