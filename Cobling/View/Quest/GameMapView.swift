@@ -147,7 +147,7 @@ struct GameMapView: View {
                 .padding(.bottom, 12)
             }
 
-            // ✅ 힌트 말풍선을 ZStack 최상단에 별도로 위치
+            // 힌트 말풍선을 ZStack 최상단에 별도로 위치
             if isHintOn {
                 VStack {
                     Spacer().frame(height: 160) // 버튼 위치 아래로 조정
@@ -155,6 +155,7 @@ struct GameMapView: View {
                         Spacer().frame(width: 80) // 버튼 왼쪽 위치에 맞춤
                         SpeechBubbleView(message: "앞으로 가는 블록을 4번 써보세요! \n 앞으로가기와, 왼쪽으로 돌기를 조합해봐요 !")
                             .fixedSize()
+                            .padding(.top, 8)
                             .zIndex(100)
                             .transition(.opacity)
                         Spacer()
