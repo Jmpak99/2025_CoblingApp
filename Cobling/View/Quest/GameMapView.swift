@@ -15,15 +15,12 @@ struct GameMapView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // 배경 색
             Color(hex: "#FFF2DC")
                 .ignoresSafeArea()
 
-            // 본문 내용
             VStack(spacing: 8) {
                 Spacer().frame(height: 48)
 
-                // 퀘스트 제목
                 HStack {
                     Spacer()
                     Text(questTitle)
@@ -34,7 +31,7 @@ struct GameMapView: View {
                 }
                 .padding(.top, 16)
 
-                // 상단 버튼
+                // 상단 버튼들
                 HStack {
                     HStack(spacing: 12) {
                         Button(action: {
@@ -55,12 +52,12 @@ struct GameMapView: View {
                                 .frame(width: 28, height: 28)
                         }
                     }
-                    .padding(.leading, 40) // ✅ 버튼 묶음 전체에만 패딩 적용
+                    .padding(.leading, 40)
                     .zIndex(1)
 
                     Spacer()
 
-                    // 나가기 버튼
+                    // ✅ 나가기 버튼
                     Button(action: {
                         goBackToQuestList = true
                     }) {
@@ -72,7 +69,7 @@ struct GameMapView: View {
                     .padding(.top, 10)
                 }
 
-                // 맵 영역
+                // 맵
                 ZStack {
                     let tileSize: CGFloat = 40
                     let map = viewModel.mapData
@@ -103,7 +100,6 @@ struct GameMapView: View {
                         }
                     }
 
-                    // 캐릭터
                     GeometryReader { geo in
                         let characterX = CGFloat(viewModel.characterPosition.col) * tileSize + tileSize / 2
                         let characterY = CGFloat(viewModel.characterPosition.row) * tileSize + tileSize / 2
@@ -148,12 +144,12 @@ struct GameMapView: View {
                 .padding(.bottom, 12)
             }
 
-            // 힌트 말풍선을 ZStack 최상단에 별도로 위치
+            // 힌트 말풍선
             if isHintOn {
                 VStack {
-                    Spacer().frame(height: 160) // 버튼 위치 아래로 조정
+                    Spacer().frame(height: 160)
                     HStack {
-                        Spacer().frame(width: 80) // 버튼 왼쪽 위치에 맞춤
+                        Spacer().frame(width: 80)
                         SpeechBubbleView(message: "앞으로 가는 블록을 4번 써보세요! \n 앞으로가기와, 왼쪽으로 돌기를 조합해봐요 !")
                             .fixedSize()
                             .padding(.top, 8)
@@ -164,13 +160,14 @@ struct GameMapView: View {
                     Spacer()
                 }
             }
-            
-            NavigationLink(destination: QuestListView(), isActive: $goBackToQuestList) {
-                EmptyView()
-            }.hidden()
+        }
+        // ✅ iOS 16 이상 권장 방식
+        .navigationDestination(isPresented: $goBackToQuestList) {
+            QuestListView()
         }
     }
 }
+
 
 #Preview {
     let dummyViewModel = QuestViewModel()
