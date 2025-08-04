@@ -52,9 +52,9 @@ struct SettingsView: View {
             // 설정 메뉴 리스트
             List {
                 SettingRow(title: "코블링 인스타그램")
-                SettingRow(title: "알림 설정")
-                SettingRow(title: "공지사항")
-                SettingRow(title: "자주 묻는 질문")
+                // SettingRow(title: "알림 설정")
+                // SettingRow(title: "공지사항")
+                // SettingRow(title: "자주 묻는 질문")
                 SettingRow(title: "앱 정보")
             }
             .listStyle(.plain)
