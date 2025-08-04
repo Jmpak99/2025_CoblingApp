@@ -8,15 +8,17 @@
 import SwiftUI
 
 struct AppInfoView: View {
+    @Environment(\.dismiss) private var dismiss
+    
     var body: some View {
         VStack(spacing: 0) {
             // 상단 타이틀
             HStack(spacing: 8) {
                 Button(action: {
-                    // 뒤로 가기 처리
+                    dismiss()
                 }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .medium))
+                        .font(.pretendardMedium18)
                         .foregroundColor(.black)
                         .padding(.top, 2)
                 }
