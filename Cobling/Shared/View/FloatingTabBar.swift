@@ -9,16 +9,16 @@ import SwiftUI
 
 // MARK: - TabItem Enum
 
-enum TabItem: Int, CaseIterable { // Int와 CaseIterable 프로토콜 채택
+enum TabItem: Int, CaseIterable {
     case quest, journal, home, ranking, profile // 5개의 탭 정의
 
     // 탭에 사용될 아이콘 이름 (Assets에 등록된 이미지 이름과 연결됨)
     var iconName: String {
         switch self {
         case .quest: return "tab_icon_quest"
-        case .journal: return "tab_icon_journal"
+        case .journal: return "tab_icon_journal"     // ⛔ 기록장 (탭바에 비표시)
         case .home: return "tab_icon_home"
-        case .ranking: return "tab_icon_ranking"
+        case .ranking: return "tab_icon_ranking"     // ⛔ 랭킹 (탭바에 비표시)
         case .profile: return "tab_icon_profile"
         }
     }
@@ -27,9 +27,9 @@ enum TabItem: Int, CaseIterable { // Int와 CaseIterable 프로토콜 채택
     var title: String {
         switch self {
         case .quest: return "퀘스트"
-        case .journal: return "기록장"
+        case .journal: return "기록장"               // ⛔ 기록장 (탭바에 비표시)
         case .home: return "홈"
-        case .ranking: return "랭킹"
+        case .ranking: return "랭킹"                 // ⛔ 랭킹 (탭바에 비표시)
         case .profile: return "프로필"
         }
     }
@@ -38,13 +38,16 @@ enum TabItem: Int, CaseIterable { // Int와 CaseIterable 프로토콜 채택
 // MARK: - FloatingTabBar View (하단 탭바 UI 구성)
 
 struct FloatingTabBar: View {
-    @Binding var selectedTab: TabItem // 선택된 탭을 바인딩으로 전달받음
+    @Binding var selectedTab: TabItem
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
+
+    // ⏳ 현재 탭바에 표시할 탭들만 정의
+    private let visibleTabs: [TabItem] = [.quest, .home, .profile]
 
     var body: some View {
         if tabBarViewModel.isTabBarVisible {
             HStack(spacing: 0) {
-                ForEach(TabItem.allCases, id: \.self) { tab in
+                ForEach(visibleTabs, id: \.self) { tab in
                     Button(action: {
                         selectedTab = tab
                     }) {
@@ -82,17 +85,16 @@ struct FloatingTabBar: View {
 // MARK: - Preview Helper
 
 struct StatefulPreviewWrapper<Value: Equatable, Content: View>: View {
-    @State private var value: Value // 프리뷰에서 사용할 상태 변수
-    let content: (Binding<Value>) -> Content // 바인딩을 뷰에 전달하는 클로저
-    
-    // 초기값을 받아 상태 변수로 설정하고, 클로저로 뷰 구성
+    @State private var value: Value
+    let content: (Binding<Value>) -> Content
+
     init(_ initialValue: Value, @ViewBuilder content: @escaping (Binding<Value>) -> Content) {
         _value = State(initialValue: initialValue)
         self.content = content
     }
 
     var body: some View {
-        content($value) // 바인딩된 값을 클로저에 전달
+        content($value)
     }
 }
 
@@ -100,15 +102,14 @@ struct StatefulPreviewWrapper<Value: Equatable, Content: View>: View {
 
 struct FloatingTabBar_Previews: PreviewProvider {
     static var previews: some View {
-        StatefulPreviewWrapper(TabItem.home) { selectedTab in // 초기 선택 탭: 홈
+        StatefulPreviewWrapper(TabItem.home) { selectedTab in
             VStack {
-                Spacer() // 상단 공간 확보
-                FloatingTabBar(selectedTab: selectedTab) // 플로팅 탭바 표시
+                Spacer()
+                FloatingTabBar(selectedTab: selectedTab)
             }
             .environmentObject(TabBarViewModel())
-            .background(Color.gray.opacity(0.1)) // 배경색 설정
-            .edgesIgnoringSafeArea(.bottom) // 탭바가 화면 하단까지 표시되도록 설정
-
+            .background(Color.gray.opacity(0.1))
+            .edgesIgnoringSafeArea(.bottom)
         }
     }
 }
