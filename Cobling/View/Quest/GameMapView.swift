@@ -11,6 +11,7 @@ struct GameMapView: View {
 
     @State private var isHintOn = false
     @State private var isStoryOn = false
+    @State private var goBackToQuestList = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -61,7 +62,7 @@ struct GameMapView: View {
 
                     // 나가기 버튼
                     Button(action: {
-                        // 나가기 처리
+                        goBackToQuestList = true
                     }) {
                         Image("gp_out")
                             .resizable()
@@ -163,6 +164,10 @@ struct GameMapView: View {
                     Spacer()
                 }
             }
+            
+            NavigationLink(destination: QuestListView(), isActive: $goBackToQuestList) {
+                EmptyView()
+            }.hidden()
         }
     }
 }
