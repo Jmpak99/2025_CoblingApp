@@ -9,12 +9,29 @@ import SwiftUI
 
 struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
-
+    
     @State private var nickname: String = ""
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var confirmPassword: String = ""
 
+    // MARK: - Validation 상태
+    private var isPasswordMismatch: Bool {
+        !confirmPassword.isEmpty && password != confirmPassword
+    }
+
+    private var isPasswordValid: Bool {
+        let regex = "^(?=.*[a-z])(?=.*\\d)[a-z\\d]{8,}$"
+        return NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: password)
+    }
+
+    private var isFormValid: Bool {
+        !nickname.isEmpty &&
+        !email.isEmpty &&
+        isPasswordValid &&
+        password == confirmPassword
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // 상단 바
@@ -23,102 +40,115 @@ struct EditProfileView: View {
                     dismiss()
                 }) {
                     Image(systemName: "chevron.left")
-                        .font(.pretendardMedium18)
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundColor(.black)
-                        .padding(.top, 2)
                 }
-
+                
                 Text("내 정보 수정")
-                    .font(.pretendardBold24)
+                    .font(.pretendardBold34)
                     .foregroundColor(.black)
-
+                
                 Spacer()
             }
             .padding(.horizontal)
             .padding(.top, 20)
-            .padding(.bottom, 30)
+            .padding(.bottom, 18)
 
-            // 프로필 이미지
-            VStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(hex: "#E9E8DD"))
-                    .frame(width: 100, height: 100)
-                    .overlay(
-                        Image(systemName: "photo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 40, height: 40)
-                            .foregroundColor(.gray)
-                    )
-
-                Text("개인")
-                    .font(.pretendardMedium14)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 4)
-                    .background(Color(hex: "#E9E8DD"))
-                    .cornerRadius(6)
+            
+            ScrollView {
+                VStack(spacing: 24) {
+                    // 프로필 이미지
+                    VStack(spacing: 12) {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(width: 96, height: 96)
+                            .overlay(Image(systemName: "photo")
+                                        .font(.system(size: 30))
+                                        .foregroundColor(.gray))
+                        Text("개인")
+                            .font(.pretendardMedium14)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 4)
+                            .background(Color(hex: "#E9E8DD"))
+                            .cornerRadius(8)
+                    }
+                    .padding(.top, 20)
+                    
+                    Group {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("닉네임")
+                                .font(.pretendardBold14)
+                            TextField("이름을 입력하세요.", text: $nickname)
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.4)))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("이메일")
+                                .font(.pretendardBold14)
+                            TextField("이메일을 입력하세요", text: $email)
+                                .keyboardType(.emailAddress)
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.4)))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("비밀번호")
+                                .font(.pretendardBold14)
+                            SecureField("영어소문자, 숫자 포함 8자 이상", text: $password)
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.4)))
+                            
+                            if !password.isEmpty && !isPasswordValid {
+                                Text("영어 소문자와 숫자를 포함해 8자 이상 입력해주세요.")
+                                    .foregroundColor(.red)
+                                    .font(.pretendardMedium14)
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("비밀번호 확인")
+                                .font(.pretendardBold14)
+                            SecureField("비밀번호를 다시 입력하세요", text: $confirmPassword)
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.4)))
+                            
+                            if isPasswordMismatch {
+                                Text("비밀번호가 일치하지 않습니다.")
+                                    .foregroundColor(.red)
+                                    .font(.pretendardMedium14)
+                            }
+                        }
+                    }
+                    
+                    // 완료 버튼
+                    Button(action: {
+                        print("완료 버튼 눌림")
+                    }) {
+                        Text("완료")
+                            .foregroundColor(.black)
+                            .font(.pretendardBold18)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(isFormValid ? Color(hex: "#E9E8DD") : Color.gray.opacity(0.2))
+                            .cornerRadius(10)
+                    }
+                    .disabled(!isFormValid)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 40)
             }
-            .padding(.bottom, 20)
-
-            Divider()
-
-            // 입력 필드
-            VStack(spacing: 20) {
-                LabeledTextField(label: "닉네임", placeholder: "이름을 입력하세요.", text: $nickname)
-                LabeledTextField(label: "이메일", placeholder: "email@email.com", text: $email)
-                LabeledTextField(label: "비밀번호", placeholder: "영어소문자, 숫자 포함 8자 이상", text: $password, isSecure: true)
-                LabeledTextField(label: "비밀번호 확인", placeholder: "영어소문자, 숫자 포함 8자 이상", text: $confirmPassword, isSecure: true)
-            }
-            .padding(.top, 24)
-            .padding(.horizontal)
-
-            Spacer()
-
-            // 완료 버튼
-            Button(action: {
-                // 저장 동작 처리
-            }) {
-                Text("완료")
-                    .font(.pretendardBold18)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color(hex: "#E9E8DD"))
-                    .foregroundColor(.black)
-                    .cornerRadius(12)
-            }
-            .padding()
         }
+        .background(Color.white.ignoresSafeArea())
         .navigationBarHidden(true)
-    }
-}
-
-// MARK: - Label + TextField 컴포넌트
-struct LabeledTextField: View {
-    var label: String
-    var placeholder: String
-    @Binding var text: String
-    var isSecure: Bool = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.pretendardMedium14)
-            if isSecure {
-                SecureField(placeholder, text: $text)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                    )
-            } else {
-                TextField(placeholder, text: $text)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                    )
-            }
-        }
     }
 }
 
