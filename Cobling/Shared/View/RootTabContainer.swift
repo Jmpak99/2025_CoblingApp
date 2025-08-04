@@ -20,14 +20,13 @@ struct RootTabContainer: View {
                     NavigationStack {
                         QuestListView()
                     }
-                case .journal:
-                    JournalView()
                 case .home:
                     HomeView()
-                case .ranking:
-                    RankingView()
                 case .profile:
                     SettingsView()
+                    
+                case .journal, .ranking:
+                    EmptyView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -44,4 +43,5 @@ struct RootTabContainer: View {
 #Preview {
     RootTabContainer()
         .environmentObject(AppState())
+        .environmentObject(TabBarViewModel())
 }
