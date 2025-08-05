@@ -47,26 +47,34 @@ struct SettingsView: View {
                 .font(.pretendardMedium14)
             }
             .padding()
-            .background(RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 1))
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
             .padding(.horizontal)
             .padding(.bottom, 8)
-            
+
             NavigationLink(destination: EditProfileView(), isActive: $isEditProfileActive) {
                 EmptyView()
             }
             .hidden()
 
-            // 설정 메뉴 리스트
-            List {
-                SettingRow(title: "코블링 인스타그램")
+            // 설정 메뉴 리스트 (VStack으로 커스터마이징)
+            VStack(spacing: 0) {
+                NavigationLink(destination: Text("인스타그램으로 이동")) {
+                    SettingRow(title: "코블링 인스타그램")
+                }
+                Divider()
+                    .padding(.leading)
 
-                // ✅ 앱 정보 항목은 NavigationLink로 연결
                 NavigationLink(destination: AppInfoView()) {
                     SettingRow(title: "앱 정보")
                 }
+                Divider()
+                    .padding(.leading)
             }
-            .listStyle(.plain)
+            .padding(.horizontal)
+            .padding(.top, 16)
 
             Spacer()
         }
@@ -76,22 +84,29 @@ struct SettingsView: View {
 // MARK: - 단일 항목 컴포넌트
 struct SettingRow: View {
     let title: String
+    var showArrow: Bool = true
 
     var body: some View {
         HStack {
             Text(title)
                 .font(.system(size: 16))
+                .foregroundColor(.black)
             Spacer()
-            Image(systemName: "chevron.right")
-                .foregroundColor(.gray)
+            if showArrow {
+                Image(systemName: "chevron.right")
+                    .resizable()
+                    .frame(width: 6, height: 12)
+                    .foregroundColor(.gray)
+            }
         }
         .padding(.vertical, 12)
+        .contentShape(Rectangle()) // 탭 가능한 영역 확장
     }
 }
 
 // MARK: - Preview
 #Preview {
-    NavigationStack { // ✅ NavigationStack으로 감싸야 작동합니다
+    NavigationStack {
         SettingsView()
     }
 }
