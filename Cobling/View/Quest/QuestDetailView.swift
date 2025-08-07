@@ -4,7 +4,6 @@
 //
 //  Created by 박종민 on 6/20/25.
 //
-
 import SwiftUI
 
 // MARK: - 하위 퀘스트 상태
@@ -48,25 +47,25 @@ struct QuestDetailView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // 챕터 타이틀
-            Text(chapter.title)
-                .font(.gmarketBold34)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 18)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // 챕터 타이틀
+                Text(chapter.title)
+                    .font(.gmarketBold34)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 18)
 
-            Spacer().frame(height: 32)
+                Spacer().frame(height: 32)
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text("코블링의 퀘스트")
-                    .font(.pretendardBold24)
-                    .padding(.bottom, 4)
-                Text("코블링과 함께 문제를 해결해 보세요!")
-                    .font(.pretendardBold14)
-                    .foregroundColor(.gray)
-            }
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("코블링의 퀘스트")
+                        .font(.pretendardBold24)
+                        .padding(.bottom, 4)
+                    Text("코블링과 함께 문제를 해결해 보세요!")
+                        .font(.pretendardBold14)
+                        .foregroundColor(.gray)
+                }
 
-            ScrollView {
                 VStack(spacing: 16) {
                     ForEach(subQuests) { quest in
                         SubQuestCard(subQuest: quest,
@@ -82,12 +81,14 @@ struct QuestDetailView: View {
                         }
                     }
                 }
-            }
-            .scrollIndicators(.hidden)
+                .frame(maxWidth: .infinity, alignment: .center)
 
-            Spacer()
+                Spacer(minLength: 40)
+            }
+            .frame(maxWidth: 600) // ✅ 아이패드 중앙정렬을 위한 너비 제한
+            .padding(.horizontal)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding()
         .alert("잠긴 퀘스트입니다", isPresented: $showLockedAlert) {
             Button("확인", role: .cancel) {}
         }
@@ -107,7 +108,7 @@ struct QuestDetailView: View {
     }
 }
 
-// MARK: - 하위 퀘스트 카드 컴포넌트
+// MARK: - 하위 퀘스트 카드
 
 struct SubQuestCard: View {
     let subQuest: SubQuest

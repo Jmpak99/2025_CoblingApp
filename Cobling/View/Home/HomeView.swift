@@ -157,6 +157,7 @@ struct HomeView: View {
             }
             .navigationBarHidden(true) // 기본으로 생성되는 네비게이션 바 숨김 처리
         }
+        .navigationViewStyle(.stack)
     }
 }
 
