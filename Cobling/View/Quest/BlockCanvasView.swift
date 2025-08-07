@@ -9,6 +9,7 @@ import SwiftUI
 struct BlockCanvasView: View {
     @ObservedObject var startBlock: Block
     @EnvironmentObject var dragManager: DragManager
+    @EnvironmentObject var viewModel: QuestViewModel
     var onDropBlock: (BlockType) -> Void
     var onRemoveBlock: (Block) -> Void
     @Binding var paletteFrame: CGRect
@@ -21,6 +22,7 @@ struct BlockCanvasView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     BlockView(block: startBlock)
                         .environmentObject(dragManager)
+                        .environmentObject(viewModel)
                     Color.clear
                         .frame(height: 1)
                         .id("canvasBottom")

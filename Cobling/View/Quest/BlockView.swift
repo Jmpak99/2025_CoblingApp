@@ -9,19 +9,21 @@ import SwiftUI
 struct BlockView: View {
     @ObservedObject var block: Block
     @EnvironmentObject var dragManager: DragManager
+    @EnvironmentObject var viewModel: QuestViewModel // ✅ 실행 상태를 위한 ViewModel 주입
+
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 👉 최상위 BlockView에만 GeometryReader 적용
             GeometryReader { blockGeo in
                 Image(block.type.imageName)
                     .resizable()
                     .frame(width: blockSize.width, height: blockSize.height)
-                    .scaleEffect(isDragging ? 1.05 : 1.0)
-                    .opacity(isDragging ? 0.8 : 1.0)
+                    .scaleEffect(scale)
+                    .opacity(currentOpacity) // ✅ 실행/드래그 상태 기반 투명도
                     .offset(dragOffset)
+                    .animation(.easeInOut(duration: 0.25), value: currentOpacity)
                     .gesture(
                         DragGesture()
                             .onChanged { value in
@@ -56,12 +58,12 @@ struct BlockView: View {
             }
             .frame(height: blockSize.height)
 
-            // 자식 블록: **GeometryReader 없이**
             if !block.children.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(block.children, id: \.id) { child in
                         BlockView(block: child)
                             .environmentObject(dragManager)
+                            .environmentObject(viewModel) // ✅ 자식에게도 전달
                     }
                 }
                 .padding(.leading, 20)
@@ -72,10 +74,32 @@ struct BlockView: View {
         .background(Color.clear)
     }
 
+    // 블록 크기
     private var blockSize: CGSize {
         switch block.type {
         case .start:   return CGSize(width: 160, height: 50)
         default:       return CGSize(width: 120, height: 30)
+        }
+    }
+
+    // ✅ 현재 실행 중인 블록인지 여부
+    private var isExecutingThisBlock: Bool {
+        viewModel.currentExecutingBlockID == block.id
+    }
+
+    // ✅ scale 효과: 드래그 시 or 실행 중인 블록일 때 강조
+    private var scale: CGFloat {
+        isDragging || isExecutingThisBlock ? 1.05 : 1.0
+    }
+
+    // ✅ opacity 설정 로직
+    private var currentOpacity: Double {
+        if isDragging {
+            return 0.8
+        } else if viewModel.isExecuting && !isExecutingThisBlock {
+            return 0.3 // 실행 중이지만 이 블록이 아니면 어둡게
+        } else {
+            return 1.0 // 평소 or 실행 중인 블록
         }
     }
 }
