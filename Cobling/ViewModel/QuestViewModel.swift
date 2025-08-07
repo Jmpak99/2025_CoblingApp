@@ -50,8 +50,10 @@ class QuestViewModel: ObservableObject {
         [0, 0, 0, 0, 0, 0, 0],
     ]
     @Published var startBlock = Block(type: .start) // 시작 블록 (루트 블록)
+    @Published var currentExecutingBlockID: UUID? = nil
+    @Published var isExecuting: Bool = false
     
-    private var isExecuting = false // 실행 중 여부
+    // private var isExecuting = false // 실행 중 여부
     private let initialPosition = (row: 4, col: 0) // 시작 위치
     private let goalTile = 2 // 도착 지점(깃발) 타일값
     
@@ -83,6 +85,7 @@ class QuestViewModel: ObservableObject {
 
         // 현재 실행할 불록
         let current = blocks[index]
+        currentExecutingBlockID = current.id
         print("▶️ 현재 실행 중인 블록: \(current.type)")
 
         // 블록 타입에 따른 동작 처리
@@ -147,6 +150,7 @@ class QuestViewModel: ObservableObject {
     // MARK: - 실패 시 캐릭터 초기 위치로 되돌리기
     func resetToStart() {
         isExecuting = false
+        currentExecutingBlockID = nil
         characterPosition = initialPosition // 시작 위치로 초기화
         characterDirection = .right // 방향도 초기화
         showFailureDialog = true // 실패 다이얼로그 표시
@@ -156,6 +160,7 @@ class QuestViewModel: ObservableObject {
     // MARK: - 다이얼로그 종료 후 상태 초기화
     func resetExecution() {
         isExecuting = false
+        currentExecutingBlockID = nil 
         characterPosition = initialPosition // 위치 초기화
         characterDirection = .right // 방향 초기화
         print("🔄 다시하기: 캐릭터 초기화 및 다이얼로그 종료")

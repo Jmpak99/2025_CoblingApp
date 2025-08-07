@@ -104,6 +104,7 @@ struct QuestBlockView: View {
                     )
                     .background(Color.gray.opacity(0.1)) // 캔버스 배경
                     .environmentObject(dragManager) // 드래그 매니저 전달
+                    .environmentObject(viewModel)
                 }
                 .coordinateSpace(name: "global") // 좌표 기준 설정
                 ghostBlockViewIfNeeded() // 드래그 중 고스트 블록 표시
@@ -172,6 +173,7 @@ struct QuestBlockView_Previews: PreviewProvider {
             state: .inProgress
         ))
         .environmentObject(TabBarViewModel()) // 미리보기용 탭바 뷰 모델 주입
+        .environmentObject(QuestViewModel())
         .previewLayout(.device) // 기기 화면에 맞춰 미리보기
         .previewDisplayName("퀘스트 블록 뷰 미리보기") // 미리보기 이름 지정
         .frame(width: 430, height: 932) // 아이폰 14 프로맥스 크기
