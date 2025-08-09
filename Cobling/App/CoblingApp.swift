@@ -10,6 +10,7 @@ import SwiftUI
 
 @main
 struct CoblingApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject var appState = AppState()
     @StateObject var tabBarViewModel = TabBarViewModel()
 
@@ -30,3 +31,5 @@ struct CoblingApp: App {
         }
     }
 }
+
+
