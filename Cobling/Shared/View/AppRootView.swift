@@ -7,23 +7,43 @@
 
 import SwiftUI
 
-// 앱 전체의 루트 뷰를 정의하는 구조체
-// 스플래시 화면이 끝나면 탭이 포함된 메인 화면으로 전환됨
+/// 앱 루트 컨테이너
+/// - 스플래시 종료 후 인증 상태에 따라 분기:
+///   - 로그인 O  → RootTabContainer()
+///   - 로그인 X  → SignupView()
+/// - SignupView의 콜백을 AppRoot에서 처리 (이메일 가입 시트/로그인 성공 전환)
 struct AppRootView: View {
-    @EnvironmentObject var appState: AppState // 앱의 전역 상태를 관리하는 AppState를 환경 객체로 주입받음
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var authVM: AuthViewModel
+    @EnvironmentObject var tabBarViewModel: TabBarViewModel
 
     var body: some View {
-        Group { // 조건에 따라 서로 다른 뷰를 보여주기 위한 Group 컨테이너
-            if appState.isSplashDone { // 스플래시가 끝났는지 여부
-                RootTabContainer() // 탭바 포함된 화면
+        ZStack {
+            if !appState.isSplashDone {
+                SplashView()
+            } else if authVM.isSignedIn {
+                RootTabContainer()
             } else {
-                SplashView() // 스플래시 화면을 보여줌
-                    .onAppear { // 뷰가 나타날 때 실행
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { // 2초 후에
-                            appState.isSplashDone = true // 스플래시 완료 상태로 변경하여 화면 전환 유도
-                        }
-                    }
+                // ✅ 푸시 내비게이션 사용
+                NavigationStack {
+                    SignupView(
+                        onTapLogin: { authVM.isSignedIn = true },
+                        onTapEmailSignup: { /* 필요 시 트래킹만 */ }
+                    )
+                }
             }
         }
+        .task {
+            guard !appState.isSplashDone else { return }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            appState.isSplashDone = true
+        }
     }
+}
+
+#Preview {
+    AppRootView()
+        .environmentObject(AppState())
+        .environmentObject(AuthViewModel())
+        .environmentObject(TabBarViewModel())
 }
