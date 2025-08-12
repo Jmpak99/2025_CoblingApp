@@ -13,6 +13,7 @@ struct CoblingApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject var appState = AppState()
     @StateObject var tabBarViewModel = TabBarViewModel()
+    @StateObject var authViewModel = AuthViewModel()
 
     init() {
         for family in UIFont.familyNames.sorted() {
@@ -28,6 +29,7 @@ struct CoblingApp: App {
             AppRootView()
                 .environmentObject(appState)
                 .environmentObject(tabBarViewModel)
+                .environmentObject(authViewModel)
         }
     }
 }
