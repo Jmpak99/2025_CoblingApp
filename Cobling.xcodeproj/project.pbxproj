@@ -18,6 +18,7 @@
 		883444F82E45CC3900BC0787 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 883444F72E45CC3900BC0787 /* FirebaseFunctions */; };
 		883444FC2E45CC3900BC0787 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 883444FB2E45CC3900BC0787 /* FirebaseMessaging */; };
 		883444FE2E45CC3900BC0787 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 883444FD2E45CC3900BC0787 /* FirebaseStorage */; };
+		88B719D02E4EB29C00231AD8 /* FirebaseFirestoreCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 88B719CF2E4EB29C00231AD8 /* FirebaseFirestoreCombine-Community */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -89,6 +90,7 @@
 				883444F22E45CC3900BC0787 /* FirebaseCore in Frameworks */,
 				883444F62E45CC3900BC0787 /* FirebaseFirestore in Frameworks */,
 				883444F42E45CC3900BC0787 /* FirebaseDatabase in Frameworks */,
+				88B719D02E4EB29C00231AD8 /* FirebaseFirestoreCombine-Community in Frameworks */,
 				883444E82E45CC3900BC0787 /* FirebaseAI in Frameworks */,
 				883444FC2E45CC3900BC0787 /* FirebaseMessaging in Frameworks */,
 			);
@@ -162,6 +164,7 @@
 				883444F72E45CC3900BC0787 /* FirebaseFunctions */,
 				883444FB2E45CC3900BC0787 /* FirebaseMessaging */,
 				883444FD2E45CC3900BC0787 /* FirebaseStorage */,
+				88B719CF2E4EB29C00231AD8 /* FirebaseFirestoreCombine-Community */,
 			);
 			productName = Cobling;
 			productReference = 8857E7DC2E049CFF001FBEFC /* Cobling.app */;
@@ -682,6 +685,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 883444E62E45CC3900BC0787 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseStorage;
+		};
+		88B719CF2E4EB29C00231AD8 /* FirebaseFirestoreCombine-Community */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 883444E62E45CC3900BC0787 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = "FirebaseFirestoreCombine-Community";
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
