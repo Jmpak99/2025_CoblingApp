@@ -11,7 +11,6 @@ import SwiftUI
 /// - 스플래시 종료 후 인증 상태에 따라 분기:
 ///   - 로그인 O  → RootTabContainer()
 ///   - 로그인 X  → LoginView(‘가입하기’ 누르면 SignupView로 푸시)
-
 struct AppRootView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authVM: AuthViewModel
@@ -27,20 +26,18 @@ struct AppRootView: View {
             } else if authVM.isSignedIn {
                 RootTabContainer()
             } else {
-                // ✅ 푸시 내비게이션 시작점
+                // ✅ 로그인/회원가입 내비게이션 스택
                 NavigationStack {
                     LoginView(
-                        onBack: { /* 필요 시 커스텀 동작 */ },
-                        onLoginSuccess: { authVM.isSignedIn = true },
-                        onTapSignup: { goToSignup = true }   // ← 가입하기 탭 시 사인업으로 이동
+                        onBack: { /* 필요시 처리 */ },
+                        onLoginSuccess: { /* 상태는 Auth 리스너로 자동 반영 */ },
+                        onTapSignup: { goToSignup = true }
                     )
-                    // ✅ 목적지: 사인업 뷰 (푸시 전환)
                     .navigationDestination(isPresented: $goToSignup) {
                         SignupView(
-                            onTapLogin: { authVM.isSignedIn = true },  // 사인업 내 로그인 성공 처리 시
-                            onTapEmailSignup: { /* 이메일 가입 폼 진입 시 트래킹 등 */ }
+                            onTapLogin: { /* 상태는 Auth 리스너로 자동 반영 */ },
+                            onTapEmailSignup: { /* 필요 시 트래킹 등 */ }
                         )
-                        .environmentObject(authVM) // (안전하게 명시 주입)
                     }
                 }
             }
