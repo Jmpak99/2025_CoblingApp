@@ -123,23 +123,12 @@ struct EmailSignupView: View {
         errorText = nil
         isLoading = true
         do {
-            // 실제 Firebase 연동 시:
-            // try await authVM.signUp(email: email, password: password, nickname: name)
-            // 데모:
-            await MainActor.run {
-                authVM.isSignedIn = false // 가입 직후엔 로그인 안 된 상태 유지
-            }
-
-            // ✅ 가입 성공 → 부모가 네비게이션 전환하도록 콜백 호출
-            await MainActor.run {
-                onSignupSuccess()
-            }
+            try await authVM.signUp(email: email, password: password, nickname: name)
+            onSignupSuccess() // ✅ 가입 성공 → 부모가 로그인 화면으로 넘김
         } catch {
-            await MainActor.run {
-                errorText = authVM.authError ?? error.localizedDescription
-            }
+            errorText = authVM.authError ?? error.localizedDescription
         }
-        await MainActor.run { isLoading = false }
+        isLoading = false
     }
 }
 

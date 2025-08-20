@@ -15,16 +15,25 @@ private enum DemoAuth {
 struct LoginView: View {
     var onBack: () -> Void
     var onLoginSuccess: () -> Void
-    var onTapSignup: () -> Void  // ← 하단 “가입하기”에서 사인업으로 푸시
+    var onTapSignup: () -> Void  // 하단 “가입하기”에서 사인업으로 푸시
 
-    @EnvironmentObject var authVM: AuthViewModel
+    /// 회원가입 직후 이메일 프리필(선택)
+    var initialEmail: String? = nil
+
+    // ⚠️ 바인딩처럼 쓰지 마세요: $authVM 금지
+    @EnvironmentObject private var authVM: AuthViewModel
+
     @State private var email = ""
     @State private var password = ""
     @State private var isLoading = false
+    @State private var errorText: String? = nil
 
-    // 텍스트 포커스 경고 방지용(선택)
     @FocusState private var focusedField: Field?
     private enum Field: Hashable { case email, password }
+
+    private var isFormValid: Bool {
+        !email.isEmpty && !password.isEmpty
+    }
 
     var body: some View {
         ZStack {
@@ -50,25 +59,43 @@ struct LoginView: View {
                 VStack(spacing: 12) {
                     CustomTextField(placeholder: "이메일주소", text: $email)
                         .focused($focusedField, equals: .email)
+                        .textContentType(.username)
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.emailAddress)
 
                     CustomSecureField(placeholder: "비밀번호", text: $password)
                         .focused($focusedField, equals: .password)
+                        .textContentType(.password)
+                        .onSubmit { Task { await tryLogin() } } // 리턴키로 로그인
 
                     HStack {
                         Spacer()
-                        Button { /* TODO: 비밀번호 재설정 연결 */ } label: {
+                        Button {
+                            Task { await resetPassword() }
+                        } label: {
                             Text("비밀번호를 잊으셨나요?")
                                 .font(.gmarketMedium14)
                                 .underline()
                                 .foregroundColor(Color(hex: "#2B3A1E"))
                         }
+                        .disabled(email.isEmpty || isLoading)
                     }
 
-                    // 데모 로그인
+                    if let errorText {
+                        Text(errorText)
+                            .foregroundColor(.red)
+                            .font(.gmarketMedium14)
+                            .padding(.top, 2)
+                    }
+
+                    // 데모 로그인 (선택)
                     Button {
+                        guard !isLoading else { return }
                         email = DemoAuth.email
                         password = DemoAuth.password
-                        authVM.debugSignIn()   // Firebase 전 임시 성공 처리
+                        let vm = authVM
+                        vm.debugSignIn()
                         onLoginSuccess()
                     } label: {
                         Text("테스트 계정으로 로그인")
@@ -83,13 +110,7 @@ struct LoginView: View {
 
                 // 로그인 버튼
                 Button {
-                    guard !email.isEmpty, !password.isEmpty else { return }
-                    isLoading = true
-                    // TODO: Firebase Auth 붙이면 여기서 signIn 호출
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                        isLoading = false
-                        onLoginSuccess()
-                    }
+                    Task { await tryLogin() }
                 } label: {
                     Text(isLoading ? "로그인 중..." : "로그인")
                         .font(.gmarketBold16)
@@ -101,12 +122,13 @@ struct LoginView: View {
                                 .stroke(.black.opacity(0.25), lineWidth: 1)
                         )
                 }
+                .disabled(!isFormValid || isLoading)
+                .opacity((!isFormValid || isLoading) ? 0.6 : 1.0)
                 .padding(.horizontal, 24)
                 .padding(.top, 18)
 
                 Spacer()
 
-                // 구분선
                 Divider()
                     .padding(.horizontal, 24)
                     .padding(.vertical, 20)
@@ -123,17 +145,53 @@ struct LoginView: View {
                     }
                 }
                 .padding(.bottom, 18)
+                .disabled(isLoading)
             }
         }
-        // 네비바는 보이되 배경은 숨겨 전체화면 느낌 유지
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
         .navigationBarBackButtonHidden(false)
-        // 제목 숨김(원하시면 제목을 두셔도 됩니다)
         .toolbar { ToolbarItem(placement: .principal) { EmptyView() } }
-        // 포커스 경고 예방: 화면 떠날 때 키보드 내리기
+        .onAppear {
+            if let initialEmail, email.isEmpty {
+                email = initialEmail   // 이메일 프리필
+            }
+        }
         .onDisappear { focusedField = nil }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    // MARK: - Actions
+    private func tryLogin() async {
+        guard isFormValid else { return }
+        errorText = nil
+        isLoading = true
+        let vm = authVM // 🧯 래퍼 혼동 방지용 로컬 캡처
+        do {
+            try await vm.signIn(email: email, password: password)
+            onLoginSuccess()
+        } catch {
+            errorText = vm.authError ?? error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    private func resetPassword() async {
+        guard !email.isEmpty else {
+            errorText = "비밀번호 재설정을 위해 이메일을 입력해 주세요."
+            return
+        }
+        errorText = nil
+        isLoading = true
+        let vm = authVM // 🧯
+        do {
+            // AuthViewModel에 resetPassword(email:)이 없다면 아래 줄을 주석 처리하세요.
+            try await vm.resetPassword(email: email)
+            errorText = "비밀번호 재설정 메일을 전송했습니다."
+        } catch {
+            errorText = vm.authError ?? error.localizedDescription
+        }
+        isLoading = false
     }
 }
 
@@ -165,6 +223,6 @@ private struct CustomSecureField: View {
 #Preview {
     NavigationStack {
         LoginView(onBack: {}, onLoginSuccess: {}, onTapSignup: {})
-            .environmentObject(AuthViewModel()) // 프리뷰 크래시 방지
+            .environmentObject(AuthViewModel()) // 프리뷰 주입 필수
     }
 }
