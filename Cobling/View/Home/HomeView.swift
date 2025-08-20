@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var experience: Double = 0.5
     // 미션 완료 여부 하드코딩 (true면 체크됨)
     @EnvironmentObject var appState : AppState
+    @EnvironmentObject var authVM: AuthViewModel
     private let isMissionCompleted = false
 
     var body: some View {
@@ -32,7 +33,7 @@ struct HomeView: View {
                 
                 // MARK: - 인삿말 (중앙 정렬)
                 VStack(spacing: 4) {
-                    Text("반가워요") // 인삿말 첫 줄
+                    Text("반가워요 \(authVM.userProfile?.nickname ?? "")님") // 인삿말 첫 줄
                         .font(.leeseoyun24) // 텍스트 크기
                         .multilineTextAlignment(.center) // 가운데 정렬
                     Text("저는 코블링이에요!") // 인삿말 두번째 줄
