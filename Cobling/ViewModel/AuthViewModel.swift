@@ -317,6 +317,65 @@ struct UserProfile: Codable, Identifiable {
 
 // MARK: - Profile & Account Updates
 extension AuthViewModel {
+    /// 계정 탈퇴: Firestore 사용자 문서 삭제 → Firebase Auth 계정 삭제
+    func deleteAccount() async throws {
+        #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard FirebaseApp.app() != nil else { return }
+        guard let db = db else { return }
+        guard let user = Auth.auth().currentUser else {
+            throw NSError(domain: "Auth", code: -1, userInfo: [NSLocalizedDescriptionKey: "로그인이 필요합니다."])
+        }
+        let uid = user.uid
+        authError = nil
+
+        // 1) 사용자 소유 데이터부터 삭제
+        do {
+            // 1-1. userProgress/{uid}/subquests/* 전부 삭제
+            let subquests = try await db.collection("userProgress").document(uid).collection("subquests").getDocuments()
+            for doc in subquests.documents {
+                try await doc.reference.delete()
+            }
+            // 1-2. userProgress/{uid} 문서 삭제
+            try await db.collection("userProgress").document(uid).delete()
+
+            // 1-3. blockSolutions 에서 본인 문서 일괄 삭제 (rules fix가 적용되어야 함)
+            let mySolutions = try await db.collection("blockSolutions").whereField("userId", isEqualTo: uid).getDocuments()
+            for doc in mySolutions.documents {
+                try await doc.reference.delete()
+            }
+
+            // 1-4. users/{uid} 문서 삭제 (rules에 delete 추가 필수)
+            try await db.collection("users").document(uid).delete()
+        } catch {
+            // Firestore 권한/네트워크 오류 메시지 한국어 변환은 선택
+            await MainActor.run { self.authError = self.koMessage(for: error) }
+            throw error
+        }
+
+        // 2) 마지막에 Auth 사용자 삭제 (최근 로그인 필요할 수 있음)
+        do {
+            try await user.delete()
+        } catch {
+            if let code = AuthErrorCode(rawValue: (error as NSError).code), code == .requiresRecentLogin {
+                // 최근 로그인 필요
+                let msg = "보안을 위해 최근 로그인 후 다시 시도해 주세요."
+                await MainActor.run { self.authError = msg }
+                throw NSError(domain: "Auth", code: code.rawValue, userInfo: [NSLocalizedDescriptionKey: msg])
+            } else {
+                await MainActor.run { self.authError = self.koMessage(for: error) }
+                throw error
+            }
+        }
+
+        // 3) 로컬 상태 정리
+        await MainActor.run {
+            self.isSignedIn = false
+            self.currentUserEmail = nil
+            self.userProfile = nil
+        }
+        #endif
+    }
+    
     func updateNickname(_ nickname: String) async throws {
         #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
         guard let db = db else { return }
