@@ -12,6 +12,9 @@ struct EmailSignupView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authVM: AuthViewModel
 
+    // ✅ 가입 성공 시 부모에서 네비 전환을 처리할 콜백
+    var onSignupSuccess: () -> Void = {}
+
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
@@ -79,9 +82,9 @@ struct EmailSignupView: View {
                     } label: {
                         Text(isLoading ? "가입 중..." : "가입하기")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white) // 요청하신 색상에 맞춰 텍스트는 검정
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity, minHeight: 54)
-                            .background(RoundedRectangle(cornerRadius: 12).fill(Color(hex: "#2F2F2F"))) // ← 버튼 배경색
+                            .background(RoundedRectangle(cornerRadius: 12).fill(Color(hex: "#2F2F2F")))
                     }
                     .disabled(!isFormValid || isLoading)
                     .opacity((!isFormValid || isLoading) ? 0.6 : 1.0)
@@ -92,7 +95,6 @@ struct EmailSignupView: View {
                 .padding(.bottom, 32)
             }
         }
-        // ✅ 네비게이션 바는 보이되 배경/제목은 숨겨서 전체화면 느낌 유지 + 백 버튼만 표시
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
         .navigationBarBackButtonHidden(false)
@@ -116,16 +118,31 @@ struct EmailSignupView: View {
             .overlay(RoundedRectangle(cornerRadius: fieldRadius).stroke(Color.black.opacity(0.12), lineWidth: 1))
     }
 
-    // Action (임시)
+    // Action
     private func signUp() async {
         errorText = nil
         isLoading = true
-        await MainActor.run {
-            authVM.isSignedIn = true
-            isLoading = false
+        do {
+            // 실제 Firebase 연동 시:
+            // try await authVM.signUp(email: email, password: password, nickname: name)
+            // 데모:
+            await MainActor.run {
+                authVM.isSignedIn = false // 가입 직후엔 로그인 안 된 상태 유지
+            }
+
+            // ✅ 가입 성공 → 부모가 네비게이션 전환하도록 콜백 호출
+            await MainActor.run {
+                onSignupSuccess()
+            }
+        } catch {
+            await MainActor.run {
+                errorText = authVM.authError ?? error.localizedDescription
+            }
         }
+        await MainActor.run { isLoading = false }
     }
 }
+
 #Preview {
     EmailSignupView()
         .environmentObject(AuthViewModel())
