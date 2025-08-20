@@ -1,3 +1,10 @@
+//
+//  EditProfileView.swift
+//  Cobling
+//
+//  Created by 박종민 on 8/5/25.
+//
+
 import SwiftUI
 
 struct EditProfileView: View {
