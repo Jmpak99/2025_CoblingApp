@@ -1,10 +1,3 @@
-//
-//  EditProfileView.swift
-//  Cobling
-//
-//  Created by 박종민 on 8/5/25.
-//
-
 import SwiftUI
 
 struct EditProfileView: View {
@@ -132,17 +125,25 @@ struct EditProfileView: View {
         .background(Color.white.ignoresSafeArea())
         .navigationBarHidden(true)
         .onAppear {
+            // ✅ 플로팅 탭바 숨기기
+            tabBarViewModel.isTabBarVisible = false
+
             // 기존 프로필 값 프리필
             nickname = authVM.userProfile?.nickname ?? ""
             email = authVM.currentUserEmail ?? authVM.userProfile?.email ?? ""
         }
+        .onDisappear {
+            // ✅ 화면 닫힐 때 다시 보이기
+            tabBarViewModel.isTabBarVisible = true
+        }
         .alert(isPresented: $showAlert) {
-            Alert(title: Text("알림"), message: Text(alertMessage ?? ""), dismissButton: .default(Text("확인"), action: {
-                // 성공 시 화면 닫기
-                if alertMessage == "저장되었습니다." {
-                    dismiss()
-                }
-            }))
+            Alert(
+                title: Text("알림"),
+                message: Text(alertMessage ?? ""),
+                dismissButton: .default(Text("확인"), action: {
+                    if alertMessage == "저장되었습니다." { dismiss() }
+                })
+            )
         }
     }
 
@@ -151,22 +152,17 @@ struct EditProfileView: View {
         isSaving = true
         defer { isSaving = false }
         do {
-            // 1) 닉네임 업데이트 (필수)
             try await authVM.updateNickname(nickname)
 
-            // 2) 이메일 변경 (선택)
-            //    - 빈 값이 아니고 기존과 다를 때만 시도
             let currentEmail = authVM.currentUserEmail ?? authVM.userProfile?.email
             if !email.isEmpty, email != currentEmail {
                 try await authVM.updateEmail(email)
             }
 
-            // 3) 비밀번호 변경 (선택)
             if !password.isEmpty {
                 try await authVM.updatePassword(password)
             }
 
-            // 성공 안내
             alertMessage = "저장되었습니다."
             showAlert = true
         } catch {
@@ -176,7 +172,6 @@ struct EditProfileView: View {
     }
 }
 
-// MARK: - Preview
 #Preview {
     NavigationStack {
         EditProfileView()
