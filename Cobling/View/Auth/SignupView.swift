@@ -84,8 +84,12 @@ struct SignupView: View {
                 .environmentObject(authVM)
             }
             .navigationDestination(isPresented: $pushToEmailSignup) {
-                EmailSignupView()
-                    .environmentObject(authVM)
+                EmailSignupView(onSignupSuccess: {
+                    // 가입 완료 시: 가입 화면 닫고 → 로그인 화면 푸시
+                    pushToEmailSignup = false
+                    pushToLogin = true
+                })
+                .environmentObject(authVM)
             }
         }
     }
