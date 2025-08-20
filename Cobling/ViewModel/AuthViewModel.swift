@@ -53,6 +53,11 @@ final class AuthViewModel: ObservableObject {
     // MARK: - Init / Deinit
     init() {
         #if canImport(FirebaseAuth)
+        // 인증 메일(비번 재설정 등) 한국어 전송
+        if FirebaseApp.app() != nil {
+            Auth.auth().languageCode = "ko"
+        }
+
         // 프리뷰/미초기화 상황에서는 Firebase 접근 없음
         guard !BuildEnv.isPreview, FirebaseApp.app() != nil else {
             self.isSignedIn = false
@@ -60,14 +65,14 @@ final class AuthViewModel: ObservableObject {
             return
         }
 
-        // ✅ Auth 상태 리스너: 앱 재시작/로그인/로그아웃 시점마다 상태 반영
+        // Auth 상태 리스너
         authListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self = self else { return }
             self.isSignedIn = (user != nil)
             self.currentUserEmail = user?.email
 
             if let uid = user?.uid {
-                self.fetchProfile(uid: uid) // 로그인되면 프로필 로드(없으면 자동 생성)
+                self.fetchProfile(uid: uid)
             } else {
                 self.userProfile = nil
             }
@@ -87,22 +92,17 @@ final class AuthViewModel: ObservableObject {
         guard FirebaseApp.app() != nil else { return }
         authError = nil
         do {
-            let result = try await Auth.auth().signIn(withEmail: email, password: password)
+            let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await Auth.auth().signIn(withEmail: trimmedEmail, password: password)
             let uid = result.user.uid
 
-            // 문서 없으면 생성(콘솔에서 잘못 만든 케이스 포함)
-            await ensureUserDocumentExists(uid: uid, email: email)
-
-            // 마지막 로그인 시간 갱신
+            await ensureUserDocumentExists(uid: uid, email: trimmedEmail)
             await updateLastLogin(uid: uid)
-
-            // 상태는 리스너에서 갱신
         } catch {
-            self.authError = error.localizedDescription
+            self.authError = koMessage(for: error)
             throw error
         }
         #else
-        // Firebase 미사용 빌드 대비(개발용)
         self.isSignedIn = true
         self.currentUserEmail = email
         #endif
@@ -114,9 +114,10 @@ final class AuthViewModel: ObservableObject {
         guard FirebaseApp.app() != nil else { return }
         authError = nil
         do {
-            try await Auth.auth().sendPasswordReset(withEmail: email)
+            let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            try await Auth.auth().sendPasswordReset(withEmail: trimmedEmail)
         } catch {
-            self.authError = error.localizedDescription
+            self.authError = koMessage(for: error)
             throw error
         }
         #else
@@ -130,16 +131,14 @@ final class AuthViewModel: ObservableObject {
         guard FirebaseApp.app() != nil else { return }
         authError = nil
         do {
-            let result = try await Auth.auth().createUser(withEmail: email, password: password)
+            let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await Auth.auth().createUser(withEmail: trimmedEmail, password: password)
             let uid = result.user.uid
             let nick = (nickname?.isEmpty == false) ? nickname! : "코블러"
 
-            // ✅ 프로필 문서 생성 (exp/level은 클라이언트에서 쓰지 않음)
-            try await createUserDocument(uid: uid, email: email, nickname: nick)
-
-            // 상태는 리스너에서 갱신
+            try await createUserDocument(uid: uid, email: trimmedEmail, nickname: nick)
         } catch {
-            self.authError = error.localizedDescription
+            self.authError = koMessage(for: error)
             throw error
         }
         #else
@@ -172,14 +171,12 @@ final class AuthViewModel: ObservableObject {
             }
             if let snap, snap.exists {
                 do {
-                    // FirebaseFirestoreSwift 사용: Timestamp/ServerTimestamp 안전 디코딩
                     let profile = try snap.data(as: UserProfile.self)
                     self.userProfile = profile
                 } catch {
                     self.authError = error.localizedDescription
                 }
             } else {
-                // 문서가 없으면 최소 문서 생성 후 다시 로드
                 #if canImport(FirebaseAuth)
                 let email = Auth.auth().currentUser?.email ?? ""
                 Task {
@@ -192,14 +189,12 @@ final class AuthViewModel: ObservableObject {
         #endif
     }
 
-    /// 클라이언트에서 안전하게 생성할 수 있는 최소 프로필 (exp/level 제외)
     private func createUserDocument(uid: String, email: String, nickname: String) async throws {
         #if canImport(FirebaseFirestore)
         guard let db else { return }
         let data: [String: Any] = [
             "nickname": nickname,
             "email": email,
-            // "profileImageURL"는 쓰지 않음(없으면 nil과 동일)
             "createdAt": FieldValue.serverTimestamp(),
             "character": [
                 "stage": "egg",
@@ -215,7 +210,6 @@ final class AuthViewModel: ObservableObject {
         #endif
     }
 
-    /// 로그인 성공 시 마지막 접속 시간 업데이트
     private func updateLastLogin(uid: String) async {
         #if canImport(FirebaseFirestore)
         guard let db else { return }
@@ -228,7 +222,6 @@ final class AuthViewModel: ObservableObject {
         #endif
     }
 
-    /// 첫 로그인/마이그레이션 대비: 문서가 없으면 생성
     private func ensureUserDocumentExists(uid: String, email: String) async {
         #if canImport(FirebaseFirestore)
         guard let db else { return }
@@ -261,6 +254,41 @@ final class AuthViewModel: ObservableObject {
             lastLogin: Date()
         )
     }
+
+    // MARK: - 에러 한국어 변환 (✅ 수정 포인트: AuthErrorCode 사용)
+    private func koMessage(for error: Error) -> String {
+        let ns = error as NSError
+        guard let code = AuthErrorCode(rawValue: ns.code) else {
+            return "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요. (\(ns.code))"
+        }
+        switch code {
+        case .invalidEmail:            // 17008
+            return "이메일 주소 형식이 올바르지 않습니다."
+        case .wrongPassword:           // 17009
+            return "비밀번호가 올바르지 않습니다."
+        case .invalidCredential:       // 17004 ← ✅ 추가
+            return "이메일 또는 비밀번호가 올바르지 않습니다."
+        case .userNotFound:            // 17011
+            return "해당 이메일의 계정을 찾을 수 없습니다."
+        case .userDisabled:            // 17005
+            return "해당 계정은 비활성화되어 있습니다."
+        case .emailAlreadyInUse:       // 17007
+            return "이미 사용 중인 이메일 주소입니다."
+        case .weakPassword:            // 17026
+            return "비밀번호가 너무 약합니다. 더 강한 비밀번호를 사용해 주세요."
+        case .tooManyRequests:         // 17010
+            return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."
+        case .networkError:            // 17020
+            return "네트워크 오류가 발생했습니다. 연결을 확인하고 다시 시도해 주세요."
+        case .requiresRecentLogin:     // 17014
+            return "보안을 위해 최근 로그인 후 다시 시도해 주세요."
+        case .operationNotAllowed:     // 17006
+            return "이 인증 방법은 현재 허용되지 않습니다."
+        default:
+            // 필요 시 디버깅을 위해 코드도 같이 표기
+            return "문제가 발생했습니다. 잠시 후 다시 시도해 주세요. (\(code.rawValue))"
+        }
+    }
 }
 
 // MARK: - UserProfile 모델 (DB 스키마에 맞춤)
@@ -275,19 +303,12 @@ struct UserSettings: Codable {
 }
 
 struct UserProfile: Codable, Identifiable {
-    // ✅ Firestore 문서 ID 매핑
     @DocumentID var id: String?
-
     var nickname: String
     var email: String
-
-    // 서버(Functions)에서만 갱신되는 필드 → 옵셔널
     var level: Int?
     var exp: Int?
-
     var profileImageURL: String?
-
-    // ✅ serverTimestamp 안전 디코딩
     @ServerTimestamp var createdAt: Date?
     var character: UserCharacter
     var settings: UserSettings
@@ -296,7 +317,6 @@ struct UserProfile: Codable, Identifiable {
 
 // MARK: - Profile & Account Updates
 extension AuthViewModel {
-    /// 닉네임만 Firestore에 업데이트 (필수 X)
     func updateNickname(_ nickname: String) async throws {
         #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
         guard let db = db else { return }
@@ -306,7 +326,6 @@ extension AuthViewModel {
         authError = nil
         do {
             try await db.collection("users").document(uid).setData(["nickname": nickname], merge: true)
-            // 로컬 캐시 갱신
             await MainActor.run {
                 if var profile = self.userProfile {
                     profile.nickname = nickname
@@ -316,13 +335,12 @@ extension AuthViewModel {
                 }
             }
         } catch {
-            await MainActor.run { self.authError = error.localizedDescription }
+            await MainActor.run { self.authError = self.koMessage(for: error) }
             throw error
         }
         #endif
     }
 
-    /// 이메일 변경 (Firebase Auth + Firestore 반영)
     func updateEmail(_ newEmail: String) async throws {
         #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
         guard FirebaseApp.app() != nil else { return }
@@ -331,25 +349,25 @@ extension AuthViewModel {
         }
         authError = nil
         do {
-            try await user.updateEmail(to: newEmail) // ⚠️ 최근 로그인 필요할 수 있음
+            let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+            try await user.updateEmail(to: trimmed) // 최근 로그인 필요할 수 있음
             if let db = db {
-                try await db.collection("users").document(user.uid).setData(["email": newEmail], merge: true)
+                try await db.collection("users").document(user.uid).setData(["email": trimmed], merge: true)
             }
             await MainActor.run {
-                self.currentUserEmail = newEmail
+                self.currentUserEmail = trimmed
                 if var profile = self.userProfile {
-                    profile.email = newEmail
+                    profile.email = trimmed
                     self.userProfile = profile
                 }
             }
         } catch {
-            await MainActor.run { self.authError = error.localizedDescription }
+            await MainActor.run { self.authError = self.koMessage(for: error) }
             throw error
         }
         #endif
     }
 
-    /// 비밀번호 변경
     func updatePassword(_ newPassword: String) async throws {
         #if canImport(FirebaseAuth)
         guard FirebaseApp.app() != nil else { return }
@@ -358,9 +376,9 @@ extension AuthViewModel {
         }
         authError = nil
         do {
-            try await user.updatePassword(to: newPassword) // ⚠️ 최근 로그인 필요할 수 있음
+            try await user.updatePassword(to: newPassword) // 최근 로그인 필요할 수 있음
         } catch {
-            await MainActor.run { self.authError = error.localizedDescription }
+            await MainActor.run { self.authError = self.koMessage(for: error) }
             throw error
         }
         #endif
