@@ -21,12 +21,12 @@ struct SuccessDialogView: View {
                 // 다이얼로그 박스
                 VStack(spacing: 16) {
                     Text("우와! 정말 잘했어 !!")
-                        .font(.title3.bold())
+                        .font(.pretendardBold18)
                         .foregroundColor(.black)
                         .multilineTextAlignment(.center)
 
                     Text("코블링이 성장했어 !")
-                        .font(.subheadline)
+                        .font(.pretendardMedium16)
                         .foregroundColor(.black)
                         .multilineTextAlignment(.center)
 
