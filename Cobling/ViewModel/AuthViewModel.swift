@@ -120,7 +120,6 @@ final class AuthViewModel: ObservableObject {
             throw error
         }
         #else
-        // Firebase 미사용 빌드일 경우: 필요 시 noop 처리
         authError = nil
         #endif
     }
@@ -144,7 +143,6 @@ final class AuthViewModel: ObservableObject {
             throw error
         }
         #else
-        // Firebase 미사용 빌드 대비(개발용)
         self.isSignedIn = true
         self.currentUserEmail = email
         #endif
@@ -174,7 +172,7 @@ final class AuthViewModel: ObservableObject {
             }
             if let snap, snap.exists {
                 do {
-                    // FirebaseFirestoreSwift 사용: Timestamp → Date 디코딩
+                    // FirebaseFirestoreSwift 사용: Timestamp/ServerTimestamp 안전 디코딩
                     let profile = try snap.data(as: UserProfile.self)
                     self.userProfile = profile
                 } catch {
@@ -201,7 +199,7 @@ final class AuthViewModel: ObservableObject {
         let data: [String: Any] = [
             "nickname": nickname,
             "email": email,
-            "profileImageURL": NSNull(),
+            // "profileImageURL"는 쓰지 않음(없으면 nil과 동일)
             "createdAt": FieldValue.serverTimestamp(),
             "character": [
                 "stage": "egg",
@@ -277,30 +275,21 @@ struct UserSettings: Codable {
 }
 
 struct UserProfile: Codable, Identifiable {
-    var id: String                  // Firebase Auth UID (문서 ID)
+    // ✅ Firestore 문서 ID 매핑
+    @DocumentID var id: String?
+
     var nickname: String
     var email: String
-    // exp/level은 서버(Functions) 전용 → 클라에서 nil 가능성 고려
+
+    // 서버(Functions)에서만 갱신되는 필드 → 옵셔널
     var level: Int?
     var exp: Int?
+
     var profileImageURL: String?
-    var createdAt: Date             // 서버타임스탬프를 읽어 디코딩
+
+    // ✅ serverTimestamp 안전 디코딩
+    @ServerTimestamp var createdAt: Date?
     var character: UserCharacter
     var settings: UserSettings
-    var lastLogin: Date?
-
-    static func new(uid: String, email: String, nickname: String) -> UserProfile {
-        UserProfile(
-            id: uid,
-            nickname: nickname,
-            email: email,
-            level: nil,
-            exp: nil,
-            profileImageURL: nil,
-            createdAt: Date(),
-            character: .init(stage: "egg", customization: [:]),
-            settings: .init(notificationsEnabled: true, darkMode: false),
-            lastLogin: nil
-        )
-    }
+    @ServerTimestamp var lastLogin: Date?
 }
