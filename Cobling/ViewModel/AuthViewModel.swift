@@ -293,3 +293,76 @@ struct UserProfile: Codable, Identifiable {
     var settings: UserSettings
     @ServerTimestamp var lastLogin: Date?
 }
+
+// MARK: - Profile & Account Updates
+extension AuthViewModel {
+    /// 닉네임만 Firestore에 업데이트 (필수 X)
+    func updateNickname(_ nickname: String) async throws {
+        #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard let db = db else { return }
+        guard let uid = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "Auth", code: -1, userInfo: [NSLocalizedDescriptionKey: "로그인이 필요합니다."])
+        }
+        authError = nil
+        do {
+            try await db.collection("users").document(uid).setData(["nickname": nickname], merge: true)
+            // 로컬 캐시 갱신
+            await MainActor.run {
+                if var profile = self.userProfile {
+                    profile.nickname = nickname
+                    self.userProfile = profile
+                } else {
+                    self.fetchProfile(uid: uid)
+                }
+            }
+        } catch {
+            await MainActor.run { self.authError = error.localizedDescription }
+            throw error
+        }
+        #endif
+    }
+
+    /// 이메일 변경 (Firebase Auth + Firestore 반영)
+    func updateEmail(_ newEmail: String) async throws {
+        #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard FirebaseApp.app() != nil else { return }
+        guard let user = Auth.auth().currentUser else {
+            throw NSError(domain: "Auth", code: -1, userInfo: [NSLocalizedDescriptionKey: "로그인이 필요합니다."])
+        }
+        authError = nil
+        do {
+            try await user.updateEmail(to: newEmail) // ⚠️ 최근 로그인 필요할 수 있음
+            if let db = db {
+                try await db.collection("users").document(user.uid).setData(["email": newEmail], merge: true)
+            }
+            await MainActor.run {
+                self.currentUserEmail = newEmail
+                if var profile = self.userProfile {
+                    profile.email = newEmail
+                    self.userProfile = profile
+                }
+            }
+        } catch {
+            await MainActor.run { self.authError = error.localizedDescription }
+            throw error
+        }
+        #endif
+    }
+
+    /// 비밀번호 변경
+    func updatePassword(_ newPassword: String) async throws {
+        #if canImport(FirebaseAuth)
+        guard FirebaseApp.app() != nil else { return }
+        guard let user = Auth.auth().currentUser else {
+            throw NSError(domain: "Auth", code: -1, userInfo: [NSLocalizedDescriptionKey: "로그인이 필요합니다."])
+        }
+        authError = nil
+        do {
+            try await user.updatePassword(to: newPassword) // ⚠️ 최근 로그인 필요할 수 있음
+        } catch {
+            await MainActor.run { self.authError = error.localizedDescription }
+            throw error
+        }
+        #endif
+    }
+}
