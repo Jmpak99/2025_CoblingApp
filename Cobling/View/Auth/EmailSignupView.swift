@@ -12,7 +12,7 @@ struct EmailSignupView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authVM: AuthViewModel
 
-    // ✅ 가입 성공 시 부모에서 네비 전환을 처리할 콜백
+    // 가입 성공 시 부모에서 네비 전환 처리
     var onSignupSuccess: () -> Void = {}
 
     @State private var name = ""
@@ -26,7 +26,10 @@ struct EmailSignupView: View {
     private let fieldRadius: CGFloat = 10
 
     private var isFormValid: Bool {
-        !name.isEmpty && email.contains("@") && password.count >= 8 && password == confirm
+        !name.isEmpty &&
+        email.contains("@") &&
+        password.count >= 8 &&
+        password == confirm
     }
 
     var body: some View {
@@ -54,16 +57,19 @@ struct EmailSignupView: View {
                         inputTextField("email@email.com", text: $email)
                             .keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
 
                         fieldLabel("비밀번호")
-                        inputSecureField("영어소문자, 숫자 포함 8자 이상", text: $password)
+                        secureNewPasswordField("영어소문자, 숫자 포함 8자 이상", text: $password)
 
                         fieldLabel("비밀번호 확인")
-                        inputSecureField("영어소문자, 숫자 포함 8자 이상", text: $confirm)
+                        secureConfirmField("영어소문자, 숫자 포함 8자 이상", text: $confirm)
                     }
 
                     if let e = errorText {
-                        Text(e).font(.system(size: 13)).foregroundColor(.red)
+                        Text(e)
+                            .font(.system(size: 13))
+                            .foregroundColor(.red)
                     }
 
                     (
@@ -101,30 +107,55 @@ struct EmailSignupView: View {
         .toolbar { ToolbarItem(placement: .principal) { EmptyView() } }
     }
 
-    // Subviews
+    // MARK: - Subviews
     private func fieldLabel(_ text: String) -> some View {
-        Text(text).font(.system(size: 14, weight: .semibold)).foregroundColor(.black).padding(.top, 2)
+        Text(text)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(.black)
+            .padding(.top, 2)
     }
+
     private func inputTextField(_ placeholder: String, text: Binding<String>) -> some View {
         TextField(placeholder, text: text)
-            .padding(.horizontal, 14).frame(height: fieldHeight)
-            .background(RoundedRectangle(cornerRadius: fieldRadius).fill(Color.white))
-            .overlay(RoundedRectangle(cornerRadius: fieldRadius).stroke(Color.black.opacity(0.12), lineWidth: 1))
-    }
-    private func inputSecureField(_ placeholder: String, text: Binding<String>) -> some View {
-        SecureField(placeholder, text: text)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled(true)
+            .keyboardType(.default)
             .padding(.horizontal, 14).frame(height: fieldHeight)
             .background(RoundedRectangle(cornerRadius: fieldRadius).fill(Color.white))
             .overlay(RoundedRectangle(cornerRadius: fieldRadius).stroke(Color.black.opacity(0.12), lineWidth: 1))
     }
 
-    // Action
+    // iPad 강력 비번 오버레이 회피용: 새 비밀번호 입력 필드
+    private func secureNewPasswordField(_ placeholder: String, text: Binding<String>) -> some View {
+        SecureField(placeholder, text: text)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled(true)
+            .keyboardType(.asciiCapable)
+            .textContentType(.newPassword)      // 새 비밀번호(제안 유지)
+            .padding(.horizontal, 14).frame(height: fieldHeight)
+            .background(RoundedRectangle(cornerRadius: fieldRadius).fill(Color.white))
+            .overlay(RoundedRectangle(cornerRadius: fieldRadius).stroke(Color.black.opacity(0.12), lineWidth: 1))
+    }
+
+    // 확인 필드는 AutoFill 오버레이를 끄는 트릭 적용
+    private func secureConfirmField(_ placeholder: String, text: Binding<String>) -> some View {
+        SecureField(placeholder, text: text)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled(true)
+            .keyboardType(.asciiCapable)
+            .textContentType(.oneTimeCode)      // ← 오버레이 비활성화(입력 가로채기 방지)
+            .padding(.horizontal, 14).frame(height: fieldHeight)
+            .background(RoundedRectangle(cornerRadius: fieldRadius).fill(Color.white))
+            .overlay(RoundedRectangle(cornerRadius: fieldRadius).stroke(Color.black.opacity(0.12), lineWidth: 1))
+    }
+
+    // MARK: - Action
     private func signUp() async {
         errorText = nil
         isLoading = true
         do {
             try await authVM.signUp(email: email, password: password, nickname: name)
-            onSignupSuccess() // ✅ 가입 성공 → 부모가 로그인 화면으로 넘김
+            onSignupSuccess()                  // 가입 성공
         } catch {
             errorText = authVM.authError ?? error.localizedDescription
         }
