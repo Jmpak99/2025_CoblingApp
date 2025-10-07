@@ -1,7 +1,12 @@
-// Model/Quest.swift
+//
+//  Quest.swift
+//  Cobling
+//
+//  Created by 박종민 on 6/20/25.
+//
+
 
 import FirebaseFirestore
-// import FirebaseFirestore
 
 struct SubQuestDocument: Codable, Identifiable {
     @DocumentID var id: String?
