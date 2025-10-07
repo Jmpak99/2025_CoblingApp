@@ -4,59 +4,80 @@
 //
 //  Created by 박종민 on 6/20/25.
 //
+
 import SwiftUI
+import FirebaseFirestore
+
+//
+//  QuestDetailView.swift
+//  Cobling
+//
+
+import SwiftUI
+import FirebaseFirestore
 
 // MARK: - 하위 퀘스트 상태
-
 enum SubQuestState {
     case completed, inProgress, locked
 }
 
-// MARK: - 하위 퀘스트 데이터 모델
+// MARK: - Firestore 서브퀘스트 원본 모델
+struct SubQuestDocument: Identifiable, Codable {
+    var id: String
+    var title: String
+    var description: String
+    var state: String            // "completed", "inProgress", "locked"
+    var order: Int?
+    var isActive: Bool?
+}
 
+// ✅ SubQuest(뷰 모델) → SubQuestDocument(문서 모델) 변환 이니셜라이저
+extension SubQuestDocument {
+    init(from viewModel: SubQuest) {
+        self.id = viewModel.id
+        self.title = viewModel.title
+        self.description = viewModel.description
+        switch viewModel.state {
+        case .completed: self.state = "completed"
+        case .inProgress: self.state = "inProgress"
+        case .locked:    self.state = "locked"
+        }
+        self.order = nil
+        self.isActive = nil
+    }
+}
+
+// MARK: - 뷰 전용 모델
 struct SubQuest: Identifiable {
-    let id = UUID()
+    let id: String
     let title: String
     let description: String
     let state: SubQuestState
 }
 
 // MARK: - QuestDetailView
-
 struct QuestDetailView: View {
-    let chapter: Quest
-    @State private var showLockedAlert = false
+    let chapter: QuestDocument
+    
+    @State private var subQuests: [SubQuest] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
     @State private var selectedSubQuest: SubQuest? = nil
     @State private var isNavigatingToBlock = false
-
-    private var subQuests: [SubQuest] {
-        switch chapter.title {
-        case "잠든 알의 속삭임":
-            return [
-                SubQuest(title: "1. 알 속의 꿈틀", description: "무언가 꿈틀거려요.", state: .completed),
-                SubQuest(title: "2. 알 속의 소리", description: "알 속에서 소리가 나요.", state: .inProgress),
-                SubQuest(title: "3. 아직 잠든 알", description: "깨어날 준비가 덜 됐어요.", state: .locked),
-                SubQuest(title: "4. 온기의 기척", description: "따뜻함이 스며들어요.", state: .locked),
-                SubQuest(title: "5. 깨지는 순간", description: "알이 흔들리고 있어요.", state: .locked)
-            ]
-        default:
-            return [
-                SubQuest(title: "공통 미션", description: "기본 미션입니다.", state: .inProgress)
-            ]
-        }
-    }
-
+    @State private var showLockedAlert = false
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                
                 // 챕터 타이틀
                 Text(chapter.title)
                     .font(.gmarketBold34)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 18)
-
+                
                 Spacer().frame(height: 32)
-
+                
                 VStack(alignment: .leading, spacing: 0) {
                     Text("코블링의 퀘스트")
                         .font(.pretendardBold24)
@@ -65,27 +86,23 @@ struct QuestDetailView: View {
                         .font(.pretendardBold14)
                         .foregroundColor(.gray)
                 }
-
-                VStack(spacing: 16) {
-                    ForEach(subQuests) { quest in
-                        SubQuestCard(subQuest: quest,
-                                     backgroundColor: chapter.backgroundColor) {
-                            if quest.state == .locked {
-                                showLockedAlert = true
-                            } else {
-                                selectedSubQuest = quest
-                                DispatchQueue.main.async {
-                                    isNavigatingToBlock = true
-                                }
-                            }
-                        }
+                
+                if isLoading {
+                    ProgressView("불러오는 중...")
+                        .padding()
+                } else if let errorMessage = errorMessage {
+                    Text("에러: \(errorMessage)")
+                        .foregroundColor(.red)
+                } else {
+                    VStack(spacing: 16) {
+                        subQuestList   // ✅ 분리된 ForEach 뷰
                     }
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
-
+                
                 Spacer(minLength: 40)
             }
-            .frame(maxWidth: 600) // ✅ 아이패드 중앙정렬을 위한 너비 제한
+            .frame(maxWidth: 600)
             .padding(.horizontal)
             .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -94,51 +111,123 @@ struct QuestDetailView: View {
         }
         .overlay(
             Group {
-                if let subQuest = selectedSubQuest {
+                if let sub = selectedSubQuest {
+                    // ✅ SubQuest → SubQuestDocument로 변환해서 전달
                     NavigationLink(
-                        destination: QuestBlockView(subQuest: subQuest),
+                        destination: QuestBlockView(subQuest: SubQuestDocument(from: sub)),
                         isActive: $isNavigatingToBlock
-                    ) {
-                        EmptyView()
-                    }
+                    ) { EmptyView() }
                 }
             }
         )
+        .onAppear {
+            loadSubQuests()
+        }
         .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    // MARK: - 분리된 ForEach (타입체크 단순화)
+    private var subQuestList: some View {
+        let bgColor = chapterBackgroundColor
+        return ForEach(subQuests, id: \.id) { quest in
+            SubQuestCard(
+                subQuest: quest,
+                backgroundColor: bgColor,
+                onTap: { handleSubQuestTap(quest) }
+            )
+        }
+    }
+    
+    // MARK: - 챕터 배경색(순환 규칙: FFEEEF → FFF1DB → E3EDFB)
+    private var chapterBackgroundColor: Color {
+        let idx = (chapter.order ?? 0) % 3
+        switch idx {
+        case 0: return Color(hex: "#FFEEEF")
+        case 1: return Color(hex: "#FFF1DB")
+        default: return Color(hex: "#E3EDFB")
+        }
+    }
+    
+    // MARK: - 하위 퀘스트 선택 핸들러
+    private func handleSubQuestTap(_ quest: SubQuest) {
+        if quest.state == .locked {
+            showLockedAlert = true
+        } else {
+            selectedSubQuest = quest
+            DispatchQueue.main.async {
+                isNavigatingToBlock = true
+            }
+        }
+    }
+    
+    // MARK: - Firestore 로드
+    private func loadSubQuests() {
+        let db = Firestore.firestore()
+        db.collection("quests")
+            .document(chapter.id)
+            .collection("subQuests")
+            .order(by: "order")
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    self.errorMessage = error.localizedDescription
+                    self.isLoading = false
+                    return
+                }
+                
+                if let docs = snapshot?.documents {
+                    self.subQuests = docs.compactMap { doc in
+                        let data = doc.data()
+                        let stateStr = data["state"] as? String ?? "locked"
+                        let state: SubQuestState
+                        switch stateStr {
+                        case "completed": state = .completed
+                        case "inProgress": state = .inProgress
+                        default: state = .locked
+                        }
+                        
+                        return SubQuest(
+                            id: doc.documentID,
+                            title: data["title"] as? String ?? "",
+                            description: data["description"] as? String ?? "",
+                            state: state
+                        )
+                    }
+                }
+                self.isLoading = false
+            }
     }
 }
 
 // MARK: - 하위 퀘스트 카드
-
 struct SubQuestCard: View {
     let subQuest: SubQuest
     let backgroundColor: Color
     let onTap: () -> Void
-
+    
     var body: some View {
         Button(action: onTap) {
             ZStack {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 80)
-
+                    
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color.white)
                             .frame(width: 355, height: 60)
-
+                        
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(subQuest.title)
                                     .font(.gmarketBold16)
                                     .foregroundColor(.black)
-
+                                
                                 Text(subQuest.description)
                                     .font(.pretendardRegular14)
                                     .foregroundColor(.gray)
                             }
-
+                            
                             Spacer()
-
+                            
                             Image(statusIconName)
                                 .resizable()
                                 .frame(width: subQuest.state == .inProgress ? 83 : 70, height: 30)
@@ -146,11 +235,7 @@ struct SubQuestCard: View {
                         .padding(.horizontal, 16)
                     }
                 }
-
-                VStack {
-                    Spacer()
-                }
-                .frame(height: 80)
+                VStack { Spacer() }.frame(height: 80)
             }
             .frame(width: 355, height: 140)
             .background(backgroundColor)
@@ -160,7 +245,7 @@ struct SubQuestCard: View {
         }
         .buttonStyle(PlainButtonStyle())
     }
-
+    
     private var statusIconName: String {
         switch subQuest.state {
         case .completed: return "icon_completed"
@@ -168,7 +253,7 @@ struct SubQuestCard: View {
         case .locked: return "icon_lock"
         }
     }
-
+    
     private var backgroundColorHex: String {
         switch subQuest.state {
         case .completed: return "FFEEEF"
@@ -179,16 +264,19 @@ struct SubQuestCard: View {
 }
 
 // MARK: - Preview
-
 struct QuestDetailView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationStack {
-            QuestDetailView(chapter: Quest(
-                title: "잠든 알의 속삭임",
-                subtitle: "깨어날 시간이에요, 코블링",
-                status: .completed,
-                backgroundColor: Color(hex: "#FFEEEF")
-            ))
+            QuestDetailView(
+                chapter: QuestDocument(
+                    id: "ch1",
+                    title: "잠든 알의 속삭임",
+                    subtitle: "깨어날 시간이에요, 코블링",
+                    order: 1,
+                    recommendedLevel: 1,
+                    isActive: true
+                )
+            )
         }
     }
 }
