@@ -7,14 +7,7 @@
 
 import SwiftUI
 import FirebaseFirestore
-
-//
-//  QuestDetailView.swift
-//  Cobling
-//
-
-import SwiftUI
-import FirebaseFirestore
+import FirebaseAuth
 
 // MARK: - 하위 퀘스트 상태
 enum SubQuestState {
@@ -31,7 +24,7 @@ struct SubQuestDocument: Identifiable, Codable {
     var isActive: Bool?
 }
 
-// ✅ SubQuest(뷰 모델) → SubQuestDocument(문서 모델) 변환 이니셜라이저
+// ✅ SubQuest(뷰 모델) → SubQuestDocument 변환
 extension SubQuestDocument {
     init(from viewModel: SubQuest) {
         self.id = viewModel.id
@@ -95,7 +88,7 @@ struct QuestDetailView: View {
                         .foregroundColor(.red)
                 } else {
                     VStack(spacing: 16) {
-                        subQuestList   // ✅ 분리된 ForEach 뷰
+                        subQuestList
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
@@ -112,7 +105,6 @@ struct QuestDetailView: View {
         .overlay(
             Group {
                 if let sub = selectedSubQuest {
-                    // ✅ SubQuest → SubQuestDocument로 변환해서 전달
                     NavigationLink(
                         destination: QuestBlockView(subQuest: SubQuestDocument(from: sub)),
                         isActive: $isNavigatingToBlock
@@ -126,7 +118,7 @@ struct QuestDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
     
-    // MARK: - 분리된 ForEach (타입체크 단순화)
+    // MARK: - 하위 퀘스트 리스트
     private var subQuestList: some View {
         let bgColor = chapterBackgroundColor
         return ForEach(subQuests, id: \.id) { quest in
@@ -138,7 +130,7 @@ struct QuestDetailView: View {
         }
     }
     
-    // MARK: - 챕터 배경색(순환 규칙: FFEEEF → FFF1DB → E3EDFB)
+    // MARK: - 챕터 배경색
     private var chapterBackgroundColor: Color {
         let idx = (chapter.order ?? 0) % 3
         switch idx {
@@ -148,7 +140,7 @@ struct QuestDetailView: View {
         }
     }
     
-    // MARK: - 하위 퀘스트 선택 핸들러
+    // MARK: - 하위 퀘스트 선택
     private func handleSubQuestTap(_ quest: SubQuest) {
         if quest.state == .locked {
             showLockedAlert = true
@@ -160,9 +152,12 @@ struct QuestDetailView: View {
         }
     }
     
-    // MARK: - Firestore 로드
+    // MARK: - Firestore 로드 & 병합
     private func loadSubQuests() {
         let db = Firestore.firestore()
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        // 1. 마스터 데이터 로드
         db.collection("quests")
             .document(chapter.id)
             .collection("subQuests")
@@ -174,28 +169,57 @@ struct QuestDetailView: View {
                     return
                 }
                 
+                var baseSubQuests: [SubQuest] = []
                 if let docs = snapshot?.documents {
-                    self.subQuests = docs.compactMap { doc in
+                    baseSubQuests = docs.compactMap { doc in
                         let data = doc.data()
-                        let stateStr = data["state"] as? String ?? "locked"
-                        let state: SubQuestState
-                        switch stateStr {
-                        case "completed": state = .completed
-                        case "inProgress": state = .inProgress
-                        default: state = .locked
-                        }
-                        
                         return SubQuest(
                             id: doc.documentID,
                             title: data["title"] as? String ?? "",
                             description: data["description"] as? String ?? "",
-                            state: state
+                            state: .locked // 기본 잠김
                         )
                     }
                 }
-                self.isLoading = false
+                
+                // 2. progress 데이터 로드
+                db.collection("users")
+                    .document(userId)
+                    .collection("progress")
+                    .getDocuments { progressSnap, _ in
+                        var progressMap: [String: String] = [:]
+                        if let progressDocs = progressSnap?.documents {
+                            for doc in progressDocs {
+                                // 🔑 doc.documentID = "sq1" ...
+                                let subQuestId = doc.documentID
+                                let state = (doc.data()["state"] as? String)?
+                                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? "locked"
+                                progressMap[subQuestId] = state
+                            }
+                        }
+                        
+                        // 3. progress 병합
+                        self.subQuests = baseSubQuests.map { sq in
+                            let stateStr = progressMap[sq.id] ?? "locked"
+                            let state: SubQuestState
+                            switch stateStr {
+                            case "completed": state = .completed
+                            case "inProgress": state = .inProgress
+                            default: state = .locked
+                            }
+                            return SubQuest(
+                                id: sq.id,
+                                title: sq.title,
+                                description: sq.description,
+                                state: state
+                            )
+                        }
+                        
+                        self.isLoading = false
+                    }
             }
     }
+
 }
 
 // MARK: - 하위 퀘스트 카드
@@ -230,7 +254,8 @@ struct SubQuestCard: View {
                             
                             Image(statusIconName)
                                 .resizable()
-                                .frame(width: subQuest.state == .inProgress ? 83 : 70, height: 30)
+                                .frame(width: subQuest.state == .inProgress ? 83 : 70,
+                                       height: 30)
                         }
                         .padding(.horizontal, 16)
                     }
@@ -239,7 +264,6 @@ struct SubQuestCard: View {
             }
             .frame(width: 355, height: 140)
             .background(backgroundColor)
-            .background(Color(hex: backgroundColorHex))
             .clipShape(RoundedRectangle(cornerRadius: 20))
             .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 4)
         }
@@ -251,14 +275,6 @@ struct SubQuestCard: View {
         case .completed: return "icon_completed"
         case .inProgress: return "icon_inProgress"
         case .locked: return "icon_lock"
-        }
-    }
-    
-    private var backgroundColorHex: String {
-        switch subQuest.state {
-        case .completed: return "FFEEEF"
-        case .inProgress: return "E3EDFB"
-        case .locked: return "FFF1DB"
         }
     }
 }
