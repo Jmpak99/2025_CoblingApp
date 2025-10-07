@@ -86,7 +86,9 @@ struct GameMapView: View {
                                                 .frame(width: tileSize, height: tileSize)
                                         }
 
-                                        if map[row][col] == 2 {
+                                        // ✅ goalPosition에 깃발 그리기
+                                        if viewModel.goalPosition.row == row &&
+                                           viewModel.goalPosition.col == col {
                                             Image("gp_flag")
                                                 .resizable()
                                                 .scaledToFit()
@@ -100,6 +102,7 @@ struct GameMapView: View {
                         }
                     }
 
+                    // 캐릭터
                     GeometryReader { geo in
                         let characterX = CGFloat(viewModel.characterPosition.col) * tileSize + tileSize / 2
                         let characterY = CGFloat(viewModel.characterPosition.row) * tileSize + tileSize / 2
@@ -161,26 +164,28 @@ struct GameMapView: View {
                 }
             }
         }
-        // ✅ iOS 16 이상 권장 방식
         .navigationDestination(isPresented: $goBackToQuestList) {
             QuestListView()
         }
     }
 }
 
-
 #Preview {
     let dummyViewModel = QuestViewModel()
-    dummyViewModel.mapData = [
-        [1, 1, 1, 1, 1, 1, 2],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1],
-    ]
-    dummyViewModel.characterPosition = (row: 4, col: 0)
+    dummyViewModel.previewConfigure(
+        map: [
+            [1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1],
+        ],
+        start: (row: 3, col: 1),
+        goal: (row: 3, col: 4),
+        direction: .right
+    )
 
     return GameMapView(viewModel: dummyViewModel, questTitle: "잠든 알의 속삭임")
 }

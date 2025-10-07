@@ -6,7 +6,8 @@
 import SwiftUI
 
 struct QuestBlockView: View {
-    let subQuest: SubQuestDocument
+    let chapterId: String
+    let subQuestId: String
 
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
     @StateObject private var dragManager = DragManager()
@@ -60,7 +61,11 @@ struct QuestBlockView: View {
                 .zIndex(10)
             }
         }
-        .onAppear { tabBarViewModel.isTabBarVisible = false }
+        .onAppear {
+            tabBarViewModel.isTabBarVisible = false
+            // Firestore에서 SubQuest 불러오기
+            viewModel.fetchSubQuest(chapterId: chapterId, subQuestId: subQuestId)
+        }
         .onDisappear { tabBarViewModel.isTabBarVisible = true }
         .onChange(of: startBlock.children) { newChildren in
             viewModel.startBlock.children = newChildren
@@ -74,8 +79,13 @@ struct QuestBlockView: View {
     @ViewBuilder
     private func mainContent() -> some View {
         VStack(spacing: 0) {
-            GameMapView(viewModel: viewModel, questTitle: subQuest.title)
-                .frame(height: 500)
+            if let subQuest = viewModel.subQuest {
+                GameMapView(viewModel: viewModel, questTitle: subQuest.title)
+                    .frame(height: 500)
+            } else {
+                ProgressView("불러오는 중...")
+                    .frame(height: 500)
+            }
 
             ZStack {
                 HStack(spacing: 0) {
@@ -150,18 +160,8 @@ struct QuestBlockView: View {
 #if DEBUG
 struct QuestBlockView_Previews: PreviewProvider {
     static var previews: some View {
-        QuestBlockView(subQuest: SubQuestDocument(
-            id: "sq1",
-            title: "1. 알 속의 꿈틀",
-            description: "무언가 꿈틀거려요.",
-            state: "inProgress",   // ✅ 문자열로 직접 넣기
-            isActive: true
-        ))
-        .environmentObject(TabBarViewModel())
-        .environmentObject(QuestViewModel())
-        .previewLayout(.device)
-        .previewDisplayName("퀘스트 블록 뷰 미리보기")
-        .frame(width: 430, height: 932)
+        QuestBlockView(chapterId: "chapter1", subQuestId: "subQuest1")
+            .environmentObject(TabBarViewModel())
     }
 }
 #endif

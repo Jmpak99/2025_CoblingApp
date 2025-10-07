@@ -14,32 +14,6 @@ enum SubQuestState {
     case completed, inProgress, locked
 }
 
-// MARK: - Firestore 서브퀘스트 원본 모델
-struct SubQuestDocument: Identifiable, Codable {
-    var id: String
-    var title: String
-    var description: String
-    var state: String            // "completed", "inProgress", "locked"
-    var order: Int?
-    var isActive: Bool?
-}
-
-// ✅ SubQuest(뷰 모델) → SubQuestDocument 변환
-extension SubQuestDocument {
-    init(from viewModel: SubQuest) {
-        self.id = viewModel.id
-        self.title = viewModel.title
-        self.description = viewModel.description
-        switch viewModel.state {
-        case .completed: self.state = "completed"
-        case .inProgress: self.state = "inProgress"
-        case .locked:    self.state = "locked"
-        }
-        self.order = nil
-        self.isActive = nil
-    }
-}
-
 // MARK: - 뷰 전용 모델
 struct SubQuest: Identifiable {
     let id: String
@@ -106,7 +80,7 @@ struct QuestDetailView: View {
             Group {
                 if let sub = selectedSubQuest {
                     NavigationLink(
-                        destination: QuestBlockView(subQuest: SubQuestDocument(from: sub)),
+                        destination: QuestBlockView(chapterId: chapter.id, subQuestId: sub.id), // ✅ id만 넘김
                         isActive: $isNavigatingToBlock
                     ) { EmptyView() }
                 }
