@@ -6,15 +6,22 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
-struct Quest: Identifiable {
-    let id = UUID()
-    let title: String
-    let subtitle: String
-    let status: QuestStatus
-    let backgroundColor: Color
+// MARK: - Firestore 퀘스트 데이터 모델
+struct QuestDocument: Identifiable, Codable {
+    var id: String             // Firestore 문서 ID
+    var title: String
+    var subtitle: String
+    var order: Int
+    var recommendedLevel: Int
+    var isActive: Bool
+    var allowedBlocks: [String]?
+    //var createdAt: Date?
+    //var updatedAt: Date?
 }
 
+// MARK: - Quest 상태
 enum QuestStatus {
     case completed, inProgress, locked
 
@@ -27,69 +34,115 @@ enum QuestStatus {
     }
 }
 
-// MARK: - Main View
+// MARK: - ViewModel (Firestore 데이터 로드)
+@MainActor
+final class QuestListViewModel: ObservableObject {
+    @Published var quests: [QuestDocument] = []
+    @Published var isLoading = true
+    @Published var errorMessage: String?
 
+    private let db = Firestore.firestore()
+
+    func fetchQuests() async {
+        do {
+            let docRef = db.collection("quests").document("ch1")
+            let document = try await docRef.getDocument()
+
+            guard let data = document.data() else {
+                self.errorMessage = "데이터 없음"
+                self.isLoading = false
+                return
+            }
+
+            // ❌ JSONSerialization 제거
+            // ✅ Dictionary에서 직접 값 꺼내기
+            let quest = QuestDocument(
+                id: document.documentID,
+                title: data["title"] as? String ?? "",
+                subtitle: data["subtitle"] as? String ?? "",
+                order: data["order"] as? Int ?? 0,
+                recommendedLevel: data["recommendedLevel"] as? Int ?? 1,
+                isActive: data["isActive"] as? Bool ?? false,
+                allowedBlocks: data["allowedBlocks"] as? [String] ?? []
+            )
+
+            self.quests = [quest]
+            self.isLoading = false
+        } catch {
+            errorMessage = error.localizedDescription
+            isLoading = false
+        }
+    }
+}
+
+// MARK: - Main View
 struct QuestListView: View {
+    @StateObject private var viewModel = QuestListViewModel()
     @State private var showLockedAlert = false
 
-    let quests: [Quest] = [
-        Quest(title: "잠든 알의 속삭임", subtitle: "깨어날 시간이에요, 코블링", status: .completed, backgroundColor: Color(hex: "#FFEEEF")),
-        Quest(title: "코블링의 첫 걸음", subtitle: "한 걸음씩, 함께 나아가요", status: .inProgress, backgroundColor: Color(hex: "#FFF1DB")),
-        Quest(title: "반복의 언덕", subtitle: "같은 길도, 다르게 걸어볼까?", status: .locked, backgroundColor: Color(hex: "#E3EDFB")),
-        Quest(title: "조건의 문", subtitle: "문을 여는 열쇠는 블록 안에 있어요", status: .locked, backgroundColor: Color(hex: "#FFEEEF")),
-    ]
-
     var body: some View {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("퀘스트")
-                    .font(.pretendardBold34)
-                    .padding(.horizontal)
-                    .padding(.top, 20)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("퀘스트")
+                .font(.pretendardBold34)
+                .padding(.horizontal)
+                .padding(.top, 20)
 
+            if viewModel.isLoading {
+                ProgressView("불러오는 중...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = viewModel.errorMessage {
+                Text("오류: \(error)")
+                    .foregroundColor(.red)
+                    .padding()
+            } else {
                 ScrollView {
                     VStack(spacing: 20) {
-                        ForEach(quests) { quest in
-                            QuestCardWrapper(quest: quest, showLockedAlert: $showLockedAlert)
+                        ForEach(viewModel.quests) { quest in
+                            QuestCardWrapper_DB(
+                                quest: quest,
+                                status: .inProgress,
+                                showLockedAlert: $showLockedAlert
+                            )
                         }
                     }
                     .padding()
                     .padding(.bottom, 100)
                 }
-                .scrollIndicators(.hidden) // 스크롤 바 숨기기
-            }
-            .navigationBarHidden(true) 
-            .alert(isPresented: $showLockedAlert) {
-                Alert(title: Text("잠긴 퀘스트입니다"))
+                .scrollIndicators(.hidden)
             }
         }
-}
-
-// MARK: - View 분리 (컴파일 최적화 핵심)
-
-struct QuestCardWrapper: View {
-    let quest: Quest
-    @Binding var showLockedAlert: Bool
-
-    var body: some View {
-        if quest.status == .locked {
-            Button(action: {
-                showLockedAlert = true
-            }) {
-                QuestCardView(quest: quest)
-            }
-            .buttonStyle(PlainButtonStyle())
-        } else {
-            NavigationLink(destination: QuestDetailView(chapter: quest)) {
-                QuestCardView(quest: quest)
-            }
+        .navigationBarHidden(true)
+        .alert(isPresented: $showLockedAlert) {
+            Alert(title: Text("잠긴 퀘스트입니다"))
+        }
+        .task {
+            await viewModel.fetchQuests()
         }
     }
 }
 
-// MARK: - 카드 뷰
+// MARK: - 카드 Wrapper (DB 기반)
+struct QuestCardWrapper_DB: View {
+    let quest: QuestDocument
+    let status: QuestStatus
+    @Binding var showLockedAlert: Bool
 
-struct QuestCardView: View {
-    let quest: Quest
+    var body: some View {
+        NavigationLink(destination: QuestDetailView(chapter: quest)) {
+            QuestCardView_DB(
+                title: quest.title,
+                subtitle: quest.subtitle,
+                status: status
+            )
+        }
+    }
+}
+
+// MARK: - 카드 뷰 (DB 기반)
+struct QuestCardView_DB: View {
+    let title: String
+    let subtitle: String
+    let status: QuestStatus
 
     var body: some View {
         ZStack {
@@ -103,19 +156,22 @@ struct QuestCardView: View {
 
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(quest.title)
+                            Text(title)
                                 .font(.headline)
                                 .foregroundColor(.black)
-                            Text(quest.subtitle)
+                            Text(subtitle)
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                         }
 
                         Spacer()
 
-                        Image(quest.status.iconName)
+                        Image(status.iconName)
                             .resizable()
-                            .frame(width: quest.status == .inProgress ? 83 : 70, height: 30)
+                            .frame(
+                                width: status == .inProgress ? 83 : 70,
+                                height: 30
+                            )
                     }
                     .padding(.horizontal, 16)
                 }
@@ -128,18 +184,16 @@ struct QuestCardView: View {
             .frame(height: 125)
         }
         .frame(width: 335, height: 220)
-        .background(quest.backgroundColor)
+        .background(Color(hex: "#FFF1DB"))
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 4)
     }
 }
 
-
 // MARK: - Preview
-
 struct QuestListView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationStack{
+        NavigationStack {
             QuestListView()
         }
     }
