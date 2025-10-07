@@ -49,7 +49,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				Preview/QuestPreview.swift,
 			);
 			target = 8857E7DB2E049CFF001FBEFC /* Cobling */;
 		};
