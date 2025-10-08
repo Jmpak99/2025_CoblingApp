@@ -160,6 +160,8 @@ struct QuestDetailView: View {
                 db.collection("users")
                     .document(userId)
                     .collection("progress")
+                    .document(chapter.id)
+                    .collection("subQuests")
                     .getDocuments { progressSnap, _ in
                         var progressMap: [String: String] = [:]
                         if let progressDocs = progressSnap?.documents {
