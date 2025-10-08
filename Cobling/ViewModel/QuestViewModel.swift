@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import FirebaseAuth
 import FirebaseFirestore
 
 // MARK: - 캐릭터 방향 열거형 정의
@@ -52,9 +53,17 @@ class QuestViewModel: ObservableObject {
     @Published private(set) var goalPosition: (row: Int, col: Int) = (0, 0)
     
     private let db = Firestore.firestore()
+
+    // ✅ fetch로 받은 식별자 저장 (클리어 시 progress 문서 지정에 사용)
+    private var currentChapterId: String = ""
+    private var currentSubQuestId: String = ""
     
     // MARK: - Firestore에서 SubQuest 불러오기
     func fetchSubQuest(chapterId: String, subQuestId: String) {
+        // 현재 컨텍스트 보관
+        self.currentChapterId = chapterId
+        self.currentSubQuestId = subQuestId
+
         db.collection("quests")
             .document(chapterId)
             .collection("subQuests")
@@ -113,6 +122,11 @@ class QuestViewModel: ObservableObject {
                 print("🎉 성공: 깃발 도착!")
                 showSuccessDialog = true
                 isExecuting = false
+                
+                // 🔹 클리어 로직 추가
+                if let subQuest = subQuest {
+                    handleQuestClear(subQuest: subQuest, usedBlocks: countUsedBlocks())
+                }
             }
             return
         }
@@ -143,6 +157,53 @@ class QuestViewModel: ObservableObject {
                 self.executeBlocks(blocks, index: index + 1)
             }
         }
+    }
+    
+    // MARK: - 퀘스트 클리어 처리
+    private func handleQuestClear(subQuest: SubQuestDocument, usedBlocks: Int) {
+        // 보상 계산
+        let baseExp = subQuest.rewards.baseExp
+        let bonusExp = subQuest.rewards.perfectBonusExp
+        let maxSteps = subQuest.rules.maxSteps          // ✅ rules에서 가져오기
+        let isPerfect = usedBlocks <= maxSteps
+        let earned = isPerfect ? (baseExp + bonusExp) : baseExp
+        
+        // ✅ 실제 로그인 유저 UID 가져오기
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("❌ 로그인된 유저가 없습니다.")
+            return
+        }
+        
+        // ✅ progress 문서는 fetch 시점의 subQuestId 사용
+        let subId = currentSubQuestId
+        guard !subId.isEmpty else {
+            print("⚠️ subQuestId가 비어 있습니다. fetchSubQuest 호출 여부 확인 필요")
+            return
+        }
+        
+        let progressRef = db.collection("users")
+            .document(userId)
+            .collection("progress")
+            .document(subId)
+        
+        progressRef.updateData([
+            "earnedExp": earned,
+            "perfectClear": isPerfect,
+            "state": "completed",
+            "attempts": FieldValue.increment(Int64(1)),
+            "updatedAt": Timestamp(date: Date())
+        ]) { error in
+            if let error = error {
+                print("❌ 퀘스트 클리어 저장 실패: \(error)")
+            } else {
+                print("✅ 퀘스트 클리어 저장 완료 (exp: \(earned), perfect: \(isPerfect))")
+            }
+        }
+    }
+    
+    private func countUsedBlocks() -> Int {
+        // 시작 블록 제외하고 children 전체 개수
+        return startBlock.children.count
     }
     
     // MARK: - 앞으로 이동
