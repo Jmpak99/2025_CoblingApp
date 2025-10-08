@@ -10,8 +10,6 @@ import FirebaseFirestore
 
 struct SubQuestDocument: Codable, Identifiable {
     @DocumentID var id: String?
-    var createAt: Date?
-    var updateAt: Date?
     var title: String
     var description: String
     var objective: String
