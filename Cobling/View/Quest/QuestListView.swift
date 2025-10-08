@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseFirestore
+import FirebaseAuth
 
 // MARK: - Firestore 퀘스트 데이터 모델
 struct QuestDocument: Identifiable, Codable {
@@ -17,8 +18,6 @@ struct QuestDocument: Identifiable, Codable {
     var recommendedLevel: Int
     var isActive: Bool
     var allowedBlocks: [String]?
-    //var createdAt: Date?
-    //var updatedAt: Date?
 }
 
 // MARK: - Quest 상태
@@ -37,36 +36,62 @@ enum QuestStatus {
 // MARK: - ViewModel (Firestore 데이터 로드)
 @MainActor
 final class QuestListViewModel: ObservableObject {
-    @Published var quests: [QuestDocument] = []
+    @Published var quests: [(QuestDocument, QuestStatus)] = []
     @Published var isLoading = true
     @Published var errorMessage: String?
 
     private let db = Firestore.firestore()
 
     func fetchQuests() async {
-        do {
-            let docRef = db.collection("quests").document("ch1")
-            let document = try await docRef.getDocument()
+        guard let userId = Auth.auth().currentUser?.uid else {
+            self.errorMessage = "로그인 필요"
+            self.isLoading = false
+            return
+        }
 
-            guard let data = document.data() else {
-                self.errorMessage = "데이터 없음"
-                self.isLoading = false
-                return
+        do {
+            // 1) quests 전체 가져오기 (order 순으로 정렬)
+            let questSnap = try await db.collection("quests")
+                .order(by: "order")
+                .getDocuments()
+
+            var results: [(QuestDocument, QuestStatus)] = []
+
+            for doc in questSnap.documents {
+                let data = doc.data()
+                let quest = QuestDocument(
+                    id: doc.documentID,
+                    title: data["title"] as? String ?? "",
+                    subtitle: data["subtitle"] as? String ?? "",
+                    order: data["order"] as? Int ?? 0,
+                    recommendedLevel: data["recommendedLevel"] as? Int ?? 1,
+                    isActive: data["isActive"] as? Bool ?? false,
+                    allowedBlocks: data["allowedBlocks"] as? [String] ?? []
+                )
+
+                // 2) 진행상황 불러오기
+                let progressRef = db.collection("users")
+                    .document(userId)
+                    .collection("progress")
+                    .document(doc.documentID) // chapterId
+
+                let subSnap = try await progressRef.collection("subQuests").getDocuments()
+                let states = subSnap.documents.map { $0.data()["state"] as? String ?? "locked" }
+
+                // 3) 상태 집계
+                let status: QuestStatus
+                if states.allSatisfy({ $0 == "completed" }) && !states.isEmpty {
+                    status = .completed
+                } else if states.contains("inProgress") {
+                    status = .inProgress
+                } else {
+                    status = .locked
+                }
+
+                results.append((quest, status))
             }
 
-            // ❌ JSONSerialization 제거
-            // ✅ Dictionary에서 직접 값 꺼내기
-            let quest = QuestDocument(
-                id: document.documentID,
-                title: data["title"] as? String ?? "",
-                subtitle: data["subtitle"] as? String ?? "",
-                order: data["order"] as? Int ?? 0,
-                recommendedLevel: data["recommendedLevel"] as? Int ?? 1,
-                isActive: data["isActive"] as? Bool ?? false,
-                allowedBlocks: data["allowedBlocks"] as? [String] ?? []
-            )
-
-            self.quests = [quest]
+            self.quests = results
             self.isLoading = false
         } catch {
             errorMessage = error.localizedDescription
@@ -97,10 +122,10 @@ struct QuestListView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 20) {
-                        ForEach(viewModel.quests) { quest in
+                        ForEach(viewModel.quests, id: \.0.id) { (quest, status) in
                             QuestCardWrapper_DB(
                                 quest: quest,
-                                status: .inProgress,
+                                status: status,
                                 showLockedAlert: $showLockedAlert
                             )
                         }
@@ -128,12 +153,24 @@ struct QuestCardWrapper_DB: View {
     @Binding var showLockedAlert: Bool
 
     var body: some View {
-        NavigationLink(destination: QuestDetailView(chapter: quest)) {
-            QuestCardView_DB(
-                title: quest.title,
-                subtitle: quest.subtitle,
-                status: status
-            )
+        if status == .locked {
+            Button {
+                showLockedAlert = true
+            } label: {
+                QuestCardView_DB(
+                    title: quest.title,
+                    subtitle: quest.subtitle,
+                    status: status
+                )
+            }
+        } else {
+            NavigationLink(destination: QuestDetailView(chapter: quest)) {
+                QuestCardView_DB(
+                    title: quest.title,
+                    subtitle: quest.subtitle,
+                    status: status
+                )
+            }
         }
     }
 }
