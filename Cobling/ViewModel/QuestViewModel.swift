@@ -149,6 +149,8 @@ class QuestViewModel: ObservableObject {
             let progressRef = self.db.collection("users")
                 .document(userId)
                 .collection("progress")
+                .document(self.currentChapterId)
+                .collection("subQuests")
                 .document(nextId)
 
             progressRef.getDocument { snap, _ in
@@ -226,33 +228,31 @@ class QuestViewModel: ObservableObject {
         }
     }
     
-    // MARK: - 퀘스트 클리어 처리
+    // MARK: - 퀘스트 클리어 처리 (낙관적 업데이트 + 다음 퀘스트 열기)
     private func handleQuestClear(subQuest: SubQuestDocument, usedBlocks: Int) {
-        // 보상 계산
         let baseExp = subQuest.rewards.baseExp
         let bonusExp = subQuest.rewards.perfectBonusExp
-        let maxSteps = subQuest.rules.maxSteps          // ✅ rules에서 가져오기
+        let maxSteps = subQuest.rules.maxSteps
         let isPerfect = usedBlocks <= maxSteps
         let earned = isPerfect ? (baseExp + bonusExp) : baseExp
         
-        // ✅ 실제 로그인 유저 UID 가져오기
-        guard let userId = Auth.auth().currentUser?.uid else {
-            print("❌ 로그인된 유저가 없습니다.")
-            return
-        }
-        
-        // ✅ progress 문서는 fetch 시점의 subQuestId 사용
+        guard let userId = Auth.auth().currentUser?.uid else { return }
         let subId = currentSubQuestId
-        guard !subId.isEmpty else {
-            print("⚠️ subQuestId가 비어 있습니다. fetchSubQuest 호출 여부 확인 필요")
-            return
+        guard !subId.isEmpty else { return }
+        
+        // ✅ 현재 subQuest 완료 처리 (낙관적 업데이트)
+        DispatchQueue.main.async {
+            print("⚡ 낙관적 업데이트: \(subId) → completed")
         }
         
         let progressRef = db.collection("users")
             .document(userId)
             .collection("progress")
+            .document(currentChapterId)
+            .collection("subQuests")
             .document(subId)
         
+        // ✅ 1. 현재 subQuest 완료 저장
         progressRef.updateData([
             "earnedExp": earned,
             "perfectClear": isPerfect,
@@ -264,6 +264,35 @@ class QuestViewModel: ObservableObject {
                 print("❌ 퀘스트 클리어 저장 실패: \(error)")
             } else {
                 print("✅ 퀘스트 클리어 저장 완료 (exp: \(earned), perfect: \(isPerfect))")
+                
+                // ✅ 2. 다음 subQuest 열어주기
+                let nextOrder = subQuest.order + 1
+                let chapterRef = self.db.collection("quests")
+                    .document(self.currentChapterId)
+                    .collection("subQuests")
+                
+                chapterRef.whereField("order", isEqualTo: nextOrder).getDocuments { snap, _ in
+                    if let nextDoc = snap?.documents.first {
+                        let nextId = nextDoc.documentID
+                        let nextProgressRef = self.db.collection("users")
+                            .document(userId)
+                            .collection("progress")
+                            .document(self.currentChapterId)
+                            .collection("subQuests")
+                            .document(nextId)
+                        
+                        nextProgressRef.updateData([
+                            "state": "inProgress",
+                            "updatedAt": Timestamp(date: Date())
+                        ]) { err in
+                            if let err = err {
+                                print("❌ 다음 퀘스트 해금 실패: \(err)")
+                            } else {
+                                print("🔓 다음 퀘스트 해금 완료: \(nextId)")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
