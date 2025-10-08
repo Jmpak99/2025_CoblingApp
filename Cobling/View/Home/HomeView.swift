@@ -8,16 +8,12 @@
 import SwiftUI
 
 struct HomeView: View {
-    // 사용자 레벨 하드코딩
-    @State private var level = 1
-    // 경험치 퍼센트 하드코딩 (0.0 ~ 1.0)
-    @State private var experience: Double = 0.5
-    // 미션 완료 여부 하드코딩
-    private let isMissionCompleted = false
+    @StateObject private var homeVM = HomeViewModel()
 
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authVM: AuthViewModel
 
+    private let isMissionCompleted = false
 
     private var greetingText: String {
         if let nick = authVM.userProfile?.nickname, !nick.isEmpty {
@@ -70,13 +66,13 @@ struct HomeView: View {
                 }
                 .padding(.top, 40)
 
-                // MARK: - 레벨 카드
+                // MARK: - 레벨 카드 (HomeViewModel 값 사용)
                 RoundedRectangle(cornerRadius: 24)
                     .fill(Color(hex: "#F8F8F6"))
                     .frame(width: 335, height: 72)
                     .overlay(
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Lv. \(level)")
+                            Text("Lv. \(homeVM.level)")
                                 .font(.gmarketMedium18)
                                 .foregroundColor(Color(hex: "#1D260D"))
 
@@ -88,10 +84,10 @@ struct HomeView: View {
                                         .frame(width: 230, height: 16)
                                     RoundedRectangle(cornerRadius: 20)
                                         .fill(Color(hex: "#EA4C89"))
-                                        .frame(width: maxBarWidth * experience, height: 16)
+                                        .frame(width: maxBarWidth * homeVM.expPercent, height: 16)
                                 }
                                 Spacer()
-                                Text(String(format: "%.0f%%", experience * 100))
+                                Text(String(format: "%.0f%%", homeVM.expPercent * 100))
                                     .font(.gmarketMedium16)
                                     .foregroundColor(Color(hex: "#1D260D"))
                             }
@@ -99,12 +95,6 @@ struct HomeView: View {
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
                     )
-                    .onChange(of: experience) {
-                        if experience >= 1.0 {
-                            level += 1
-                            experience = 0.0
-                        }
-                    }
 
                 // MARK: - 오늘의 미션 카드
                 RoundedRectangle(cornerRadius: 24)
@@ -142,8 +132,13 @@ struct HomeView: View {
             .navigationBarHidden(true)
         }
         .navigationViewStyle(.stack)
+        .onAppear {
+            homeVM.fetchUserData()
+        }
     }
 }
+
+
 
 #Preview {
     // 프리뷰용 더미 VM 주입(닉네임 보이게 하려면 아래 주석 해제)
