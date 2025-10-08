@@ -330,13 +330,18 @@ extension AuthViewModel {
 
         // 1) 사용자 소유 데이터부터 삭제
         do {
-            // 1-1. userProgress/{uid}/subquests/* 전부 삭제
-            let subquests = try await db.collection("userProgress").document(uid).collection("subquests").getDocuments()
-            for doc in subquests.documents {
-                try await doc.reference.delete()
+            // 🔹 1-1. users/{uid}/progress/{chapterId}/subQuests/* 전부 삭제
+            let chapters = try await db.collection("users").document(uid).collection("progress").getDocuments()
+            for chapter in chapters.documents {
+                let subQuests = try await chapter.reference.collection("subQuests").getDocuments()
+                for sq in subQuests.documents {
+                    try await sq.reference.delete()
+                }
+                try await chapter.reference.delete() // chapter 문서 자체 삭제
             }
-            // 1-2. userProgress/{uid} 문서 삭제
-            try await db.collection("userProgress").document(uid).delete()
+
+            // 🔹 1-2. users/{uid} 문서 삭제
+            try await db.collection("users").document(uid).delete()
 
             // 1-3. blockSolutions 에서 본인 문서 일괄 삭제 (rules fix가 적용되어야 함)
             let mySolutions = try await db.collection("blockSolutions").whereField("userId", isEqualTo: uid).getDocuments()
