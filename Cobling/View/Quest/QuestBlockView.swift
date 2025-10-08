@@ -15,6 +15,11 @@ struct QuestBlockView: View {
     @StateObject private var startBlock = Block(type: .start)
     @State private var paletteFrame: CGRect = .zero
 
+    // ✅ 다음 퀘스트 이동 상태
+    @State private var goToNextQuestId: String? = nil
+    @State private var showLockedAlert = false
+    @State private var goBackToQuestList = false
+
     private func isOverPalette() -> Bool {
         paletteFrame.contains(dragManager.dragPosition)
             && dragManager.isDragging
@@ -25,6 +30,7 @@ struct QuestBlockView: View {
         ZStack {
             mainContent()
 
+            // 실패 다이얼로그
             if viewModel.showFailureDialog {
                 FailureDialogView {
                     withAnimation(.easeInOut(duration: 0.22)) {
@@ -38,6 +44,7 @@ struct QuestBlockView: View {
                 .zIndex(10)
             }
 
+            // 성공 다이얼로그
             if viewModel.showSuccessDialog {
                 SuccessDialogView(
                     onRetry: {
@@ -53,7 +60,19 @@ struct QuestBlockView: View {
                             viewModel.showSuccessDialog = false
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                            viewModel.resetExecution()
+                            viewModel.goToNextSubQuest { action in
+                                switch action {
+                                case .goToQuest(let nextId):
+                                    print("➡️ 다음 퀘스트로 이동: \(nextId)")
+                                    goToNextQuestId = nextId   // ✅ 이동 트리거
+                                case .locked:
+                                    print("🔒 다음 퀘스트는 잠겨 있음")
+                                    showLockedAlert = true
+                                case .goToList:
+                                    print("📋 더 이상 퀘스트 없음 → 리스트로 복귀")
+                                    goBackToQuestList = true
+                                }
+                            }
                         }
                     }
                 )
@@ -63,7 +82,6 @@ struct QuestBlockView: View {
         }
         .onAppear {
             tabBarViewModel.isTabBarVisible = false
-            // Firestore에서 SubQuest 불러오기
             viewModel.fetchSubQuest(chapterId: chapterId, subQuestId: subQuestId)
         }
         .onDisappear { tabBarViewModel.isTabBarVisible = true }
@@ -74,6 +92,21 @@ struct QuestBlockView: View {
                    value: viewModel.showFailureDialog || viewModel.showSuccessDialog)
         .navigationBarBackButtonHidden(true)
         .ignoresSafeArea(.all, edges: .top)
+
+        // ✅ 다음 퀘스트 네비게이션
+        .navigationDestination(item: $goToNextQuestId) { nextId in
+            QuestBlockView(chapterId: chapterId, subQuestId: nextId)
+        }
+
+        // ✅ 퀘스트 리스트 복귀
+        .navigationDestination(isPresented: $goBackToQuestList) {
+            QuestListView()   // 실제 퀘스트 리스트 뷰
+        }
+
+        // ✅ 잠김 알림
+        .alert("🔒 다음 퀘스트는 잠겨 있습니다", isPresented: $showLockedAlert) {
+            Button("확인", role: .cancel) { }
+        }
     }
 
     @ViewBuilder

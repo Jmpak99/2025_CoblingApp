@@ -33,6 +33,15 @@ enum Direction: String, Codable {
     }
 }
 
+// MARK: - 다음 퀘스트 이동 액션 정의
+enum NextQuestAction {
+    case goToQuest(String)   // 다음 퀘스트 ID
+    case locked
+    case goToList
+}
+
+
+
 // MARK: - 퀘스트 실행 뷰모델
 class QuestViewModel: ObservableObject {
     // 🔹 게임 실행 상태
@@ -55,7 +64,7 @@ class QuestViewModel: ObservableObject {
     private let db = Firestore.firestore()
 
     // ✅ fetch로 받은 식별자 저장 (클리어 시 progress 문서 지정에 사용)
-    private var currentChapterId: String = ""
+    var currentChapterId: String = ""
     private var currentSubQuestId: String = ""
     
     // MARK: - Firestore에서 SubQuest 불러오기
@@ -101,6 +110,64 @@ class QuestViewModel: ObservableObject {
                     print("❌ 디코딩 실패: \(error)")
                 }
             }
+    }
+    
+    // MARK: - 다음 퀘스트 찾기 로직
+    func goToNextSubQuest(completion: @escaping (NextQuestAction) -> Void) {
+        guard let subQuest = subQuest else {
+            completion(.goToList)
+            return
+        }
+
+        let nextOrder = subQuest.order + 1
+        let chapterRef = db.collection("quests")
+            .document(currentChapterId)
+            .collection("subQuests")
+
+        chapterRef.whereField("order", isEqualTo: nextOrder).getDocuments { snapshot, error in
+            if let error = error {
+                print("❌ Error fetching next subQuest: \(error)")
+                completion(.goToList)
+                return
+            }
+
+            guard let doc = snapshot?.documents.first else {
+                print("📋 다음 퀘스트 없음 → 리스트로")
+                completion(.goToList)
+                return
+            }
+
+            let nextId = doc.documentID
+
+            // ✅ 로그인 유저 확인
+            guard let userId = Auth.auth().currentUser?.uid else {
+                print("❌ 로그인 유저 없음")
+                completion(.locked)
+                return
+            }
+
+            let progressRef = self.db.collection("users")
+                .document(userId)
+                .collection("progress")
+                .document(nextId)
+
+            progressRef.getDocument { snap, _ in
+                guard let data = snap?.data(),
+                      let state = data["state"] as? String else {
+                    completion(.locked)
+                    return
+                }
+
+                switch state {
+                case "locked":
+                    completion(.locked)
+                case "inProgress", "completed":
+                    completion(.goToQuest(nextId))
+                default:
+                    completion(.locked)
+                }
+            }
+        }
     }
     
     // MARK: - 블록 실행 시작
