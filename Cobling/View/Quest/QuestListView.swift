@@ -134,6 +134,7 @@ struct QuestListView: View {
                     .padding(.bottom, 100)
                 }
                 .scrollIndicators(.hidden)
+                
             }
         }
         .navigationBarHidden(true)

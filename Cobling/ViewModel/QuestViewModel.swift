@@ -61,6 +61,9 @@ class QuestViewModel: ObservableObject {
     @Published private(set) var startPosition: (row: Int, col: Int) = (0, 0)
     @Published private(set) var goalPosition: (row: Int, col: Int) = (0, 0)
     
+    // 🔹 팔레트에서 허용할 블록 목록
+    @Published var allowedBlocks: [BlockType] = []
+    
     private let db = Firestore.firestore()
 
     // ✅ fetch로 받은 식별자 저장 (클리어 시 progress 문서 지정에 사용)
@@ -103,7 +106,11 @@ class QuestViewModel: ObservableObject {
                                 rawValue: subQuest.map.startDirection.lowercased()
                             ) ?? .right
                             
+                            // ✅ 허용 블록 반영
+                            self.allowedBlocks = subQuest.rules.allowBlocks.compactMap { BlockType(rawValue: $0) }
+                            
                             print("✅ 불러온 서브퀘스트: \(subQuest.title)")
+                            print("📦 허용 블록: \(self.allowedBlocks)")
                         }
                     }
                 } catch {

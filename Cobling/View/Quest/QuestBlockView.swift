@@ -107,6 +107,7 @@ struct QuestBlockView: View {
         .alert("🔒 다음 퀘스트는 잠겨 있습니다", isPresented: $showLockedAlert) {
             Button("확인", role: .cancel) { }
         }
+        
     }
 
     @ViewBuilder
@@ -165,6 +166,7 @@ struct QuestBlockView: View {
 
                 BlockPaletteView()
                     .environmentObject(dragManager)
+                    .environmentObject(viewModel)
             }
             .onAppear {
                 paletteFrame = geo.frame(in: .named("global"))

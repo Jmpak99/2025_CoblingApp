@@ -1,15 +1,20 @@
+//
+//  BlockPaletteView.swift
+//  Cobling
+//
+//  Created by 박종민 on 2025/07/02.
+//
+
 import SwiftUI
 
 struct BlockPaletteView: View {
     @EnvironmentObject var dragManager: DragManager
-
-    private let blockTypes: [BlockType] = [
-        .moveForward, .turnLeft, .turnRight
-    ]
+    @EnvironmentObject var viewModel: QuestViewModel   // ✅ DB 연동된 허용 블록 사용
 
     var body: some View {
         VStack(spacing: 12) {
-            ForEach(blockTypes, id: \.self) { type in
+            // ✅ DB에서 불러온 allowedBlocks만 표시
+            ForEach(viewModel.allowedBlocks, id: \.self) { type in
                 GeometryReader { geometry in
                     Image(type.imageName)
                         .resizable()
@@ -47,6 +52,7 @@ struct BlockPaletteView: View {
                 }
                 .frame(height: 40)
             }
+
             Spacer()
         }
         .padding(.top, 16)
