@@ -89,14 +89,9 @@ struct LoginView: View {
                             .padding(.top, 2)
                     }
 
-                    // 데모 로그인 (선택)
+                    // 데모 로그인 (실제 Firebase 이메일 / 비번 로그인)
                     Button {
-                        guard !isLoading else { return }
-                        email = DemoAuth.email
-                        password = DemoAuth.password
-                        let vm = authVM
-                        vm.debugSignIn()
-                        onLoginSuccess()
+                        Task { await signInDemo() }
                     } label: {
                         Text("테스트 계정으로 로그인")
                             .font(.gmarketMedium14)
@@ -104,6 +99,7 @@ struct LoginView: View {
                             .foregroundColor(.gray)
                     }
                     .padding(.top, 2)
+                    .disabled(isLoading)
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 18)
@@ -190,6 +186,23 @@ struct LoginView: View {
             errorText = "비밀번호 재설정 메일을 전송했습니다."
         } catch {
             errorText = vm.authError ?? error.localizedDescription
+        }
+        isLoading = false
+    }
+    
+    /// 테스트 계정으로 실제 Firebase Login
+    private func signInDemo() async {
+        guard !isLoading else { return }
+        errorText = nil
+        isLoading = true
+        let vm = authVM
+        do {
+            try await vm.signIn(email: DemoAuth.email, password: DemoAuth.password)
+            await MainActor.run { onLoginSuccess() } // 인증 완료 후 화면 전환
+        } catch {
+            await MainActor.run {
+                errorText = vm.authError ?? error.localizedDescription
+            }
         }
         isLoading = false
     }
