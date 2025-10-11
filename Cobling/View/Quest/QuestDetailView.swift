@@ -72,6 +72,7 @@ struct QuestDetailView: View {
             .frame(maxWidth: 600)
             .padding(.horizontal)
             .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.bottom, 80)
         }
         .alert("잠긴 퀘스트입니다", isPresented: $showLockedAlert) {
             Button("확인", role: .cancel) {}
