@@ -13,7 +13,7 @@ import FirebaseFirestore
 // MARK: - 캐릭터 방향 열거형 정의
 enum Direction: String, Codable {
     case up, down, left, right
-    
+
     func turnedLeft() -> Direction {
         switch self {
         case .up: return .left
@@ -35,15 +35,14 @@ enum Direction: String, Codable {
 
 // MARK: - 다음 퀘스트 이동 액션 정의
 enum NextQuestAction {
-    case goToQuest(String)   // 다음 퀘스트 ID
-    case locked
+    case goToQuest(String)   // 다음 퀘스트 ID (혹은 현재 ID)
+    case locked              // 진짜 잠김 (선행 조건 미충족)
+    case waiting             // 서버 해금 반영 대기(타임아웃)
     case goToList
 }
 
-
-
 // MARK: - 퀘스트 실행 뷰모델
-class QuestViewModel: ObservableObject {
+final class QuestViewModel: ObservableObject {
     // 🔹 게임 실행 상태
     @Published var characterPosition: (row: Int, col: Int) = (0, 0)
     @Published var characterDirection: Direction = .right
@@ -53,23 +52,30 @@ class QuestViewModel: ObservableObject {
     @Published var startBlock = Block(type: .start)
     @Published var currentExecutingBlockID: UUID? = nil
     @Published var isExecuting = false
-    
+
     // 🔹 Firestore 데이터
     @Published var subQuest: SubQuestDocument?   // 현재 불러온 퀘스트
-    
+
     // 🔹 시작/목표 좌표 (외부에서 읽기만 가능)
     @Published private(set) var startPosition: (row: Int, col: Int) = (0, 0)
     @Published private(set) var goalPosition: (row: Int, col: Int) = (0, 0)
-    
+
     // 🔹 팔레트에서 허용할 블록 목록
     @Published var allowedBlocks: [BlockType] = []
-    
+
     private let db = Firestore.firestore()
 
     // ✅ fetch로 받은 식별자 저장 (클리어 시 progress 문서 지정에 사용)
     var currentChapterId: String = ""
     private var currentSubQuestId: String = ""
-    
+
+    // ✅ unlock 대기 리스너(중복 등록 방지)
+    private var unlockListener: ListenerRegistration?
+
+    deinit {
+        unlockListener?.remove()
+    }
+
     // MARK: - Firestore에서 SubQuest 불러오기
     func fetchSubQuest(chapterId: String, subQuestId: String) {
         // 현재 컨텍스트 보관
@@ -85,30 +91,30 @@ class QuestViewModel: ObservableObject {
                     print("❌ Firestore 불러오기 실패: \(error)")
                     return
                 }
-                
+
                 do {
                     if let subQuest = try snapshot?.data(as: SubQuestDocument.self) {
                         DispatchQueue.main.async {
                             self.subQuest = subQuest
-                            
-                            // 맵 데이터 (grid는 길만 0/1)
+
+                            // 맵 데이터
                             self.mapData = subQuest.map.parsedGrid
-                            
-                            // 시작/목표 위치 Firestore 필드 사용
+
+                            // 시작/목표 위치
                             self.startPosition = (subQuest.map.start.row, subQuest.map.start.col)
                             self.goalPosition = (subQuest.map.goal.row, subQuest.map.goal.col)
-                            
+
                             // 캐릭터 위치 초기화
                             self.characterPosition = self.startPosition
-                            
+
                             // 방향 초기화
                             self.characterDirection = Direction(
                                 rawValue: subQuest.map.startDirection.lowercased()
                             ) ?? .right
-                            
+
                             // ✅ 허용 블록 반영
                             self.allowedBlocks = subQuest.rules.allowBlocks.compactMap { BlockType(rawValue: $0) }
-                            
+
                             print("✅ 불러온 서브퀘스트: \(subQuest.title)")
                             print("📦 허용 블록: \(self.allowedBlocks)")
                         }
@@ -118,8 +124,125 @@ class QuestViewModel: ObservableObject {
                 }
             }
     }
-    
-    // MARK: - 다음 퀘스트 찾기 로직
+
+    // MARK: - (공통) locked → inProgress/completed 될 때까지 대기
+    private func waitUntilUnlocked(
+        progressRef: DocumentReference,
+        timeoutSeconds: Double = 4.0,
+        onUnlocked: @escaping () -> Void,
+        onTimeout: @escaping () -> Void
+    ) {
+        unlockListener?.remove()
+        var done = false
+
+        // 타임아웃 (무한 대기 방지)
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeoutSeconds) { [weak self] in
+            guard let self = self else { return }
+            guard !done else { return }
+            done = true
+            self.unlockListener?.remove()
+            self.unlockListener = nil
+            onTimeout()
+        }
+
+        unlockListener = progressRef.addSnapshotListener { [weak self] snap, err in
+            guard let self = self else { return }
+            guard !done else { return }
+
+            if let err = err {
+                print("❌ unlock listener error:", err)
+                return
+            }
+
+            let state = snap?.data()?["state"] as? String ?? "locked"
+
+            if state == "inProgress" || state == "completed" {
+                done = true
+                self.unlockListener?.remove()
+                self.unlockListener = nil
+                onUnlocked()
+            }
+        }
+    }
+
+    // MARK: - ✅ (추가) 퀘스트 "진입" 게이트
+    //  - 화면 진입 시 progress가 잠깐 locked로 보일 수 있으므로
+    //    서버 반영까지 기다렸다가 들어가게 만드는 용도
+    func ensureSubQuestAccessible(
+        chapterId: String,
+        subQuestId: String,
+        timeoutSeconds: Double = 4.0,
+        completion: @escaping (NextQuestAction) -> Void
+    ) {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            completion(.locked)
+            return
+        }
+
+        let progressRef = db.collection("users")
+            .document(userId)
+            .collection("progress")
+            .document(chapterId)
+            .collection("subQuests")
+            .document(subQuestId)
+
+        // ✅ 서버 우선으로 읽어서 "캐시 locked" 오판 줄이기
+        progressRef.getDocument(source: .server) { [weak self] snap, error in
+            guard let self = self else { return }
+
+            // 서버 read 실패(오프라인 등)면 캐시로 fallback
+            if let _ = error, snap == nil {
+                progressRef.getDocument { [weak self] snap2, _ in
+                    guard let self = self else { return }
+                    let state2 = snap2?.data()?["state"] as? String ?? "locked"
+                    self.handleAccessState(
+                        state: state2,
+                        progressRef: progressRef,
+                        subQuestId: subQuestId,
+                        timeoutSeconds: timeoutSeconds,
+                        completion: completion
+                    )
+                }
+                return
+            }
+
+            let state = snap?.data()?["state"] as? String ?? "locked"
+            self.handleAccessState(
+                state: state,
+                progressRef: progressRef,
+                subQuestId: subQuestId,
+                timeoutSeconds: timeoutSeconds,
+                completion: completion
+            )
+        }
+    }
+
+    private func handleAccessState(
+        state: String,
+        progressRef: DocumentReference,
+        subQuestId: String,
+        timeoutSeconds: Double,
+        completion: @escaping (NextQuestAction) -> Void
+    ) {
+        switch state {
+        case "inProgress", "completed":
+            completion(.goToQuest(subQuestId))
+
+        case "locked":
+            // ✅ 잠깐 locked일 수 있으니 기다렸다가 열리면 진입
+            self.waitUntilUnlocked(
+                progressRef: progressRef,
+                timeoutSeconds: timeoutSeconds,
+                onUnlocked: { completion(.goToQuest(subQuestId)) },
+                onTimeout: { completion(.waiting) }
+            )
+
+        default:
+            completion(.locked)
+        }
+    }
+
+    // MARK: - 다음 퀘스트 찾기 로직 (locked면 waiting 대기)
     func goToNextSubQuest(completion: @escaping (NextQuestAction) -> Void) {
         guard let subQuest = subQuest else {
             completion(.goToList)
@@ -131,7 +254,9 @@ class QuestViewModel: ObservableObject {
             .document(currentChapterId)
             .collection("subQuests")
 
-        chapterRef.whereField("order", isEqualTo: nextOrder).getDocuments { snapshot, error in
+        chapterRef.whereField("order", isEqualTo: nextOrder).getDocuments { [weak self] snapshot, error in
+            guard let self = self else { return }
+
             if let error = error {
                 print("❌ Error fetching next subQuest: \(error)")
                 completion(.goToList)
@@ -146,7 +271,6 @@ class QuestViewModel: ObservableObject {
 
             let nextId = doc.documentID
 
-            // ✅ 로그인 유저 확인
             guard let userId = Auth.auth().currentUser?.uid else {
                 print("❌ 로그인 유저 없음")
                 completion(.locked)
@@ -160,25 +284,59 @@ class QuestViewModel: ObservableObject {
                 .collection("subQuests")
                 .document(nextId)
 
-            progressRef.getDocument { snap, _ in
-                guard let data = snap?.data(),
-                      let state = data["state"] as? String else {
-                    completion(.locked)
+            // ✅ 다음 퀘스트도 서버 우선으로 읽기(캐시 locked 완화)
+            progressRef.getDocument(source: .server) { [weak self] snap, error in
+                guard let self = self else { return }
+
+                // 서버 read 실패면 캐시 fallback
+                if let _ = error, snap == nil {
+                    progressRef.getDocument { [weak self] snap2, _ in
+                        guard let self = self else { return }
+                        let state2 = snap2?.data()?["state"] as? String ?? "locked"
+                        self.handleNextState(
+                            state: state2,
+                            progressRef: progressRef,
+                            nextId: nextId,
+                            completion: completion
+                        )
+                    }
                     return
                 }
 
-                switch state {
-                case "locked":
-                    completion(.locked)
-                case "inProgress", "completed":
-                    completion(.goToQuest(nextId))
-                default:
-                    completion(.locked)
-                }
+                let state = snap?.data()?["state"] as? String ?? "locked"
+                self.handleNextState(
+                    state: state,
+                    progressRef: progressRef,
+                    nextId: nextId,
+                    completion: completion
+                )
             }
         }
     }
-    
+
+    private func handleNextState(
+        state: String,
+        progressRef: DocumentReference,
+        nextId: String,
+        completion: @escaping (NextQuestAction) -> Void
+    ) {
+        switch state {
+        case "inProgress", "completed":
+            completion(.goToQuest(nextId))
+
+        case "locked":
+            self.waitUntilUnlocked(
+                progressRef: progressRef,
+                timeoutSeconds: 4.0,
+                onUnlocked: { completion(.goToQuest(nextId)) },
+                onTimeout: { completion(.waiting) }
+            )
+
+        default:
+            completion(.locked)
+        }
+    }
+
     // MARK: - 블록 실행 시작
     func startExecution() {
         guard !isExecuting else { return }
@@ -190,6 +348,7 @@ class QuestViewModel: ObservableObject {
     func executeBlocks(_ blocks: [Block], index: Int = 0) {
         guard index < blocks.count else {
             print("✅ 모든 블록 실행 완료")
+
             // 도착 지점 검사
             if characterPosition != goalPosition {
                 print("❌ 실패: 깃발에 도달하지 못함")
@@ -198,19 +357,18 @@ class QuestViewModel: ObservableObject {
                 print("🎉 성공: 깃발 도착!")
                 showSuccessDialog = true
                 isExecuting = false
-                
-                // 🔹 클리어 로직 추가
+
                 if let subQuest = subQuest {
                     handleQuestClear(subQuest: subQuest, usedBlocks: countUsedBlocks())
                 }
             }
             return
         }
-        
+
         let current = blocks[index]
         currentExecutingBlockID = current.id
         print("▶️ 현재 실행 중인 블록: \(current.type)")
-        
+
         switch current.type {
         case .moveForward:
             moveForward {
@@ -218,109 +376,77 @@ class QuestViewModel: ObservableObject {
                     self.executeBlocks(blocks, index: index + 1)
                 }
             }
+
         case .turnLeft:
             characterDirection = characterDirection.turnedLeft()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.executeBlocks(blocks, index: index + 1)
             }
+
         case .turnRight:
             characterDirection = characterDirection.turnedRight()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.executeBlocks(blocks, index: index + 1)
             }
+
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.executeBlocks(blocks, index: index + 1)
             }
         }
     }
-    
-    // MARK: - 퀘스트 클리어 처리 (낙관적 업데이트 + 다음 퀘스트 열기)
+
+    // MARK: - 퀘스트 클리어 처리
     private func handleQuestClear(subQuest: SubQuestDocument, usedBlocks: Int) {
         let baseExp = subQuest.rewards.baseExp
         let bonusExp = subQuest.rewards.perfectBonusExp
         let maxSteps = subQuest.rules.maxSteps
         let isPerfect = usedBlocks <= maxSteps
         let earned = isPerfect ? (baseExp + bonusExp) : baseExp
-        
+
         guard let userId = Auth.auth().currentUser?.uid else { return }
         let subId = currentSubQuestId
         guard !subId.isEmpty else { return }
-        
-        // ✅ 현재 subQuest 완료 처리 (낙관적 업데이트)
-        DispatchQueue.main.async {
-            print("⚡ 낙관적 업데이트: \(subId) → completed")
-        }
-        
+
         let progressRef = db.collection("users")
             .document(userId)
             .collection("progress")
             .document(currentChapterId)
             .collection("subQuests")
             .document(subId)
-        
-        // ✅ 1. 현재 subQuest 완료 저장
+
+        // ✅ 현재 subQuest 완료 저장 (서버 트리거로 다음 퀘스트 해금됨)
         progressRef.updateData([
             "earnedExp": earned,
             "perfectClear": isPerfect,
             "state": "completed",
             "attempts": FieldValue.increment(Int64(1)),
-            "updatedAt": Timestamp(date: Date())
+            "updatedAt": FieldValue.serverTimestamp()
         ]) { error in
             if let error = error {
                 print("❌ 퀘스트 클리어 저장 실패: \(error)")
             } else {
                 print("✅ 퀘스트 클리어 저장 완료 (exp: \(earned), perfect: \(isPerfect))")
-                
-                // ✅ 2. 다음 subQuest 열어주기
-                let nextOrder = subQuest.order + 1
-                let chapterRef = self.db.collection("quests")
-                    .document(self.currentChapterId)
-                    .collection("subQuests")
-                
-                chapterRef.whereField("order", isEqualTo: nextOrder).getDocuments { snap, _ in
-                    if let nextDoc = snap?.documents.first {
-                        let nextId = nextDoc.documentID
-                        let nextProgressRef = self.db.collection("users")
-                            .document(userId)
-                            .collection("progress")
-                            .document(self.currentChapterId)
-                            .collection("subQuests")
-                            .document(nextId)
-                        
-                        nextProgressRef.updateData([
-                            "state": "inProgress",
-                            "updatedAt": Timestamp(date: Date())
-                        ]) { err in
-                            if let err = err {
-                                print("❌ 다음 퀘스트 해금 실패: \(err)")
-                            } else {
-                                print("🔓 다음 퀘스트 해금 완료: \(nextId)")
-                            }
-                        }
-                    }
-                }
             }
         }
     }
-    
+
     private func countUsedBlocks() -> Int {
-        // 시작 블록 제외하고 children 전체 개수
         return startBlock.children.count
     }
-    
+
     // MARK: - 앞으로 이동
     func moveForward(completion: @escaping () -> Void) {
         var newRow = characterPosition.row
         var newCol = characterPosition.col
-        
+
         switch characterDirection {
         case .up: newRow -= 1
         case .down: newRow += 1
         case .left: newCol -= 1
         case .right: newCol += 1
         }
-        
+
         if newRow >= 0, newRow < mapData.count,
            newCol >= 0, newCol < mapData[0].count,
            mapData[newRow][newCol] != 0 {
@@ -332,7 +458,7 @@ class QuestViewModel: ObservableObject {
             resetToStart()
         }
     }
-    
+
     // MARK: - 실패 시 초기화
     func resetToStart() {
         isExecuting = false
@@ -342,7 +468,7 @@ class QuestViewModel: ObservableObject {
         showFailureDialog = true
         print("🔁 캐릭터를 시작 위치로 되돌림")
     }
-    
+
     func resetExecution() {
         isExecuting = false
         currentExecutingBlockID = nil
@@ -353,7 +479,6 @@ class QuestViewModel: ObservableObject {
 }
 
 #if DEBUG
-// MARK: - Preview 설정 전용
 extension QuestViewModel {
     func previewConfigure(
         map: [[Int]],
