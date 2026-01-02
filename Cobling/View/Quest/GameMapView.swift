@@ -8,6 +8,7 @@ import SwiftUI
 struct GameMapView: View {
     @ObservedObject var viewModel: QuestViewModel
     var questTitle: String
+    @EnvironmentObject var tabBarViewModel: TabBarViewModel
 
     @State private var isHintOn = false
     @State private var isStoryOn = false
@@ -166,6 +167,9 @@ struct GameMapView: View {
         }
         .navigationDestination(isPresented: $goBackToQuestList) {
             QuestListView()
+                .onAppear {
+                    tabBarViewModel.isTabBarVisible = true
+                }
         }
     }
 }

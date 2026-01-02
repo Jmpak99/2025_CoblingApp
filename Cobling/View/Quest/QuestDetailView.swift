@@ -25,6 +25,7 @@ struct SubQuest: Identifiable {
 // MARK: - QuestDetailView
 struct QuestDetailView: View {
     let chapter: QuestDocument
+    @EnvironmentObject var tabBarViewModel: TabBarViewModel
     
     @State private var subQuests: [SubQuest] = []
     @State private var isLoading = true
@@ -89,6 +90,7 @@ struct QuestDetailView: View {
         )
         .onAppear {
             loadSubQuests()
+            tabBarViewModel.isTabBarVisible = true
         }
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -273,3 +275,4 @@ struct QuestDetailView_Previews: PreviewProvider {
         }
     }
 }
+
