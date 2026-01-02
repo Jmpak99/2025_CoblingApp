@@ -52,6 +52,12 @@ final class QuestViewModel: ObservableObject {
     @Published var startBlock = Block(type: .start)
     @Published var currentExecutingBlockID: UUID? = nil
     @Published var isExecuting = false
+    
+    // 원본 적 목록 (다시하기 / 리셋 시 복원)
+    @Published private(set) var initialEnemies: [Enemy] = []
+    
+    // 🔹 적 목록 (현재 서브퀘스트에 배치된 적들)
+    @Published var enemies: [Enemy] = []
 
     // 🔹 Firestore 데이터
     @Published var subQuest: SubQuestDocument?   // 현재 불러온 퀘스트
@@ -88,7 +94,7 @@ final class QuestViewModel: ObservableObject {
             .document(subQuestId)
             .getDocument { snapshot, error in
                 if let error = error {
-                    print("❌ Firestore 불러오기 실패: \(error)")
+                    print("Firestore 불러오기 실패: \(error)")
                     return
                 }
 
@@ -103,6 +109,10 @@ final class QuestViewModel: ObservableObject {
                             // 시작/목표 위치
                             self.startPosition = (subQuest.map.start.row, subQuest.map.start.col)
                             self.goalPosition = (subQuest.map.goal.row, subQuest.map.goal.col)
+                            
+                            // 적 목록 로드 (원본저장 + 현재 값 세팅)
+                            self.initialEnemies = subQuest.map.enemies
+                            self.enemies = subQuest.map.enemies
 
                             // 캐릭터 위치 초기화
                             self.characterPosition = self.startPosition
@@ -112,7 +122,7 @@ final class QuestViewModel: ObservableObject {
                                 rawValue: subQuest.map.startDirection.lowercased()
                             ) ?? .right
 
-                            // ✅ 허용 블록 반영
+                            // 허용 블록 반영
                             self.allowedBlocks = subQuest.rules.allowBlocks.compactMap { BlockType(rawValue: $0) }
 
                             print("✅ 불러온 서브퀘스트: \(subQuest.title)")
@@ -165,7 +175,7 @@ final class QuestViewModel: ObservableObject {
         }
     }
 
-    // MARK: - ✅ (추가) 퀘스트 "진입" 게이트
+    // MARK: - 퀘스트 "진입" 게이트
     //  - 화면 진입 시 progress가 잠깐 locked로 보일 수 있으므로
     //    서버 반영까지 기다렸다가 들어가게 만드는 용도
     func ensureSubQuestAccessible(
@@ -186,7 +196,7 @@ final class QuestViewModel: ObservableObject {
             .collection("subQuests")
             .document(subQuestId)
 
-        // ✅ 서버 우선으로 읽어서 "캐시 locked" 오판 줄이기
+        // 서버 우선으로 읽어서 "캐시 locked" 오판 줄이기
         progressRef.getDocument(source: .server) { [weak self] snap, error in
             guard let self = self else { return }
 
@@ -388,6 +398,14 @@ final class QuestViewModel: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.executeBlocks(blocks, index: index + 1)
             }
+            
+        case .attack:
+            attack {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    self.executeBlocks(blocks, index: index + 1)
+                    
+                }
+            }
 
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -447,24 +465,86 @@ final class QuestViewModel: ObservableObject {
         case .right: newCol += 1
         }
 
-        if newRow >= 0, newRow < mapData.count,
-           newCol >= 0, newCol < mapData[0].count,
-           mapData[newRow][newCol] != 0 {
-            characterPosition = (newRow, newCol)
-            print("캐릭터 이동 → 위치: (\(newRow), \(newCol))")
-            completion()
-        } else {
-            print("이동 실패: 벽 또는 범위 밖입니다.")
+        // 1) 범위 체크
+        guard newRow >= 0, newRow < mapData.count,
+              newCol >= 0, newCol < mapData[0].count else {
+            print("이동 실패: 범위 밖입니다.")
             resetToStart()
+            return
         }
-    }
 
+        // 2) 벽(0) 체크
+        guard mapData[newRow][newCol] != 0 else {
+            print("이동 실패: 벽입니다.")
+            resetToStart()
+            return
+        }
+
+        // 3) 적 충돌 체크 (부딪히면 실패)
+        let hitEnemy = enemies.contains { $0.row == newRow && $0.col == newCol }
+        if hitEnemy {
+            print("💥 실패: 적과 충돌했습니다. (\(newRow), \(newCol))")
+            resetToStart()
+            return
+        }
+
+        // 4) 이동 성공
+        characterPosition = (newRow, newCol)
+        print("캐릭터 이동 → 위치: (\(newRow), \(newCol))")
+        completion()
+    }
+    
+    // MARK: - ✅ 공격 처리 (가장 가까운 1명 처치)
+    func attack(completion: @escaping () -> Void) {
+        guard let target = enemyInAttackRange() else {
+            print("⚔️ 공격: 범위 내 적 없음")
+            completion()
+            return
+        }
+
+        // 현재는 '처치' = enemies에서 제거
+        enemies.removeAll { $0.id == target.id }
+        print("💥 적 처치 성공: \(target.id) at (\(target.row), \(target.col))")
+
+        completion()
+    }
+    
+    // MARK: - 공격 범위 내 적 찾기 (가장 가까운 1명)
+    func enemyInAttackRange() -> Enemy? {
+        guard let subQuest = subQuest else { return nil }
+        let range = max(0, subQuest.rules.attackRange)
+        if range == 0 { return nil }
+
+        let (row, col) = characterPosition
+
+        for step in 1...range {
+            var targetRow = row
+            var targetCol = col
+
+            switch characterDirection {
+            case .up:    targetRow -= step
+            case .down:  targetRow += step
+            case .left:  targetCol -= step
+            case .right: targetCol += step
+            }
+
+            if let enemy = enemies.first(where: { $0.row == targetRow && $0.col == targetCol }) {
+                return enemy
+            }
+        }
+        return nil
+    }
+        
+        
     // MARK: - 실패 시 초기화
     func resetToStart() {
         isExecuting = false
         currentExecutingBlockID = nil
         characterPosition = startPosition
         characterDirection = .right
+        
+        enemies = initialEnemies
+        
         showFailureDialog = true
         print("🔁 캐릭터를 시작 위치로 되돌림")
     }
@@ -474,10 +554,14 @@ final class QuestViewModel: ObservableObject {
         currentExecutingBlockID = nil
         characterPosition = startPosition
         characterDirection = .right
+        
+        enemies = initialEnemies
+        
         print("🔄 다시하기: 캐릭터 초기화 및 다이얼로그 종료")
     }
 }
 
+    
 #if DEBUG
 extension QuestViewModel {
     func previewConfigure(
