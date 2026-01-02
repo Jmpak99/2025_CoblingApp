@@ -29,6 +29,7 @@ struct MapData: Codable {
     var size: MapSize
     var startDirection: String
     var legend: Legend
+    var enemies: [Enemy] = []
     
     /// grid([String]) → [[Int]] 변환
     var parsedGrid: [[Int]] {
@@ -38,6 +39,16 @@ struct MapData: Codable {
                 .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         }
     }
+}
+
+// MARK: - Enemy
+struct Enemy: Codable, Identifiable {
+    var id: String           // Firestore의 "e1" 같은 값
+    var row: Int
+    var col: Int
+
+    // 편의: 좌표를 Position으로 쓰고 싶을 때
+    var position: Position { Position(row: row, col: col) }
 }
 
 // MARK: - Supporting Models
