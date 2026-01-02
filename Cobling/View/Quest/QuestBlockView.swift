@@ -124,9 +124,7 @@ struct QuestBlockView: View {
                 }
             }
         }
-        .onDisappear {
-            tabBarViewModel.isTabBarVisible = true
-        }
+        // Removed .onDisappear { tabBarViewModel.isTabBarVisible = true }
         .onChange(of: startBlock.children) { newChildren in
             viewModel.startBlock.children = newChildren
         }
@@ -138,11 +136,17 @@ struct QuestBlockView: View {
         // ✅ 다음 퀘스트 네비게이션
         .navigationDestination(item: $goToNextQuestId) { nextId in
             QuestBlockView(chapterId: chapterId, subQuestId: nextId)
+                .onAppear {
+                    tabBarViewModel.isTabBarVisible = false
+                }
         }
 
         // ✅ 퀘스트 리스트 복귀
         .navigationDestination(isPresented: $goBackToQuestList) {
             QuestListView()
+                .onAppear {
+                    tabBarViewModel.isTabBarVisible = true
+                }
         }
 
         // ✅ 진짜 잠김 알럿
@@ -310,3 +314,4 @@ struct QuestBlockView_Previews: PreviewProvider {
     }
 }
 #endif
+
