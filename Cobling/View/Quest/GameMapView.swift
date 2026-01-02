@@ -86,6 +86,15 @@ struct GameMapView: View {
                                                 .scaledToFit()
                                                 .frame(width: tileSize, height: tileSize)
                                         }
+                                        
+                                        // 적
+                                        if viewModel.enemies.contains(where: { $0.row == row && $0.col == col }) {
+                                            Image("cobling_character_enemies")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: tileSize * 1.4, height: tileSize * 1.4)
+                                                .offset(y: -8)
+                                        }
 
                                         // ✅ goalPosition에 깃발 그리기
                                         if viewModel.goalPosition.row == row &&
