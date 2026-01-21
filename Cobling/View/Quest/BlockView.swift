@@ -7,6 +7,7 @@ import SwiftUI
 
 struct BlockView: View {
     @ObservedObject var block: Block
+    var showChildren : Bool = true
 
     @EnvironmentObject var dragManager: DragManager
     @EnvironmentObject var viewModel: QuestViewModel
@@ -56,28 +57,13 @@ struct BlockView: View {
 
                                 dragManager.updateDragPosition(position)
                             }
-                            .onEnded { value in
-                                // 🔥 주인이 아니면 종료 처리도 하지 않음
-                                if let ownerID = dragManager.draggingBlockID,
-                                   ownerID != block.id {
-                                    return
-                                }
-
-                                let frame = geo.frame(in: .global)
-                                let endPoint = CGPoint(
-                                    x: frame.origin.x + value.location.x,
-                                    y: frame.origin.y + value.location.y
-                                )
-
-                                dragManager.finishDrag(at: endPoint) { end, source, type, draggedBlock in
-                                    NotificationCenter.default.post(
-                                        name: .finishDragFromCanvas,
-                                        object: (end, source, type, draggedBlock)
-                                    )
-                                }
-
+                            .onEnded { _ in
+                                // 🔥 여기서는 "로컬 드래그 상태만 종료"
                                 isDraggingLocal = false
                                 dragOffset = .zero
+
+                                // ❌ finishDrag 호출하지 않음
+                                // ❌ NotificationCenter 사용하지 않음
                             }
                     )
             }
@@ -86,10 +72,10 @@ struct BlockView: View {
             // ======================
             // 자식 블록 (재귀)
             // ======================
-            if !block.children.isEmpty {
+            if showChildren && !block.children.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(block.children, id: \.id) { child in
-                        BlockView(block: child)
+                        BlockView(block: child, showChildren: true)
                             .environmentObject(dragManager)
                             .environmentObject(viewModel)
                     }
@@ -126,9 +112,4 @@ struct BlockView: View {
         if viewModel.isExecuting && !isExecutingThisBlock { return 0.3 }
         return 1.0
     }
-}
-
-extension Notification.Name {
-    static let finishDragFromPalette = Notification.Name("finishDragFromPalette")
-    static let finishDragFromCanvas  = Notification.Name("finishDragFromCanvas")
 }
