@@ -2,65 +2,78 @@
 //  BlockCanvasView.swift
 //  Cobling
 //
-//  Created by 박종민 on 2025/07/02.
-//
+
 import SwiftUI
+
+struct DropIndicatorBar: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(Color.green.opacity(0.6))
+            .frame(height: 6)
+            .padding(.vertical, 6)
+    }
+}
 
 struct BlockCanvasView: View {
     @ObservedObject var startBlock: Block
+
     @EnvironmentObject var dragManager: DragManager
     @EnvironmentObject var viewModel: QuestViewModel
-    var onDropBlock: (BlockType) -> Void
-    var onRemoveBlock: (Block) -> Void
+
     @Binding var paletteFrame: CGRect
 
-    @State private var prevBlockCount = 0
+    @State private var isDropTarget: Bool = false
+    @State private var previousChildCount: Int = 0   // ✅ 이전 개수 저장
 
     var body: some View {
-        ScrollViewReader { scrollProxy in
+        ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
+
+                    // startBlock 하나만 렌더링
                     BlockView(block: startBlock)
                         .environmentObject(dragManager)
                         .environmentObject(viewModel)
+
+                    // 🔥 Drop Indicator (UI 전용)
+                    if dragManager.isDragging && isDropTarget {
+                        DropIndicatorBar()
+                            .transition(.opacity)
+                    }
+
+                    // ✅ 스크롤 타겟 앵커
                     Color.clear
                         .frame(height: 1)
                         .id("canvasBottom")
                 }
                 .padding(.top, 16)
                 .padding(.bottom, 100)
-                .padding(.leading, 20) // 왼쪽 여백 추가
+                .padding(.leading, 20)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                // 캔버스 영역 판별
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .onChange(of: dragManager.dragPosition) { position in
+                                let frame = geo.frame(in: .global)
+                                isDropTarget = frame.contains(position)
+                            }
+                    }
+                )
             }
+
+            // ✅ 블록 "추가" 시에만 자동 스크롤
             .onChange(of: startBlock.children.count) { newCount in
-                // "추가"될 때만 하단 자동 스크롤
-                if newCount > prevBlockCount {
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        scrollProxy.scrollTo("canvasBottom", anchor: .bottom)
+                if newCount > previousChildCount {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo("canvasBottom", anchor: .bottom)
                     }
                 }
-                prevBlockCount = newCount
+                previousChildCount = newCount
             }
             .onAppear {
-                prevBlockCount = startBlock.children.count
-            }
-            .onChange(of: dragManager.isDragging) { dragging in
-                if !dragging,
-                   let end = dragManager.dragEndedAt,
-                   let type = dragManager.draggingType {
-                    let extendedPaletteFrame = paletteFrame.insetBy(dx: -20, dy: -20)
-                    if dragManager.dragSource == .canvas {
-                        if extendedPaletteFrame.contains(end),
-                           let blockToRemove = dragManager.draggingBlock {
-                            onRemoveBlock(blockToRemove)
-                        }
-                    } else if dragManager.dragSource == .palette {
-                        if !extendedPaletteFrame.contains(end) {
-                            onDropBlock(type)
-                        }
-                    }
-                    dragManager.reset()
-                }
+                previousChildCount = startBlock.children.count
             }
         }
     }
