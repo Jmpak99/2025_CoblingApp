@@ -154,23 +154,29 @@ struct QuestCardWrapper_DB: View {
     @Binding var showLockedAlert: Bool
 
     var body: some View {
+        let bgColor = QuestTheme.backgroundColor(order: quest.order)
+
+        let card = ZStack {
+            QuestCardView_DB(
+                title: quest.title,
+                subtitle: quest.subtitle,
+                status: status
+            )
+        }
+        .frame(width: 335, height: 220)
+        .background(bgColor) // ✅ 카드 전체 배경
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 4)
+
         if status == .locked {
             Button {
                 showLockedAlert = true
             } label: {
-                QuestCardView_DB(
-                    title: quest.title,
-                    subtitle: quest.subtitle,
-                    status: status
-                )
+                card
             }
         } else {
             NavigationLink(destination: QuestDetailView(chapter: quest)) {
-                QuestCardView_DB(
-                    title: quest.title,
-                    subtitle: quest.subtitle,
-                    status: status
-                )
+                card
             }
         }
     }
@@ -214,17 +220,7 @@ struct QuestCardView_DB: View {
                     .padding(.horizontal, 16)
                 }
             }
-
-            VStack {
-                HStack { Spacer() }
-                Spacer()
-            }
-            .frame(height: 125)
         }
-        .frame(width: 335, height: 220)
-        .background(Color(hex: "#FFF1DB"))
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 4)
     }
 }
 

@@ -29,7 +29,7 @@ struct MapData: Codable {
     var size: MapSize
     var startDirection: String
     var legend: Legend
-    var enemies: [Enemy] = []
+    var enemies: [Enemy]?
     
     /// grid([String]) → [[Int]] 변환
     var parsedGrid: [[Int]] {

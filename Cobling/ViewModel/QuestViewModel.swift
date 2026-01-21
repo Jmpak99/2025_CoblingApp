@@ -111,8 +111,12 @@ final class QuestViewModel: ObservableObject {
                             self.goalPosition = (subQuest.map.goal.row, subQuest.map.goal.col)
                             
                             // 적 목록 로드 (원본저장 + 현재 값 세팅)
-                            self.initialEnemies = subQuest.map.enemies
-                            self.enemies = subQuest.map.enemies
+                            let loadedEnemies = (subQuest.map.enemies ?? []).filter {
+                                !$0.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            }
+                            
+                            self.initialEnemies = loadedEnemies
+                            self.enemies = loadedEnemies
 
                             // 캐릭터 위치 초기화
                             self.characterPosition = self.startPosition
@@ -433,7 +437,7 @@ final class QuestViewModel: ObservableObject {
             .collection("subQuests")
             .document(subId)
 
-        // ✅ 현재 subQuest 완료 저장 (서버 트리거로 다음 퀘스트 해금됨)
+        // 현재 subQuest 완료 저장 (서버 트리거로 다음 퀘스트 해금됨)
         progressRef.updateData([
             "earnedExp": earned,
             "perfectClear": isPerfect,
@@ -497,14 +501,14 @@ final class QuestViewModel: ObservableObject {
     // MARK: - ✅ 공격 처리 (가장 가까운 1명 처치)
     func attack(completion: @escaping () -> Void) {
         guard let target = enemyInAttackRange() else {
-            print("⚔️ 공격: 범위 내 적 없음")
+            print("공격: 범위 내 적 없음")
             completion()
             return
         }
 
         // 현재는 '처치' = enemies에서 제거
         enemies.removeAll { $0.id == target.id }
-        print("💥 적 처치 성공: \(target.id) at (\(target.row), \(target.col))")
+        print("적 처치 성공: \(target.id) at (\(target.row), \(target.col))")
 
         completion()
     }
