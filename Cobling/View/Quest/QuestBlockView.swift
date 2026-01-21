@@ -22,7 +22,7 @@ struct QuestBlockView: View {
     @State private var goToNextQuestId: String? = nil
     @State private var goBackToQuestList = false
 
-    // MARK: - 팔레트 위에 있는지 판별 (삭제 표시용)
+    // MARK: - 팔레트 위에 있는지 판별 (삭제용)
     private func isOverPalette() -> Bool {
         dragManager.isDragging &&
         dragManager.dragSource == .canvas &&
@@ -32,9 +32,9 @@ struct QuestBlockView: View {
     var body: some View {
         ZStack {
 
-            // ======================
+            // =================================================
             // 메인 콘텐츠
-            // ======================
+            // =================================================
             VStack(spacing: 0) {
 
                 // 게임 맵
@@ -49,31 +49,48 @@ struct QuestBlockView: View {
                         .frame(height: 500)
                 }
 
-                // ======================
+                // =================================================
                 // 블록 영역
-                // ======================
+                // =================================================
                 HStack(spacing: 0) {
 
                     // ---------- 팔레트 ----------
                     GeometryReader { geo in
                         ZStack {
 
+                            // =================================================
+                            // 🔥 삭제 오버레이 (팔레트 영역 전체, 여백 없음)
+                            // =================================================
                             if isOverPalette() {
-                                Color.red.opacity(0.3)
-                                    .ignoresSafeArea(.container, edges: .bottom)
-                                    .overlay(
-                                        Text("삭제")
-                                            .font(.caption)
-                                            .foregroundColor(.white)
-                                    )
-                            } else {
-                                Color.white
+                                GeometryReader { geo in
+                                    HStack(spacing: 0) {
+                                        // 🔴 팔레트 영역만 붉게
+                                        Color.red.opacity(0.35)
+                                            .frame(width: 200)   // ← 팔레트 너비
+                                            .overlay(
+                                                VStack {
+                                                    Spacer()
+                                                    Text("삭제")
+                                                        .font(.headline)
+                                                        .foregroundColor(.white)
+                                                        .padding(.bottom, 40)
+                                                }
+                                            )
+
+                                        // 나머지 영역은 투명
+                                        Color.clear
+                                    }
+                                    .ignoresSafeArea()          // 🔥 하단 여백 제거 핵심
+                                }
+                                .zIndex(20)
                             }
 
                             BlockPaletteView()
                                 .environmentObject(dragManager)
                                 .environmentObject(viewModel)
+                                .zIndex(2)
                         }
+                        .background(Color.white)
                         .onAppear {
                             paletteFrame = geo.frame(in: .global)
                         }
@@ -94,9 +111,9 @@ struct QuestBlockView: View {
                 }
             }
 
-            // ======================
-            // 👻 고스트 블록 (팔레트 → 캔버스만)
-            // ======================
+            // =================================================
+            // 👻 고스트 블록 (팔레트 → 캔버스)
+            // =================================================
             if dragManager.isDragging,
                dragManager.dragSource == .palette,
                let type = dragManager.draggingType {
@@ -107,12 +124,12 @@ struct QuestBlockView: View {
                     offset: dragManager.dragStartOffset
                 )
                 .ignoresSafeArea()
-                .zIndex(5)
+                .zIndex(30)
             }
 
-            // ======================
+            // =================================================
             // ❌ 실패 다이얼로그
-            // ======================
+            // =================================================
             if viewModel.showFailureDialog {
                 FailureDialogView {
                     withAnimation(.easeInOut(duration: 0.22)) {
@@ -122,12 +139,12 @@ struct QuestBlockView: View {
                         viewModel.resetExecution()
                     }
                 }
-                .zIndex(10)
+                .zIndex(40)
             }
 
-            // ======================
+            // =================================================
             // ✅ 성공 다이얼로그
-            // ======================
+            // =================================================
             if viewModel.showSuccessDialog {
                 SuccessDialogView(
                     onRetry: {
@@ -147,14 +164,14 @@ struct QuestBlockView: View {
                         }
                     }
                 )
-                .zIndex(10)
+                .zIndex(40)
             }
         }
         .environmentObject(dragManager)
         .environmentObject(viewModel)
 
         // =================================================
-        // 🔥 드래그 종료 처리 (유일한 finishDrag 위치)
+        // 🔥 드래그 종료 처리 (유일한 진입점)
         // =================================================
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
@@ -164,7 +181,7 @@ struct QuestBlockView: View {
 
                         guard !viewModel.isExecuting else { return }
 
-                        // 1️⃣ 캔버스 → 팔레트 : 삭제
+                        // 1️⃣ 캔버스 → 팔레트 (삭제)
                         if source == .canvas,
                            let block = block,
                            paletteFrame.contains(endPos) {
@@ -173,7 +190,7 @@ struct QuestBlockView: View {
                             return
                         }
 
-                        // 2️⃣ 팔레트 → 캔버스 : 추가
+                        // 2️⃣ 팔레트 → 캔버스 (추가)
                         if source == .palette,
                            let type = type,
                            dragManager.isOverCanvas {
@@ -184,7 +201,7 @@ struct QuestBlockView: View {
                             return
                         }
 
-                        // 3️⃣ 캔버스 → 캔버스 : 재정렬
+                        // 3️⃣ 캔버스 → 캔버스 (재정렬)
                         if source == .canvas,
                            let block = block,
                            dragManager.isOverCanvas,
@@ -198,22 +215,17 @@ struct QuestBlockView: View {
                             startBlock.children.remove(at: fromIndex)
                             let adjusted = fromIndex < index ? index - 1 : index
                             startBlock.children.insert(block, at: adjusted)
-                            return
                         }
                     }
                 }
         )
 
-        // ======================
         // 블록 변경 → ViewModel 반영
-        // ======================
         .onChange(of: startBlock.children) { newChildren in
             viewModel.startBlock.children = newChildren
         }
 
-        // ======================
         // 초기 로딩
-        // ======================
         .onAppear {
             tabBarViewModel.isTabBarVisible = false
             viewModel.fetchSubQuest(
@@ -222,17 +234,13 @@ struct QuestBlockView: View {
             )
         }
 
-        // ======================
         // 네비게이션
-        // ======================
         .navigationDestination(item: $goToNextQuestId) { nextId in
             QuestBlockView(chapterId: chapterId, subQuestId: nextId)
         }
-
         .navigationDestination(isPresented: $goBackToQuestList) {
             QuestListView()
         }
-
         .navigationBarBackButtonHidden(true)
         .ignoresSafeArea(.all, edges: .top)
     }
