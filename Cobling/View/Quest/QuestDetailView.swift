@@ -97,7 +97,8 @@ struct QuestDetailView: View {
     
     // MARK: - 하위 퀘스트 리스트
     private var subQuestList: some View {
-        let bgColor = chapterBackgroundColor
+        let bgColor = QuestTheme.backgroundColor(order: chapter.order)
+
         return ForEach(subQuests, id: \.id) { quest in
             SubQuestCard(
                 subQuest: quest,
@@ -109,12 +110,7 @@ struct QuestDetailView: View {
     
     // MARK: - 챕터 배경색
     private var chapterBackgroundColor: Color {
-        let idx = (chapter.order ?? 0) % 3
-        switch idx {
-        case 0: return Color(hex: "#FFEEEF")
-        case 1: return Color(hex: "#FFF1DB")
-        default: return Color(hex: "#E3EDFB")
-        }
+        QuestTheme.backgroundColor(order: chapter.order)
     }
     
     // MARK: - 하위 퀘스트 선택
