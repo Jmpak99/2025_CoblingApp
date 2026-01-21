@@ -41,19 +41,9 @@ struct BlockPaletteView: View {
 
                                     dragManager.updateDragPosition(position)
                                 }
-                                .onEnded { value in
-                                    let frame = geo.frame(in: .global)
-                                    let endPoint = CGPoint(
-                                        x: frame.origin.x + value.location.x,
-                                        y: frame.origin.y + value.location.y
-                                    )
-
-                                    dragManager.finishDrag(at: endPoint) { end, source, type, block in
-                                        NotificationCenter.default.post(
-                                            name: .finishDragFromPalette,
-                                            object: (end, source, type, block)
-                                        )
-                                    }
+                                .onEnded { _ in
+                                    // 🔥 Palette에서는 드래그 종료 처리 ❌
+                                    // Canvas가 finishDrag를 담당함
                                 }
                         )
                 }

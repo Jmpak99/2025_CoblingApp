@@ -22,7 +22,7 @@ struct QuestBlockView: View {
     @State private var goToNextQuestId: String? = nil
     @State private var goBackToQuestList = false
 
-    // MARK: - 팔레트 위에 있는지 판별 (삭제 영역 표시용)
+    // MARK: - 팔레트 위에 있는지 판별 (삭제 표시용)
     private func isOverPalette() -> Bool {
         dragManager.isDragging &&
         dragManager.dragSource == .canvas &&
@@ -58,7 +58,6 @@ struct QuestBlockView: View {
                     GeometryReader { geo in
                         ZStack {
 
-                            // 🔥 삭제 오버레이 (하단 SafeArea까지)
                             if isOverPalette() {
                                 Color.red.opacity(0.3)
                                     .ignoresSafeArea(.container, edges: .bottom)
@@ -154,36 +153,56 @@ struct QuestBlockView: View {
         .environmentObject(dragManager)
         .environmentObject(viewModel)
 
-        // ======================
-        // 🔥 드래그 종료 이벤트
-        // ======================
+        // =================================================
+        // 🔥 드래그 종료 처리 (유일한 finishDrag 위치)
+        // =================================================
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onEnded { value in
+                    dragManager.finishDrag(at: value.location) {
+                        endPos, source, type, block in
 
-        // 팔레트 → 캔버스 : 추가
-        .onReceive(NotificationCenter.default.publisher(for: .finishDragFromPalette)) { noti in
-            guard
-                let payload = noti.object as? (CGPoint, DragSource, BlockType?, Block?),
-                let type = payload.2
-            else { return }
+                        guard !viewModel.isExecuting else { return }
 
-            startBlock.children.append(Block(type: type))
-        }
+                        // 1️⃣ 캔버스 → 팔레트 : 삭제
+                        if source == .canvas,
+                           let block = block,
+                           paletteFrame.contains(endPos) {
 
-        // 캔버스 → 팔레트 : 삭제
-        .onReceive(NotificationCenter.default.publisher(for: .finishDragFromCanvas)) { noti in
-            guard
-                let payload = noti.object as? (CGPoint, DragSource, BlockType?, Block?),
-                let block = payload.3
-            else { return }
+                            startBlock.children.removeAll { $0.id == block.id }
+                            return
+                        }
 
-            let endPoint = payload.0
-            let source   = payload.1
+                        // 2️⃣ 팔레트 → 캔버스 : 추가
+                        if source == .palette,
+                           let type = type,
+                           dragManager.isOverCanvas {
 
-            if source == .canvas,
-               paletteFrame.contains(endPoint) {
+                            let index = dragManager.canvasInsertIndex
+                                ?? startBlock.children.count
+                            startBlock.children.insert(Block(type: type), at: index)
+                            return
+                        }
 
-                startBlock.children.removeAll { $0.id == block.id }
-            }
-        }
+                        // 3️⃣ 캔버스 → 캔버스 : 재정렬
+                        if source == .canvas,
+                           let block = block,
+                           dragManager.isOverCanvas,
+                           let fromIndex = startBlock.children.firstIndex(where: { $0.id == block.id }) {
+
+                            let index = dragManager.canvasInsertIndex
+                                ?? startBlock.children.count
+
+                            if fromIndex == index || fromIndex + 1 == index { return }
+
+                            startBlock.children.remove(at: fromIndex)
+                            let adjusted = fromIndex < index ? index - 1 : index
+                            startBlock.children.insert(block, at: adjusted)
+                            return
+                        }
+                    }
+                }
+        )
 
         // ======================
         // 블록 변경 → ViewModel 반영
