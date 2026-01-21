@@ -7,7 +7,7 @@ import SwiftUI
 
 struct BlockView: View {
     @ObservedObject var block: Block
-    var showChildren : Bool = true
+    var showChildren: Bool = true
 
     @EnvironmentObject var dragManager: DragManager
     @EnvironmentObject var viewModel: QuestViewModel
@@ -26,46 +26,8 @@ struct BlockView: View {
                     .opacity(currentOpacity)
                     .offset(dragOffset)
                     .animation(.easeInOut(duration: 0.2), value: currentOpacity)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                // 🔥 이미 다른 블록이 드래그 주인이면 무시
-                                if let ownerID = dragManager.draggingBlockID,
-                                   ownerID != block.id {
-                                    return
-                                }
-
-                                isDraggingLocal = true
-                                dragOffset = value.translation
-
-                                let frame = geo.frame(in: .global)
-                                let position = CGPoint(
-                                    x: frame.origin.x + value.location.x,
-                                    y: frame.origin.y + value.location.y
-                                )
-
-                                // 🔥 최초 1회만 DragManager에 등록
-                                if !dragManager.isDragging {
-                                    dragManager.prepareDragging(
-                                        type: block.type,
-                                        at: position,
-                                        offset: value.translation,
-                                        block: block,
-                                        source: .canvas
-                                    )
-                                }
-
-                                dragManager.updateDragPosition(position)
-                            }
-                            .onEnded { _ in
-                                // 🔥 여기서는 "로컬 드래그 상태만 종료"
-                                isDraggingLocal = false
-                                dragOffset = .zero
-
-                                // ❌ finishDrag 호출하지 않음
-                                // ❌ NotificationCenter 사용하지 않음
-                            }
-                    )
+                    // ✅ AnyGesture 적용
+                    .gesture(dragGesture(geo: geo))
             }
             .frame(height: blockSize.height)
 
@@ -86,6 +48,56 @@ struct BlockView: View {
         }
         .padding(1)
         .background(Color.clear)
+    }
+
+    // MARK: - Drag Gesture (🔥 타입 소거)
+    private func dragGesture(geo: GeometryProxy) -> AnyGesture<DragGesture.Value> {
+
+        // ✅ 시작 블록은 항상 고정
+        if block.type == .start {
+            return AnyGesture(DragGesture(minimumDistance: .infinity))
+        }
+
+        // ✅ 실행 중이면 전부 고정
+        if viewModel.isExecuting {
+            return AnyGesture(DragGesture(minimumDistance: .infinity))
+        }
+
+        // ✅ 일반 드래그
+        return AnyGesture(
+            DragGesture()
+                .onChanged { value in
+                    if let ownerID = dragManager.draggingBlockID,
+                       ownerID != block.id {
+                        return
+                    }
+
+                    isDraggingLocal = true
+                    dragOffset = value.translation
+
+                    let frame = geo.frame(in: .global)
+                    let position = CGPoint(
+                        x: frame.origin.x + value.location.x,
+                        y: frame.origin.y + value.location.y
+                    )
+
+                    if !dragManager.isDragging {
+                        dragManager.prepareDragging(
+                            type: block.type,
+                            at: position,
+                            offset: value.translation,
+                            block: block,
+                            source: .canvas
+                        )
+                    }
+
+                    dragManager.updateDragPosition(position)
+                }
+                .onEnded { _ in
+                    isDraggingLocal = false
+                    dragOffset = .zero
+                }
+        )
     }
 
     // MARK: - UI Helpers

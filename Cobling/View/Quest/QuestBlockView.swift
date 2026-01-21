@@ -21,6 +21,12 @@ struct QuestBlockView: View {
     // 네비게이션 상태
     @State private var goToNextQuestId: String? = nil
     @State private var goBackToQuestList = false
+    
+    // waiting / locked 상태
+        @State private var isWaitingOverlay = false
+        @State private var waitingRetryCount = 0
+        @State private var showWaitingAlert = false
+        @State private var showLockedAlert = false
 
     // MARK: - 팔레트 위에 있는지 판별 (삭제용)
     private func isOverPalette() -> Bool {
@@ -110,6 +116,26 @@ struct QuestBlockView: View {
                     .background(Color.gray.opacity(0.1))
                 }
             }
+            
+            // =================================================
+            // ⏳ Waiting Overlay
+            // =================================================
+            if isWaitingOverlay {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+                    .overlay(
+                        VStack(spacing: 10) {
+                            ProgressView()
+                            Text("다음 퀘스트 여는 중입니다…")
+                                .font(.subheadline)
+                                .foregroundColor(.white)
+                        }
+                        .padding(18)
+                        .background(Color.black.opacity(0.55))
+                        .cornerRadius(14)
+                    )
+                    .zIndex(50)
+            }
 
             // =================================================
             // 👻 고스트 블록 (팔레트 → 캔버스)
@@ -160,7 +186,9 @@ struct QuestBlockView: View {
                             viewModel.showSuccessDialog = false
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                            handleGoNext()
+                            waitingRetryCount = 0
+                            isWaitingOverlay = true
+                            tryGoNextHandlingWaiting()
                         }
                     }
                 )
@@ -233,6 +261,10 @@ struct QuestBlockView: View {
                 subQuestId: subQuestId
             )
         }
+        .onDisappear {
+            // 🔥 게임 화면을 벗어나면 반드시 탭바 복구
+            tabBarViewModel.isTabBarVisible = true
+        }
 
         // 네비게이션
         .navigationDestination(item: $goToNextQuestId) { nextId in
@@ -241,19 +273,59 @@ struct QuestBlockView: View {
         .navigationDestination(isPresented: $goBackToQuestList) {
             QuestListView()
         }
+        
+        // 알럿
+        .alert("⏳ 챕터를 여는 중이에요", isPresented: $showWaitingAlert) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text("서버 반영이 지연되고 있어요.\n잠시 후 다시 시도해 주세요.")
+        }
+
+        .alert("🔒 잠긴 퀘스트입니다", isPresented: $showLockedAlert) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text("선행 퀘스트를 먼저 완료해 주세요.")
+        }
+        
+        
         .navigationBarBackButtonHidden(true)
         .ignoresSafeArea(.all, edges: .top)
+        
+        
     }
 
-    // MARK: - 다음 퀘스트 이동
-    private func handleGoNext() {
+    // MARK: - 다음 퀘스트 이동 (waiting 포함)
+    private func tryGoNextHandlingWaiting() {
+        isWaitingOverlay = true
+        
         viewModel.goToNextSubQuest { action in
             DispatchQueue.main.async {
                 switch action {
                 case .goToQuest(let nextId):
-                    self.goToNextQuestId = nextId
-                case .goToList, .waiting, .locked:
-                    self.goBackToQuestList = true
+                    isWaitingOverlay = false
+                    goToNextQuestId = nextId
+
+                case .goToList:
+                    isWaitingOverlay = false
+                    goBackToQuestList = true
+
+                case .waiting:
+                    waitingRetryCount += 1
+                    let maxRetry = 6
+                    let delay: Double = 0.6
+
+                    if waitingRetryCount <= maxRetry {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            tryGoNextHandlingWaiting()
+                        }
+                    } else {
+                        isWaitingOverlay = false
+                        showWaitingAlert = true
+                    }
+
+                case .locked:
+                    isWaitingOverlay = false
+                    showLockedAlert = true
                 }
             }
         }

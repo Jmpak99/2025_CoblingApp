@@ -137,7 +137,6 @@ struct QuestListView: View {
                 
             }
         }
-        .navigationBarHidden(true)
         .alert(isPresented: $showLockedAlert) {
             Alert(title: Text("잠긴 퀘스트입니다"))
         }
