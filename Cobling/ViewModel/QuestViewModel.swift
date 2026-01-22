@@ -81,7 +81,8 @@ final class QuestViewModel: ObservableObject {
     deinit {
         unlockListener?.remove()
     }
-
+    
+    
     // MARK: - Firestore에서 SubQuest 불러오기
     func fetchSubQuest(chapterId: String, subQuestId: String) {
         // 현재 컨텍스트 보관
@@ -581,4 +582,21 @@ extension QuestViewModel {
         self.characterDirection = direction
     }
 }
+
+// MARK: - Story / Hint (UI 전용 접근자)
+extension QuestViewModel {
+
+    var storyMessage: String? {
+        guard let story = subQuest?.story,
+              story.isActive else { return nil }
+        return story.message
+    }
+
+    var hintMessage: String? {
+        guard let hint = subQuest?.hint,
+              hint.isActive else { return nil }
+        return hint.message
+    }
+}
+
 #endif

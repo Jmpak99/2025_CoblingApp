@@ -151,14 +151,13 @@ struct GameMapView: View {
                     Spacer()
 
                     ZStack(alignment: .trailing) {
-                        if isStoryOn {
-                            SpeechBubbleView(
-                                message: "응응..?? 여기 어디지??\n앞에 뭐가 보여!\n나 앞으로 4칸 가야 해!"
-                            )
-                            .transition(.opacity)
-                            .padding(.trailing, 50)
+                        if isStoryOn,
+                            let message = viewModel.storyMessage {
+                                SpeechBubbleView(message: message)
+                                    .transition(.opacity)
+                                    .padding(.trailing, 50)
                         }
-
+                        
                         Button {
                             withAnimation {
                                 isStoryOn.toggle()
@@ -175,17 +174,16 @@ struct GameMapView: View {
             }
 
             // MARK: - 힌트 말풍선
-            if isHintOn {
+            if isHintOn,
+               let message = viewModel.hintMessage {
                 VStack {
                     Spacer().frame(height: 160)
                     HStack {
                         Spacer().frame(width: 80)
-                        SpeechBubbleView(
-                            message: "앞으로 가는 블록을 4번 써보세요!\n앞으로가기와 왼쪽으로 돌기를 조합해봐요!"
-                        )
-                        .fixedSize()
-                        .padding(.top, 8)
-                        .transition(.opacity)
+                        SpeechBubbleView(message: message)
+                            .fixedSize()
+                            .padding(.top, 8)
+                            .transition(.opacity)
                         Spacer()
                     }
                     Spacer()
