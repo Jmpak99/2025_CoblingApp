@@ -16,6 +16,10 @@ struct SubQuestDocument: Codable, Identifiable {
     var order: Int
     var isActive: Bool
     var preId: String?
+    
+    var story : StoryData?
+    var hint : HintData?
+    
     var rewards: Rewards
     var rules: Rules
     var map: MapData
@@ -78,4 +82,15 @@ struct Rules: Codable {
     var allowBlocks: [String]
     var attackRange: Int
     var maxSteps: Int
+}
+
+// MARK: - Story & Hint
+struct StoryData : Codable {
+    var message : String
+    var isActive : Bool
+}
+
+struct HintData : Codable {
+    var message : String
+    var isActive : Bool
 }
