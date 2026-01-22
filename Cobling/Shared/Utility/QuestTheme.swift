@@ -13,10 +13,10 @@ enum QuestTheme {
     // 👉 챕터 수가 늘어나면 자동 순환
     private static let palette: [Color] = [
         Color(hex: "#FFEEEF"), // 핑크
-        Color(hex: "#FFF1DB"), // 베이지
+        Color(hex: "#F3E8FF"), // 퍼플
         Color(hex: "#E3EDFB"), // 블루
         Color(hex: "#E8F6F3"), // 민트
-        Color(hex: "#F3E8FF"), // 퍼플
+        Color(hex: "#FFF1DB"), // 베이지
         Color(hex: "#FFF4E6"), // 오렌지
     ]
 
