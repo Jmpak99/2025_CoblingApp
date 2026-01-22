@@ -43,7 +43,7 @@ enum NextQuestAction {
 
 // MARK: - 퀘스트 실행 뷰모델
 final class QuestViewModel: ObservableObject {
-    // 🔹 게임 실행 상태
+    // MARK: - 게임 상태
     @Published var characterPosition: (row: Int, col: Int) = (0, 0)
     @Published var characterDirection: Direction = .right
     @Published var mapData: [[Int]] = []         // Firestore에서 변환된 맵
@@ -53,20 +53,14 @@ final class QuestViewModel: ObservableObject {
     @Published var currentExecutingBlockID: UUID? = nil
     @Published var isExecuting = false
     
-    // 원본 적 목록 (다시하기 / 리셋 시 복원)
+    // MARK: - 적
     @Published private(set) var initialEnemies: [Enemy] = []
-    
-    // 🔹 적 목록 (현재 서브퀘스트에 배치된 적들)
     @Published var enemies: [Enemy] = []
 
-    // 🔹 Firestore 데이터
+    // MARK: - Firestore
     @Published var subQuest: SubQuestDocument?   // 현재 불러온 퀘스트
-
-    // 🔹 시작/목표 좌표 (외부에서 읽기만 가능)
     @Published private(set) var startPosition: (row: Int, col: Int) = (0, 0)
     @Published private(set) var goalPosition: (row: Int, col: Int) = (0, 0)
-
-    // 🔹 팔레트에서 허용할 블록 목록
     @Published var allowedBlocks: [BlockType] = []
 
     private let db = Firestore.firestore()
@@ -366,17 +360,27 @@ final class QuestViewModel: ObservableObject {
 
             // 도착 지점 검사
             if characterPosition != goalPosition {
-                print("❌ 실패: 깃발에 도달하지 못함")
+                print("실패 : 깃발에 도달하지 못함")
                 resetToStart()
-            } else {
-                print("🎉 성공: 깃발 도착!")
-                showSuccessDialog = true
-                isExecuting = false
-
-                if let subQuest = subQuest {
-                    handleQuestClear(subQuest: subQuest, usedBlocks: countUsedBlocks())
-                }
+                return
             }
+            
+            // 적이 하나라도 남아있으면 실패
+            if !enemies.isEmpty {
+                print("실패 : 적을 모두 처치하지 않음")
+                resetToStart()
+                return
+            }
+            
+            // 성공 (깃발 + 적 전부 처치)
+            print("성공 : 깃발 도착 + 적 전부 처치")
+            showSuccessDialog = true
+            isExecuting = false
+            
+            if let subQuest = subQuest {
+                handleQuestClear(subQuest: subQuest, usedBlocks: countUsedBlocks())
+            }
+            
             return
         }
 
