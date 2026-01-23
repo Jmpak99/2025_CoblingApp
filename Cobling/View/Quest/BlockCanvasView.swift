@@ -53,7 +53,7 @@ struct BlockCanvasView: View {
                 VStack(alignment: .leading, spacing: 0) {
 
                     // Start Block
-                    BlockView(block: startBlock, showChildren: false)
+                    BlockView(block: startBlock)
                         .environmentObject(dragManager)
                         .environmentObject(viewModel)
 

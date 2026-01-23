@@ -52,6 +52,7 @@ final class QuestViewModel: ObservableObject {
     @Published var startBlock = Block(type: .start)
     @Published var currentExecutingBlockID: UUID? = nil
     @Published var isExecuting = false
+    @Published var didFailExecution = false
     
     // MARK: - 적
     @Published private(set) var initialEnemies: [Enemy] = []
@@ -349,13 +350,36 @@ final class QuestViewModel: ObservableObject {
     // MARK: - 블록 실행 시작
     func startExecution() {
         guard !isExecuting else { return }
+        
+        didFailExecution = false
         isExecuting = true
-        executeBlocks(startBlock.children)
+
+        executeBlocks(startBlock.children) {
+            // 최상위 실행 종료 (여기서는 아무것도 안 해도 됨)
+        }
     }
 
     // MARK: - 블록 리스트 순차 실행
-    func executeBlocks(_ blocks: [Block], index: Int = 0) {
+    func executeBlocks(
+        _ blocks: [Block],
+        index: Int = 0,
+        completion: @escaping () -> Void)
+    {
+        
+        // 실패 시 즉시 중단
+        guard !didFailExecution else {
+            print("실행 중단 : 실패 상태")
+            return
+        }
+        
+        
         guard index < blocks.count else {
+            
+            // 🔴 실패 상태면 그냥 종료 (위로 전파 안 함)
+                if didFailExecution {
+                    return
+                }
+            
             print("✅ 모든 블록 실행 완료")
 
             // 도착 지점 검사
@@ -381,6 +405,7 @@ final class QuestViewModel: ObservableObject {
                 handleQuestClear(subQuest: subQuest, usedBlocks: countUsedBlocks())
             }
             
+            completion()
             return
         }
 
@@ -392,33 +417,49 @@ final class QuestViewModel: ObservableObject {
         case .moveForward:
             moveForward {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.executeBlocks(blocks, index: index + 1)
+                    self.executeBlocks(blocks, index: index + 1, completion: completion)
                 }
             }
 
         case .turnLeft:
             characterDirection = characterDirection.turnedLeft()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.executeBlocks(blocks, index: index + 1)
+                self.executeBlocks(blocks, index: index + 1, completion: completion)
             }
 
         case .turnRight:
             characterDirection = characterDirection.turnedRight()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.executeBlocks(blocks, index: index + 1)
+                self.executeBlocks(blocks, index: index + 1, completion: completion)
             }
             
         case .attack:
             attack {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    self.executeBlocks(blocks, index: index + 1)
+                    self.executeBlocks(blocks, index: index + 1, completion: completion)
                     
                 }
             }
+            
+        case .repeatCount:
+            let repeatCount = Int(current.value ?? "1") ?? 1
+
+            func runRepeat(_ remaining: Int) {
+                if remaining <= 0 {
+                    self.executeBlocks(blocks, index: index + 1, completion: completion)
+                    return
+                }
+
+                self.executeBlocks(current.children) {
+                    runRepeat(remaining - 1)
+                }
+            }
+
+            runRepeat(repeatCount)
 
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.executeBlocks(blocks, index: index + 1)
+                self.executeBlocks(blocks, index: index + 1, completion: completion)
             }
         }
     }
@@ -547,6 +588,7 @@ final class QuestViewModel: ObservableObject {
         
     // MARK: - 실패 시 초기화
     func resetToStart() {
+        didFailExecution = true
         isExecuting = false
         currentExecutingBlockID = nil
         characterPosition = startPosition
@@ -559,6 +601,7 @@ final class QuestViewModel: ObservableObject {
     }
 
     func resetExecution() {
+        didFailExecution = false
         isExecuting = false
         currentExecutingBlockID = nil
         characterPosition = startPosition
