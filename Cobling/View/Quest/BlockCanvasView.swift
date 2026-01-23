@@ -109,7 +109,7 @@ struct BlockCanvasView: View {
                 }
                 .padding(.top, 16)
                 .padding(.bottom, 100)
-                .padding(.leading, 20)
+                .padding(.leading, 10)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 .onPreferenceChange(BlockFramePreferenceKey.self) {

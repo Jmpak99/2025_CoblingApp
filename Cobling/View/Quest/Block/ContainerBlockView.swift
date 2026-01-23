@@ -13,7 +13,7 @@ struct ContainerBlockView: View {
     @EnvironmentObject var dragManager: DragManager
     @EnvironmentObject var viewModel: QuestViewModel
 
-    private let blockWidth: CGFloat = 120
+    private let blockWidth: CGFloat = 165
     private let leftBarWidth: CGFloat = 12
 
     var body: some View {
@@ -50,8 +50,8 @@ struct ContainerBlockView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if block.children.isEmpty {
                         Text("여기에 블록을 넣어주세요")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.8))
+                            .font(.pretendardBold14)
+                            .foregroundColor(Color(hex : "ACC9FF"))
                             .padding(.vertical, 4)
                     } else {
                         ForEach(block.children) { child in
@@ -77,6 +77,7 @@ struct ContainerBlockView: View {
                     )
             }
         }
+        .padding(.bottom, 2)
     }
 }
 

@@ -29,13 +29,14 @@ struct RepeatHeaderView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 42, height: 28)
+                .frame(width: 50, height: 28)
                 .background(Color.white)
                 .cornerRadius(6)
+                .padding(.leading, -12)
 
                 Text("번 반복하기")
                     .foregroundColor(.white)
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.pretendardMedium14)
             }
 
             Spacer()
@@ -48,10 +49,10 @@ struct RepeatHeaderView: View {
                     .fill(Color.white)
 
                 Image(systemName: "repeat")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundColor(Color(hex: "#86B0FF"))
             }
-            .frame(width: 28, height: 28)
+            .frame(width: 24, height: 24)
         }
         .padding(.horizontal, 12)
         .frame(height: 36)

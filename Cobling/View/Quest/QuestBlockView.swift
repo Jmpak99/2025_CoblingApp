@@ -104,7 +104,7 @@ struct QuestBlockView: View {
                             paletteFrame = geo.frame(in: .global)
                         }
                     }
-                    .frame(width: 200)
+                    .frame(width: 180)
 
                     // ---------- 캔버스 ----------
                     BlockCanvasView(
