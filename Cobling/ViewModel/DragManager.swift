@@ -19,6 +19,9 @@ final class DragManager: ObservableObject {
     // ✅ 캔버스 드롭 정보(캔버스가 계산해서 넣어줌)
     @Published var isOverCanvas: Bool = false
     @Published var canvasInsertIndex: Int? = nil
+    
+    @Published var isOverContainer: Bool = false
+    @Published var containerTargetBlock: Block? = nil
 
     func prepareDragging(
         type: BlockType,
@@ -71,5 +74,8 @@ final class DragManager: ObservableObject {
         // ✅ 캔버스 상태도 리셋
         isOverCanvas = false
         canvasInsertIndex = nil
+        
+        isOverContainer = false
+        containerTargetBlock = nil
     }
 }

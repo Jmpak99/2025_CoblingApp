@@ -208,6 +208,16 @@ struct QuestBlockView: View {
                         endPos, source, type, block in
 
                         guard !viewModel.isExecuting else { return }
+                        
+                        // 팔레트 > 반복문 내부
+                        if source == .palette,
+                           let type = type,
+                           dragManager.isOverContainer,
+                           let target = dragManager.containerTargetBlock {
+
+                            target.children.append(Block(type: type))
+                            return
+                        }
 
                         // 1️⃣ 캔버스 → 팔레트 (삭제)
                         if source == .canvas,

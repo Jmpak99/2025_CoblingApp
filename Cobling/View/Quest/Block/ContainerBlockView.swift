@@ -77,6 +77,27 @@ struct ContainerBlockView: View {
                     )
             }
         }
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onChange(of: dragManager.dragPosition) { globalPos in
+                        let frame = geo.frame(in: .global)
+
+                        if frame.contains(globalPos),
+                           dragManager.isDragging {
+
+                            dragManager.isOverContainer = true
+                            dragManager.containerTargetBlock = block
+                            
+                            dragManager.isOverCanvas = false
+                            
+                        } else if dragManager.containerTargetBlock?.id == block.id {
+                            dragManager.isOverContainer = false
+                            dragManager.containerTargetBlock = nil
+                        }
+                    }
+            }
+        )
         .padding(.bottom, 2)
     }
 }
