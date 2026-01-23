@@ -28,8 +28,7 @@ struct BlockFramePreferenceKey: PreferenceKey {
 
 // MARK: - Block Canvas View
 struct BlockCanvasView: View {
-    @ObservedObject var startBlock: Block
-
+    
     @EnvironmentObject var dragManager: DragManager
     @EnvironmentObject var viewModel: QuestViewModel
 
@@ -53,12 +52,12 @@ struct BlockCanvasView: View {
                 VStack(alignment: .leading, spacing: 0) {
 
                     // Start Block
-                    BlockView(block: startBlock)
+                    BlockView(block: viewModel.startBlock, parentContainer: nil)
                         .environmentObject(dragManager)
                         .environmentObject(viewModel)
 
                     // 실행 블록
-                    ForEach(Array(startBlock.children.enumerated()), id: \.element.id) { index, block in
+                    ForEach(Array(viewModel.startBlock.children.enumerated()), id: \.element.id) { index, block in
                         
                         // 중간 삽입 인디케이터
                         if dragManager.isDragging && insertIndex == index {
@@ -73,7 +72,7 @@ struct BlockCanvasView: View {
                             .padding(.vertical, 6)
                         }
 
-                        BlockView(block: block)
+                        BlockView(block: block, parentContainer: nil)
                             .environmentObject(dragManager)
                             .environmentObject(viewModel)
                             .padding(.leading, childIndent)
@@ -90,7 +89,7 @@ struct BlockCanvasView: View {
                     }
 
                     if dragManager.isDragging &&
-                        insertIndex == startBlock.children.count {
+                        insertIndex == viewModel.startBlock.children.count {
 
                         HStack(spacing: 0) {
                             Spacer().frame(width: childIndent)
@@ -124,6 +123,18 @@ struct BlockCanvasView: View {
 
                                 let currentCanvasFrame = geo.frame(in: .global)
                                 canvasFrame = currentCanvasFrame   // 🔥 항상 최신값
+                                
+                                // 반복문 위에 있으면 캔버스 무효화
+                                if dragManager.isOverContainer {
+                                    // 캔버스 삽입만 막음
+                                    insertIndex = nil
+                                    dragManager.isOverCanvas = false
+                                    dragManager.canvasInsertIndex = nil
+                                    
+                                    // 캔버스 영역 여부 자체는 유지
+                                    isDropTarget = currentCanvasFrame.contains(globalPos)
+                                    return
+                                }
 
                                 let over = currentCanvasFrame.contains(globalPos)
                                 isDropTarget = over
@@ -147,7 +158,7 @@ struct BlockCanvasView: View {
             .coordinateSpace(name: "canvas")
 
             // 자동 스크롤
-            .onChange(of: startBlock.children.count) { newCount in
+            .onChange(of: viewModel.startBlock.children.count) { newCount in
                 if newCount > previousChildCount {
                     withAnimation {
                         proxy.scrollTo("canvasBottom", anchor: .bottom)
@@ -156,18 +167,18 @@ struct BlockCanvasView: View {
                 previousChildCount = newCount
             }
             .onAppear {
-                previousChildCount = startBlock.children.count
+                previousChildCount = viewModel.startBlock.children.count
             }
         }
     }
 
     private func calculateInsertIndex(dragY: CGFloat) -> Int {
-        for (index, block) in startBlock.children.enumerated() {
+        for (index, block) in viewModel.startBlock.children.enumerated() {
             guard let frame = blockFrames[block.id] else { continue }
             if dragY < frame.midY {
                 return index
             }
         }
-        return startBlock.children.count
+        return viewModel.startBlock.children.count
     }
 }

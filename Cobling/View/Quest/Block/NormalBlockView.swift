@@ -10,6 +10,8 @@ import SwiftUI
 
 struct NormalBlockView: View {
     @ObservedObject var block: Block
+    
+    let parentContainer : Block?
     var showChildren: Bool = true
 
     @EnvironmentObject var dragManager: DragManager
@@ -76,15 +78,27 @@ struct NormalBlockView: View {
                             at: position,
                             offset: value.translation,
                             block: block,
+                            parentContainer: parentContainer,
                             source: .canvas
                         )
                     }
 
                     dragManager.updateDragPosition(position)
                 }
-                .onEnded { _ in
+                .onEnded { value in
                     isDraggingLocal = false
                     dragOffset = .zero
+
+                    let frame = geo.frame(in: .global)
+                    let endPosition = CGPoint(
+                        x: frame.origin.x + value.location.x,
+                        y: frame.origin.y + value.location.y
+                    )
+
+                    // ✅ 드래그 종료 알림
+                    dragManager.finishDrag(at: endPosition) { _, _, _, _ in
+                        // 실제 삽입 / 이동 처리는 CanvasView에서 수행
+                    }
                 }
         )
     }

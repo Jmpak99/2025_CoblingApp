@@ -354,7 +354,7 @@ final class QuestViewModel: ObservableObject {
         didFailExecution = false
         isExecuting = true
 
-        executeBlocks(startBlock.children) {
+        executeBlocks(startBlock.children, isTopLevel: true) {
             // 최상위 실행 종료 (여기서는 아무것도 안 해도 됨)
         }
     }
@@ -363,6 +363,7 @@ final class QuestViewModel: ObservableObject {
     func executeBlocks(
         _ blocks: [Block],
         index: Int = 0,
+        isTopLevel: Bool = false,
         completion: @escaping () -> Void)
     {
         
@@ -374,6 +375,11 @@ final class QuestViewModel: ObservableObject {
         
         
         guard index < blocks.count else {
+            
+            if !isTopLevel {
+                completion()
+                return
+            }
             
             // 🔴 실패 상태면 그냥 종료 (위로 전파 안 함)
                 if didFailExecution {
@@ -417,26 +423,46 @@ final class QuestViewModel: ObservableObject {
         case .moveForward:
             moveForward {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.executeBlocks(blocks, index: index + 1, completion: completion)
+                    self.executeBlocks(
+                        blocks,
+                        index: index + 1,
+                        isTopLevel: isTopLevel,
+                        completion: completion
+                    )
                 }
             }
 
         case .turnLeft:
             characterDirection = characterDirection.turnedLeft()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.executeBlocks(blocks, index: index + 1, completion: completion)
+                self.executeBlocks(
+                    blocks,
+                    index: index + 1,
+                    isTopLevel: isTopLevel,
+                    completion: completion
+                )
             }
 
         case .turnRight:
             characterDirection = characterDirection.turnedRight()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.executeBlocks(blocks, index: index + 1, completion: completion)
+                self.executeBlocks(
+                    blocks,
+                    index: index + 1,
+                    isTopLevel: isTopLevel,
+                    completion: completion
+                )
             }
             
         case .attack:
             attack {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    self.executeBlocks(blocks, index: index + 1, completion: completion)
+                    self.executeBlocks(
+                        blocks,
+                        index: index + 1,
+                        isTopLevel: isTopLevel,
+                        completion: completion
+                    )
                     
                 }
             }
@@ -446,7 +472,12 @@ final class QuestViewModel: ObservableObject {
 
             func runRepeat(_ remaining: Int) {
                 if remaining <= 0 {
-                    self.executeBlocks(blocks, index: index + 1, completion: completion)
+                    self.executeBlocks(
+                        blocks,
+                        index: index + 1,
+                        isTopLevel: isTopLevel,
+                        completion: completion
+                    )
                     return
                 }
 
@@ -462,6 +493,25 @@ final class QuestViewModel: ObservableObject {
                 self.executeBlocks(blocks, index: index + 1, completion: completion)
             }
         }
+    }
+    
+    func findParentContainer(of target: Block) -> Block? {
+        func search(in container: Block) -> Block? {
+            if container.children.contains(where: { $0.id == target.id }) {
+                return container
+            }
+
+            for child in container.children {
+                if child.type.isContainer {
+                    if let found = search(in: child) {
+                        return found
+                    }
+                }
+            }
+            return nil
+        }
+
+        return search(in: startBlock)
     }
 
     // MARK: - 퀘스트 클리어 처리
@@ -588,16 +638,16 @@ final class QuestViewModel: ObservableObject {
         
     // MARK: - 실패 시 초기화
     func resetToStart() {
-        didFailExecution = true
-        isExecuting = false
-        currentExecutingBlockID = nil
-        characterPosition = startPosition
-        characterDirection = .right
-        
-        enemies = initialEnemies
-        
-        showFailureDialog = true
-        print("🔁 캐릭터를 시작 위치로 되돌림")
+        DispatchQueue.main.async {
+            self.didFailExecution = true
+            self.isExecuting = false
+            self.currentExecutingBlockID = nil
+            self.characterPosition = self.startPosition
+            self.characterDirection = .right
+            self.enemies = self.initialEnemies
+            self.showFailureDialog = true
+            print("🔁 캐릭터를 시작 위치로 되돌림")
+        }
     }
 
     func resetExecution() {
