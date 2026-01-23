@@ -10,10 +10,10 @@ struct QuestBlockView: View {
     let subQuestId: String
 
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
+    @EnvironmentObject var appState: AppState
 
     @StateObject private var dragManager = DragManager()
     @StateObject private var viewModel = QuestViewModel()
-    @StateObject private var startBlock = Block(type: .start)
 
     // 팔레트 영역 프레임
     @State private var paletteFrame: CGRect = .zero
@@ -72,7 +72,7 @@ struct QuestBlockView: View {
                                     HStack(spacing: 0) {
                                         // 🔴 팔레트 영역만 붉게
                                         Color.red.opacity(0.35)
-                                            .frame(width: 200)   // ← 팔레트 너비
+                                            .frame(width: 180)
                                             .overlay(
                                                 VStack {
                                                     Spacer()
@@ -108,7 +108,6 @@ struct QuestBlockView: View {
 
                     // ---------- 캔버스 ----------
                     BlockCanvasView(
-                        startBlock: startBlock,
                         paletteFrame: $paletteFrame
                     )
                     .environmentObject(dragManager)
@@ -223,8 +222,16 @@ struct QuestBlockView: View {
                         if source == .canvas,
                            let block = block,
                            paletteFrame.contains(endPos) {
+                            
+                            print("🧨 DELETE target:", block.type, block.id)
+                            print("🧨 parent:", dragManager.draggingParentContainer?.id as Any)
 
-                            startBlock.children.removeAll { $0.id == block.id }
+                            // 🔥 반복문 내부 블록이면
+                            if let parent = viewModel.findParentContainer(of: block) {
+                                parent.children.removeAll { $0.id == block.id }
+                            } else {
+                                viewModel.startBlock.children.removeAll { $0.id == block.id }
+                            }
                             return
                         }
 
@@ -234,8 +241,8 @@ struct QuestBlockView: View {
                            dragManager.isOverCanvas {
 
                             let index = dragManager.canvasInsertIndex
-                                ?? startBlock.children.count
-                            startBlock.children.insert(Block(type: type), at: index)
+                            ?? viewModel.startBlock.children.count
+                            viewModel.startBlock.children.insert(Block(type: type), at: index)
                             return
                         }
 
@@ -243,37 +250,29 @@ struct QuestBlockView: View {
                         if source == .canvas,
                            let block = block,
                            dragManager.isOverCanvas,
-                           let fromIndex = startBlock.children.firstIndex(where: { $0.id == block.id }) {
+                           let fromIndex = viewModel.startBlock.children.firstIndex(where: { $0.id == block.id }) {
 
                             let index = dragManager.canvasInsertIndex
-                                ?? startBlock.children.count
+                            ?? viewModel.startBlock.children.count
 
                             if fromIndex == index || fromIndex + 1 == index { return }
 
-                            startBlock.children.remove(at: fromIndex)
+                            viewModel.startBlock.children.remove(at: fromIndex)
                             let adjusted = fromIndex < index ? index - 1 : index
-                            startBlock.children.insert(block, at: adjusted)
+                            viewModel.startBlock.children.insert(block, at: adjusted)
                         }
                     }
                 }
         )
 
-        // 블록 변경 → ViewModel 반영
-        .onChange(of: startBlock.children) { newChildren in
-            viewModel.startBlock.children = newChildren
-        }
-
         // 초기 로딩
         .onAppear {
+            appState.isInGame = true
             tabBarViewModel.isTabBarVisible = false
             viewModel.fetchSubQuest(
                 chapterId: chapterId,
                 subQuestId: subQuestId
             )
-        }
-        .onDisappear {
-            // 🔥 게임 화면을 벗어나면 반드시 탭바 복구
-            tabBarViewModel.isTabBarVisible = true
         }
 
         // 네비게이션
@@ -311,12 +310,15 @@ struct QuestBlockView: View {
         viewModel.goToNextSubQuest { action in
             DispatchQueue.main.async {
                 switch action {
+                // 다음 스테이지로 이동
                 case .goToQuest(let nextId):
                     isWaitingOverlay = false
                     goToNextQuestId = nextId
-
+                    
+                // 리스트로 이동
                 case .goToList:
                     isWaitingOverlay = false
+                    appState.isInGame = false
                     goBackToQuestList = true
 
                 case .waiting:

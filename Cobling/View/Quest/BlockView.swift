@@ -9,6 +9,8 @@ import SwiftUI
 
 struct BlockView: View {
     @ObservedObject var block: Block
+    
+    let parentContainer: Block?
 
     @EnvironmentObject var dragManager: DragManager
     @EnvironmentObject var viewModel: QuestViewModel
@@ -20,7 +22,7 @@ struct BlockView: View {
                 ContainerBlockView(block: block)
             } else {
                 // ▶️ 이동 / 회전 / 공격 / 시작
-                NormalBlockView(block: block)
+                NormalBlockView(block: block, parentContainer: parentContainer)
             }
         }
         .environmentObject(dragManager)

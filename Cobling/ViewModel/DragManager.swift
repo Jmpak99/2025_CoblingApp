@@ -22,12 +22,17 @@ final class DragManager: ObservableObject {
     
     @Published var isOverContainer: Bool = false
     @Published var containerTargetBlock: Block? = nil
+    
+    @Published var containerInsertIndex: Int? = nil
+    
+    @Published var draggingParentContainer: Block? = nil
 
     func prepareDragging(
         type: BlockType,
         at position: CGPoint,
         offset: CGSize,
         block: Block? = nil,
+        parentContainer : Block? = nil,
         source: DragSource
     ) {
         guard isDragging == false else { return }
@@ -35,6 +40,7 @@ final class DragManager: ObservableObject {
         draggingType = type
         draggingBlock = block
         draggingBlockID = block?.id
+        draggingParentContainer = parentContainer
         dragSource = source
 
         dragPosition = position
@@ -67,6 +73,7 @@ final class DragManager: ObservableObject {
         draggingType = nil
         draggingBlock = nil
         draggingBlockID = nil
+        draggingParentContainer = nil
         dragSource = .palette
         dragPosition = .zero
         dragStartOffset = .zero
@@ -77,5 +84,6 @@ final class DragManager: ObservableObject {
         
         isOverContainer = false
         containerTargetBlock = nil
+        containerInsertIndex = nil
     }
 }
