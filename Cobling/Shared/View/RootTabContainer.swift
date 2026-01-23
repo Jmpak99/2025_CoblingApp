@@ -35,7 +35,7 @@ struct RootTabContainer: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(.keyboard)
 
-            if tabBarViewModel.isTabBarVisible { // ✅ 조건부로 탭바 표시
+            if tabBarViewModel.isTabBarVisible && !appState.isInGame{ // ✅ 조건부로 탭바 표시
                 FloatingTabBar(selectedTab: $appState.selectedTab)
                     .padding(.bottom, 16)
             }

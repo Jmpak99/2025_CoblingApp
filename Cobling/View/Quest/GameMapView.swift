@@ -12,10 +12,12 @@ struct GameMapView: View {
     var questTitle: String
 
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
+    
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var appState: AppState
 
     @State private var isHintOn = false
     @State private var isStoryOn = false
-    @State private var goBackToQuestList = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -64,7 +66,8 @@ struct GameMapView: View {
                     Spacer()
 
                     Button {
-                        goBackToQuestList = true
+                        appState.isInGame = false
+                        dismiss()
                     } label: {
                         Image("gp_out")
                             .resizable()
@@ -189,12 +192,6 @@ struct GameMapView: View {
                     Spacer()
                 }
             }
-        }
-        .navigationDestination(isPresented: $goBackToQuestList) {
-            QuestListView()
-                .onAppear {
-                    tabBarViewModel.isTabBarVisible = true
-                }
         }
     }
 }
