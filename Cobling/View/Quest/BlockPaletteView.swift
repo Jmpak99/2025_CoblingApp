@@ -16,6 +16,7 @@ struct BlockPaletteView: View {
                     Image(type.imageName)
                         .resizable()
                         .frame(width: 120, height: 30)
+                        .scaleEffect(0.85)
                         .gesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { value in
@@ -53,7 +54,7 @@ struct BlockPaletteView: View {
             Spacer()
         }
         .padding(.top, 16)
-        .padding(.leading, 30)
+        .padding(.leading, 12)
         .padding(.trailing, 8)
     }
 }

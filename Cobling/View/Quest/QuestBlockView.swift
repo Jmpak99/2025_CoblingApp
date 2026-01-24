@@ -72,7 +72,7 @@ struct QuestBlockView: View {
                                     HStack(spacing: 0) {
                                         // 🔴 팔레트 영역만 붉게
                                         Color.red.opacity(0.35)
-                                            .frame(width: 180)
+                                            .frame(width: 140)
                                             .overlay(
                                                 VStack {
                                                     Spacer()
@@ -104,7 +104,7 @@ struct QuestBlockView: View {
                             paletteFrame = geo.frame(in: .global)
                         }
                     }
-                    .frame(width: 180)
+                    .frame(width: 140)
 
                     // ---------- 캔버스 ----------
                     BlockCanvasView(
