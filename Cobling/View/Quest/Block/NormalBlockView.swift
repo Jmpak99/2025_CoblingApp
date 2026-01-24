@@ -16,11 +16,14 @@ struct NormalBlockView: View {
 
     @EnvironmentObject var dragManager: DragManager
     @EnvironmentObject var viewModel: QuestViewModel
-
-    @State private var dragOffset: CGSize = .zero
+    
+    // ✅ 드래그 중 시각효과만 위한 로컬 상태
     @State private var isDraggingLocal: Bool = false
 
+
     var body: some View {
+        
+        
         VStack(alignment: .leading, spacing: 0) {
 
             GeometryReader { geo in
@@ -29,7 +32,6 @@ struct NormalBlockView: View {
                     .frame(width: blockSize.width, height: blockSize.height)
                     .scaleEffect(scale)
                     .opacity(currentOpacity)
-                    .offset(dragOffset)
                     .animation(.easeInOut(duration: 0.2), value: currentOpacity)
                     // ✅ AnyGesture 적용
                     .gesture(dragGesture(geo: geo))
@@ -64,7 +66,6 @@ struct NormalBlockView: View {
                     }
 
                     isDraggingLocal = true
-                    dragOffset = value.translation
 
                     let frame = geo.frame(in: .global)
                     let position = CGPoint(
@@ -87,8 +88,6 @@ struct NormalBlockView: View {
                 }
                 .onEnded { value in
                     isDraggingLocal = false
-                    dragOffset = .zero
-
                     let frame = geo.frame(in: .global)
                     let endPosition = CGPoint(
                         x: frame.origin.x + value.location.x,
