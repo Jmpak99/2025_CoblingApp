@@ -481,8 +481,18 @@ final class QuestViewModel: ObservableObject {
                     return
                 }
 
-                self.executeBlocks(current.children) {
-                    runRepeat(remaining - 1)
+                // 1. 반복문 블록 강조
+                DispatchQueue.main.async {
+                    self.currentExecutingBlockID = current.id
+                }
+
+                // 2. 잠깐 깜빡이게 딜레이
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+
+                    // ⭐ 3. 내부 블록 실행
+                    self.executeBlocks(current.children) {
+                        runRepeat(remaining - 1)
+                    }
                 }
             }
 

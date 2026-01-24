@@ -28,8 +28,13 @@ struct ContainerBlockView: View {
     @State private var blockFrames: [UUID: CGRect] = [:]
     @State private var insertIndex: Int? = nil
 
-    private let blockWidth: CGFloat = 160
+    private let blockWidth: CGFloat = 165
     private let leftBarWidth: CGFloat = 12
+    
+    // MARK: - 실행 중인 반복문인지 판별
+    private var isExecutingThisContainer: Bool {
+        viewModel.currentExecutingBlockID == block.id
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -50,6 +55,9 @@ struct ContainerBlockView: View {
                 GeometryReader { geo in
                     RepeatHeaderView(block: block)
                         .frame(width: blockWidth, height: 36)
+                        .scaleEffect(isExecutingThisContainer ? 1.05 : 1.0)
+                        .opacity(isExecutingThisContainer ? 1.0 : 0.7)
+                        .animation(.easeInOut(duration: 0.15), value: isExecutingThisContainer)
                         .background(
                             Color(hex: "#86B0FF")
                                 .clipShape(
