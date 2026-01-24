@@ -8,14 +8,17 @@ import SwiftUI
 struct BlockPaletteView: View {
     @EnvironmentObject var dragManager: DragManager
     @EnvironmentObject var viewModel: QuestViewModel
-
+    
     var body: some View {
         VStack(spacing: 12) {
             ForEach(viewModel.allowedBlocks, id: \.self) { type in
                 GeometryReader { geo in
                     Image(type.imageName)
                         .resizable()
-                        .frame(width: 120, height: 30)
+                        .frame(
+                            width: 120,
+                            height: type == .repeatCount ? 60 : 30
+                        )
                         .scaleEffect(0.85)
                         .gesture(
                             DragGesture(minimumDistance: 0)
@@ -48,7 +51,7 @@ struct BlockPaletteView: View {
                                 }
                         )
                 }
-                .frame(height: 40)
+                .frame(height: type == .repeatCount ? 44 : 40)
             }
 
             Spacer()
