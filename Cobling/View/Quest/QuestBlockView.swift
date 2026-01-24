@@ -139,15 +139,16 @@ struct QuestBlockView: View {
             // =================================================
             // 👻 고스트 블록 (일반 / 반복문 분기)
             // =================================================
-            if dragManager.isDragging {
+            if dragManager.isDragging,
+               let type = dragManager.draggingType {
 
                 // 반복문 고스트
-                if let block = dragManager.draggingBlock,
-                   block.type == .repeatCount {
+                if type == .repeatCount {
 
                     GhostContainerBlockView(
-                        block: block,
-                        position: dragManager.dragPosition,
+                        block: dragManager.draggingBlock
+                            ?? Block(type: .repeatCount),
+                        position: dragManager.dragPosition
                     )
                     .ignoresSafeArea()
                     .zIndex(30)
