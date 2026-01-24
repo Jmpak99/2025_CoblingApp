@@ -28,7 +28,7 @@ struct ContainerBlockView: View {
     @State private var blockFrames: [UUID: CGRect] = [:]
     @State private var insertIndex: Int? = nil
 
-    private let blockWidth: CGFloat = 165
+    private let blockWidth: CGFloat = 160
     private let leftBarWidth: CGFloat = 12
 
     var body: some View {
@@ -47,18 +47,58 @@ struct ContainerBlockView: View {
                 // =========================
                 // 반복문 헤더
                 // =========================
-                RepeatHeaderView(block: block)
-                    .frame(width: blockWidth, height: 36)
-                    .background(
-                        Color(hex: "#86B0FF")
-                            .clipShape(
-                                RoundedCorner(
-                                    radius: 18,
-                                    corners: [.topRight, .bottomRight]
+                GeometryReader { geo in
+                    RepeatHeaderView(block: block)
+                        .frame(width: blockWidth, height: 36)
+                        .background(
+                            Color(hex: "#86B0FF")
+                                .clipShape(
+                                    RoundedCorner(
+                                        radius: 18,
+                                        corners: [.topRight, .bottomRight]
+                                    )
                                 )
-                            )
-                    )
-                    .gesture(containerDragGesture)
+                        )
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    if let ownerID = dragManager.draggingBlockID,
+                                       ownerID != block.id {
+                                        return
+                                    }
+
+                                    // ✅ global 좌표 변환 (정답)
+                                    let frame = geo.frame(in: .global)
+                                    let position = CGPoint(
+                                        x: frame.origin.x + value.location.x,
+                                        y: frame.origin.y + value.location.y
+                                    )
+
+                                    if !dragManager.isDragging {
+                                        dragManager.prepareDragging(
+                                            type: block.type,
+                                            at: position,
+                                            offset: value.translation,
+                                            block: block,
+                                            parentContainer: viewModel.findParentContainer(of: block),
+                                            source: .canvas
+                                        )
+                                    }
+
+                                    dragManager.updateDragPosition(position)
+                                }
+                                .onEnded { value in
+                                    let frame = geo.frame(in: .global)
+                                    let position = CGPoint(
+                                        x: frame.origin.x + value.location.x,
+                                        y: frame.origin.y + value.location.y
+                                    )
+
+                                    dragManager.finishDrag(at: position) { _, _, _, _ in }
+                                }
+                        )
+                }
+                .frame(width: blockWidth, height: 36) // 🔥 GeometryReader 크기 고정 필수
 
                 // =========================
                 // 반복문 내부 영역

@@ -137,19 +137,33 @@ struct QuestBlockView: View {
             }
 
             // =================================================
-            // 👻 고스트 블록 (팔레트 → 캔버스)
+            // 👻 고스트 블록 (일반 / 반복문 분기)
             // =================================================
-            if dragManager.isDragging,
-               dragManager.dragSource == .palette,
-               let type = dragManager.draggingType {
+            if dragManager.isDragging {
 
-                GhostBlockView(
-                    type: type,
-                    position: dragManager.dragPosition,
-                    offset: dragManager.dragStartOffset
-                )
-                .ignoresSafeArea()
-                .zIndex(30)
+                // 반복문 고스트
+                if let block = dragManager.draggingBlock,
+                   block.type == .repeatCount {
+
+                    GhostContainerBlockView(
+                        block: block,
+                        position: dragManager.dragPosition,
+                    )
+                    .ignoresSafeArea()
+                    .zIndex(30)
+
+                }
+                // 일반 블록 고스트
+                else if let type = dragManager.draggingType {
+
+                    GhostBlockView(
+                        type: type,
+                        position: dragManager.dragPosition,
+                        offset: dragManager.dragStartOffset
+                    )
+                    .ignoresSafeArea()
+                    .zIndex(30)
+                }
             }
 
             // =================================================

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct RepeatHeaderView: View {
     @ObservedObject var block: Block
-    private let options = [1, 2, 3, 4, 5]
+    private let options = [1, 2, 3, 4, 5, 6, 7, 8, 9 ,10]
 
     var body: some View {
         HStack {
@@ -17,21 +17,31 @@ struct RepeatHeaderView: View {
             // 왼쪽: 반복 횟수 + 텍스트
             // =========================
             HStack(spacing: 6) {
-                Picker(
-                    "",
-                    selection: Binding(
-                        get: { Int(block.value ?? "1") ?? 1 },
-                        set: { block.value = String($0) }
-                    )
-                ) {
+                Menu {
                     ForEach(options, id: \.self) { count in
-                        Text("\(count)")
+                        Button {
+                            block.value = String(count)
+                        } label: {
+                            Text("\(count)")
+                                .font(.pretendardMedium14)
+                        }
                     }
+                } label: {
+                    HStack(spacing: 4) {
+                        // 숫자
+                        Text(block.value ?? "1")
+                            .font(.pretendardMedium14) // ✅ 숫자 크기 제어
+                            .foregroundColor(.black)
+
+                        // ▼ 화살표
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.gray)
+                    }
+                    .frame(width: 50, height: 28)
+                    .background(Color.white)
+                    .cornerRadius(6)
                 }
-                .pickerStyle(.menu)
-                .frame(width: 50, height: 28)
-                .background(Color.white)
-                .cornerRadius(6)
                 .padding(.leading, -12)
 
                 Text("번 반복하기")
