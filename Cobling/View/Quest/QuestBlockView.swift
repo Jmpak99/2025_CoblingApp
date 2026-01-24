@@ -49,10 +49,10 @@ struct QuestBlockView: View {
                         viewModel: viewModel,
                         questTitle: subQuest.title
                     )
-                    .frame(height: 500)
+                    .frame(height: 450)
                 } else {
                     ProgressView("불러오는 중...")
-                        .frame(height: 500)
+                        .frame(height: 450)
                 }
 
                 // =================================================

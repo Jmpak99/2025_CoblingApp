@@ -25,9 +25,10 @@ struct GameMapView: View {
             // MARK: - Background
             Color(hex: "#FFF2DC")
                 .ignoresSafeArea()
-
-            VStack(spacing: 8) {
-                Spacer().frame(height: 48)
+            
+            VStack(spacing: 4) {
+                // 상단 노치	
+                Spacer().frame(height: 42)
 
                 // MARK: - 타이틀
                 HStack {
@@ -79,7 +80,7 @@ struct GameMapView: View {
 
                 // MARK: - Game Map
                 ZStack {
-                    let tileSize: CGFloat = 40
+                    let tileSize: CGFloat = 36
                     let map = viewModel.mapData
 
                     // 맵 타일
@@ -144,7 +145,9 @@ struct GameMapView: View {
                         height: CGFloat(map.count) * tileSize
                     )
                 }
-                .padding(16)
+                .padding(.top, 4)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
 
             // MARK: - 스토리 말풍선
