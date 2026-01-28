@@ -50,28 +50,31 @@ struct BlockCanvasView: View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
-
+                    
                     // Start Block
                     BlockView(block: viewModel.startBlock, parentContainer: nil)
                         .environmentObject(dragManager)
                         .environmentObject(viewModel)
-
+                    
                     // 실행 블록
                     ForEach(Array(viewModel.startBlock.children.enumerated()), id: \.element.id) { index, block in
                         
                         // 중간 삽입 인디케이터
-                        if dragManager.isDragging && insertIndex == index {
+                        if dragManager.isDragging,
+                           dragManager.containerTargetBlock == nil,
+                            insertIndex == index {
+                            
                             HStack(spacing: 0) {
                                 Spacer().frame(width: childIndent)
-
+                                
                                 DropIndicatorBar()
                                     .frame(width: childBlockWidth)
-
+                                
                                 Spacer()
                             }
                             .padding(.vertical, 6)
                         }
-
+                        
                         BlockView(block: block, parentContainer: nil)
                             .environmentObject(dragManager)
                             .environmentObject(viewModel)
@@ -87,21 +90,23 @@ struct BlockCanvasView: View {
                                 }
                             )
                     }
-
-                    if dragManager.isDragging &&
+                    
+                    // 마지막 위치 인디케이터
+                    if dragManager.isDragging,
+                       dragManager.containerTargetBlock == nil,
                         insertIndex == viewModel.startBlock.children.count {
-
+                        
                         HStack(spacing: 0) {
                             Spacer().frame(width: childIndent)
-
+                            
                             DropIndicatorBar()
                                 .frame(width: childBlockWidth)
-
+                            
                             Spacer()
                         }
                         .padding(.vertical, 6)
                     }
-
+                    
                     Color.clear
                         .frame(height: 1)
                         .id("canvasBottom")
@@ -110,45 +115,45 @@ struct BlockCanvasView: View {
                 .padding(.bottom, 100)
                 .padding(.leading, 10)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-
+                
                 .onPreferenceChange(BlockFramePreferenceKey.self) {
                     blockFrames = $0
                 }
-
+                
                 // ⭐ 핵심 수정 부분
+                // ✅ 캔버스 드롭 타겟 판정 + 삽입 인덱스 계산
                 .background(
                     GeometryReader { geo in
                         Color.clear
                             .onChange(of: dragManager.dragPosition) { globalPos in
+                                let frame = geo.frame(in: .global)
 
-                                let currentCanvasFrame = geo.frame(in: .global)
-                                canvasFrame = currentCanvasFrame   // 🔥 항상 최신값
-                                
-                                // 반복문 위에 있으면 캔버스 무효화
-                                if dragManager.isOverContainer {
-                                    // 캔버스 삽입만 막음
+                                guard dragManager.isDragging else {
                                     insertIndex = nil
-                                    dragManager.isOverCanvas = false
                                     dragManager.canvasInsertIndex = nil
-                                    
-                                    // 캔버스 영역 여부 자체는 유지
-                                    isDropTarget = currentCanvasFrame.contains(globalPos)
                                     return
                                 }
 
-                                let over = currentCanvasFrame.contains(globalPos)
-                                isDropTarget = over
+                                // ✅ 컨테이너가 활성화된 상태면, 캔버스는 드롭 타겟이 되면 안 됨
+                                if dragManager.containerTargetBlock != nil {
+                                    dragManager.isOverCanvas = false
+                                    insertIndex = nil
+                                    dragManager.canvasInsertIndex = nil
+                                    return
+                                }
 
-                                if over && dragManager.isDragging {
-                                    let localY = globalPos.y - currentCanvasFrame.minY
+                                if frame.contains(globalPos) {
+                                    dragManager.isOverCanvas = true
+
+                                    // ✅ 삽입 위치 계산 (canvas 좌표계로 변환)
+                                    let localY = globalPos.y - frame.minY
                                     let idx = calculateInsertIndex(dragY: localY)
 
                                     insertIndex = idx
-                                    dragManager.isOverCanvas = true
                                     dragManager.canvasInsertIndex = idx
                                 } else {
-                                    insertIndex = nil
                                     dragManager.isOverCanvas = false
+                                    insertIndex = nil
                                     dragManager.canvasInsertIndex = nil
                                 }
                             }

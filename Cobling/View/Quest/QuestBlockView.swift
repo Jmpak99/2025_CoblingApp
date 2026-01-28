@@ -250,32 +250,97 @@ struct QuestBlockView: View {
                             return
                         }
 
-                        // 2️⃣ 팔레트 → 캔버스 (추가)
+                        // 3️⃣ 팔레트 → 캔버스 (추가)
                         if source == .palette,
                            let type = type,
                            dragManager.isOverCanvas {
 
-                            let index = dragManager.canvasInsertIndex
-                            ?? viewModel.startBlock.children.count
-                            viewModel.startBlock.children.insert(Block(type: type), at: index)
+                            let rawIndex = dragManager.canvasInsertIndex
+                                ?? viewModel.startBlock.children.count
+
+                            let safeIndex = min(
+                                max(rawIndex, 0),
+                                viewModel.startBlock.children.count
+                            )
+
+                            viewModel.startBlock.children.insert(Block(type: type), at: safeIndex)
+                            return
+                        }
+                        
+                        // 👉 캔버스에 있던 블록을 반복문 안으로 드롭했을 때
+                        if source == .canvas,
+                           let block = block,
+                           dragManager.isOverContainer,                 // 반복문 위에 드롭
+                           let target = dragManager.containerTargetBlock {
+
+                            // 1️⃣ 기존 위치에서 제거
+                            if let parent = viewModel.findParentContainer(of: block) {
+                                // (이론상 거의 없음, 중첩 반복문 대비)
+                                parent.children.removeAll { $0.id == block.id }
+                            } else {
+                                // 캔버스(startBlock)에서 제거
+                                viewModel.startBlock.children.removeAll { $0.id == block.id }
+                            }
+
+                            // 2️⃣ 반복문 내부 삽입 위치
+                            let rawIndex = dragManager.containerInsertIndex
+                                ?? target.children.count
+
+                            // ✅ index 범위 보정 (0 ~ count)
+                            let safeIndex = min(max(rawIndex, 0), target.children.count)
+
+                            target.children.insert(block, at: safeIndex)
+                            
+                            return
+                        }
+                        
+                        // 4️⃣ 반복문 → 캔버스 (꺼내기)
+                        if source == .canvas,
+                           let block = block,
+                           let parent = viewModel.findParentContainer(of: block),
+                           dragManager.isOverCanvas {
+
+                            dragManager.isOverContainer = false
+                            dragManager.containerTargetBlock = nil
+
+                            parent.children.removeAll { $0.id == block.id }
+
+                            let rawIndex = dragManager.canvasInsertIndex
+                                ?? viewModel.startBlock.children.count
+
+                            let safeIndex = min(
+                                max(rawIndex, 0),
+                                viewModel.startBlock.children.count
+                            )
+
+                            viewModel.startBlock.children.insert(block, at: safeIndex)
+                            
                             return
                         }
 
-                        // 3️⃣ 캔버스 → 캔버스 (재정렬)
+                        // 5️⃣ 캔버스 → 캔버스 (재정렬)
                         if source == .canvas,
                            let block = block,
                            dragManager.isOverCanvas,
                            let fromIndex = viewModel.startBlock.children.firstIndex(where: { $0.id == block.id }) {
 
-                            let index = dragManager.canvasInsertIndex
-                            ?? viewModel.startBlock.children.count
+                            let rawIndex = dragManager.canvasInsertIndex
+                                ?? viewModel.startBlock.children.count
 
-                            if fromIndex == index || fromIndex + 1 == index { return }
+                            if fromIndex == rawIndex || fromIndex + 1 == rawIndex { return }
 
                             viewModel.startBlock.children.remove(at: fromIndex)
-                            let adjusted = fromIndex < index ? index - 1 : index
-                            viewModel.startBlock.children.insert(block, at: adjusted)
+
+                            let adjustedRaw = fromIndex < rawIndex ? rawIndex - 1 : rawIndex
+                            let safeIndex = min(
+                                max(adjustedRaw, 0),
+                                viewModel.startBlock.children.count
+                            )
+
+                            viewModel.startBlock.children.insert(block, at: safeIndex)
                         }
+                        
+                        
                     }
                 }
         )

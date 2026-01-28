@@ -523,6 +523,22 @@ final class QuestViewModel: ObservableObject {
 
         return search(in: startBlock)
     }
+    
+    // MARK: - ✅ target이 ancestor의 "자손(하위 컨테이너)"인지 판별
+    func isDescendant(_ target: Block, of ancestor: Block) -> Bool {
+        // ancestor 아래를 DFS로 탐색해서 target이 나오면 true
+        func dfs(_ node: Block) -> Bool {
+            for child in node.children {
+                if child.id == target.id { return true }
+                if child.type.isContainer {
+                    if dfs(child) { return true }
+                }
+            }
+            return false
+        }
+
+        return dfs(ancestor)
+    }
 
     // MARK: - 퀘스트 클리어 처리
     private func handleQuestClear(subQuest: SubQuestDocument, usedBlocks: Int) {

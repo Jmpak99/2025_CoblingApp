@@ -129,7 +129,7 @@ struct ContainerBlockView: View {
 
                         // ⭐ 중간 삽입 인디케이터
                         if dragManager.isDragging,
-                           dragManager.isOverContainer,
+                           dragManager.containerTargetBlock?.id == block.id,
                            insertIndex == index {
 
                             DropIndicatorBar()
@@ -159,7 +159,7 @@ struct ContainerBlockView: View {
 
                     // 마지막 위치 인디케이터
                     if dragManager.isDragging,
-                       dragManager.isOverContainer,
+                       dragManager.containerTargetBlock?.id == block.id,
                        insertIndex == block.children.count {
 
                         DropIndicatorBar()
@@ -190,21 +190,36 @@ struct ContainerBlockView: View {
                 Color.clear
                     .onChange(of: dragManager.dragPosition) { globalPos in
                         let frame = geo.frame(in: .global)
+                        
+                        guard dragManager.isDragging else { return }
 
-                        if frame.contains(globalPos),
-                           dragManager.isDragging {
+                        if frame.contains(globalPos) {
 
-                            // 반복문 위에 드래그 중
-                            dragManager.isOverContainer = true
-                            dragManager.containerTargetBlock = block
+                                // ✅ 기존 타겟이 없으면 바로 설정
+                                if dragManager.containerTargetBlock == nil {
+                                    dragManager.containerTargetBlock = block
+                                    dragManager.isOverContainer = true
+                                    dragManager.isOverCanvas = false
+                                    return
+                                }
 
-                            // 캔버스 드롭 비활성화
-                            dragManager.isOverCanvas = false
+                                // ✅ 기존 타겟이 있는데,
+                                // 내가 더 안쪽(자식) 컨테이너라면 교체 허용
+                                if let current = dragManager.containerTargetBlock,
+                                   viewModel.isDescendant(block, of: current) {
+
+                                    dragManager.containerTargetBlock = block
+                                    dragManager.isOverContainer = true
+                                    dragManager.isOverCanvas = false
+                                }
 
                         } else if dragManager.containerTargetBlock?.id == block.id {
-                            // 반복문에서 벗어남
-                            dragManager.isOverContainer = false
-                            dragManager.containerTargetBlock = nil
+                            // ❗️다른 더 안쪽 컨테이너가 없을 때만 해제
+                            if dragManager.isOverContainer {
+                                dragManager.containerTargetBlock = nil
+                                dragManager.isOverContainer = false
+                                dragManager.isOverCanvas = true
+                            }
                         }
                     }
             }
@@ -227,11 +242,14 @@ struct ContainerBlockView: View {
                         let frame = geo.frame(in: .global)
 
                         guard frame.contains(globalPos),
-                              dragManager.isDragging else {
+                              dragManager.isDragging,
+                              dragManager.containerTargetBlock?.id == block.id else {
+
                             insertIndex = nil
                             dragManager.containerInsertIndex = nil
                             return
                         }
+
 
                         let localY = globalPos.y - frame.minY
                         let idx = calculateInsertIndex(dragY: localY)
