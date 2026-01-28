@@ -15,6 +15,8 @@ final class DragManager: ObservableObject {
     @Published var dragSource: DragSource = .palette
     @Published var dragPosition: CGPoint = .zero
     @Published var dragStartOffset: CGSize = .zero
+    
+    @Published var containerFrame: CGRect? = nil
 
     // ✅ 캔버스 드롭 정보(캔버스가 계산해서 넣어줌)
     @Published var isOverCanvas: Bool = false
