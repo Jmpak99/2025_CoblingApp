@@ -35,6 +35,14 @@ struct ContainerBlockView: View {
     private var isExecutingThisContainer: Bool {
         viewModel.currentExecutingBlockID == block.id
     }
+    
+    // MARK: - NormalBlockView와 동일한 opacity 규칙
+    private var containerContentOpacity: Double {
+        if viewModel.isExecuting && !isExecutingThisContainer {
+            return 0.3
+        }
+        return 1.0
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -56,7 +64,7 @@ struct ContainerBlockView: View {
                     RepeatHeaderView(block: block)
                         .frame(width: blockWidth, height: 36)
                         .scaleEffect(isExecutingThisContainer ? 1.05 : 1.0)
-                        .opacity(isExecutingThisContainer ? 1.0 : 0.7)
+                        .opacity(containerContentOpacity)
                         .animation(.easeInOut(duration: 0.15), value: isExecutingThisContainer)
                         .background(
                             Color(hex: "#86B0FF")

@@ -471,7 +471,9 @@ final class QuestViewModel: ObservableObject {
             let repeatCount = Int(current.value ?? "1") ?? 1
 
             func runRepeat(_ remaining: Int) {
+                // 반복문 종료 시점
                 if remaining <= 0 {
+                    // 다음 블럭으로 진행
                     self.executeBlocks(
                         blocks,
                         index: index + 1,
