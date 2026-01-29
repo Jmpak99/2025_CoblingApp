@@ -185,8 +185,10 @@ struct QuestBlockView: View {
             // =================================================
             // ✅ 성공 다이얼로그
             // =================================================
-            if viewModel.showSuccessDialog {
+            if viewModel.showSuccessDialog,
+               let reward = viewModel.successReward {
                 SuccessDialogView(
+                    reward : reward,
                     onRetry: {
                         withAnimation(.easeInOut(duration: 0.22)) {
                             viewModel.showSuccessDialog = false
@@ -399,6 +401,7 @@ struct QuestBlockView: View {
                 case .goToList:
                     isWaitingOverlay = false
                     appState.isInGame = false
+                    tabBarViewModel.isTabBarVisible = true
                     goBackToQuestList = true
 
                 case .waiting:
