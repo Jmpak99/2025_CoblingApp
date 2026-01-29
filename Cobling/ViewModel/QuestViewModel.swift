@@ -54,6 +54,9 @@ final class QuestViewModel: ObservableObject {
     @Published var isExecuting = false
     @Published var didFailExecution = false
     
+    // MARK: - Success Reward
+    @Published var successReward: SuccessReward? = nil
+    
     // MARK: - 적
     @Published private(set) var initialEnemies: [Enemy] = []
     @Published var enemies: [Enemy] = []
@@ -541,12 +544,26 @@ final class QuestViewModel: ObservableObject {
 
         return dfs(ancestor)
     }
-
+    
+    // MARK: - EXP 테이블 (서버와 동일)
+    func maxExpForLevel(_ level: Int) -> Double {
+        let table: [Int: Double] = [
+            1: 100, 2: 120, 3: 160, 4: 200, 5: 240,
+            6: 310, 7: 380, 8: 480, 9: 600, 10: 750,
+            11: 930, 12: 1160, 13: 1460, 14: 1820, 15: 2270,
+            16: 2840, 17: 3550, 18: 4440, 19: 5550
+        ]
+        return table[level] ?? 100
+    }
+    
+    
     // MARK: - 퀘스트 클리어 처리
     private func handleQuestClear(subQuest: SubQuestDocument, usedBlocks: Int) {
+
         let baseExp = subQuest.rewards.baseExp
         let bonusExp = subQuest.rewards.perfectBonusExp
         let maxSteps = subQuest.rules.maxSteps
+
         let isPerfect = usedBlocks <= maxSteps
         let earned = isPerfect ? (baseExp + bonusExp) : baseExp
 
@@ -554,6 +571,9 @@ final class QuestViewModel: ObservableObject {
         let subId = currentSubQuestId
         guard !subId.isEmpty else { return }
 
+        // ===============================
+        // 1️⃣ 서브퀘스트 progress 업데이트
+        // ===============================
         let progressRef = db.collection("users")
             .document(userId)
             .collection("progress")
@@ -561,18 +581,43 @@ final class QuestViewModel: ObservableObject {
             .collection("subQuests")
             .document(subId)
 
-        // 현재 subQuest 완료 저장 (서버 트리거로 다음 퀘스트 해금됨)
         progressRef.updateData([
             "earnedExp": earned,
             "perfectClear": isPerfect,
             "state": "completed",
             "attempts": FieldValue.increment(Int64(1)),
             "updatedAt": FieldValue.serverTimestamp()
-        ]) { error in
-            if let error = error {
-                print("❌ 퀘스트 클리어 저장 실패: \(error)")
-            } else {
-                print("✅ 퀘스트 클리어 저장 완료 (exp: \(earned), perfect: \(isPerfect))")
+        ])
+
+        // ===============================
+        // 2️⃣ 서버 반영 후 유저 정보 다시 읽기
+        // ===============================
+        let userRef = db.collection("users").document(userId)
+
+        // ⏱️ Cloud Function 반영 대기
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            userRef.getDocument { [weak self] snap, error in
+                guard let self = self else { return }
+                guard let data = snap?.data() else { return }
+
+                let level = data["level"] as? Int ?? 1
+                let currentExp = data["exp"] as? Double ?? 0
+                let maxExp = self.maxExpForLevel(level)
+
+                // ===============================
+                // 3️⃣ SuccessReward (서버 기준!)
+                // ===============================
+                DispatchQueue.main.async {
+                    self.successReward = SuccessReward(
+                        level: level,
+                        currentExp: CGFloat(currentExp),
+                        maxExp: CGFloat(maxExp),
+                        gainedExp: earned,
+                        isPerfectClear: isPerfect
+                    )
+
+                    self.showSuccessDialog = true
+                }
             }
         }
     }
