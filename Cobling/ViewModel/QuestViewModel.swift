@@ -80,6 +80,30 @@ final class QuestViewModel: ObservableObject {
         unlockListener?.remove()
     }
     
+    func resetForNewSubQuest() {
+
+        print("🧹 resetForNewSubQuest() 호출")
+
+        // ▶️ 블록 트리 초기화
+        startBlock = Block(type: .start)
+
+        // ▶️ 실행 상태 초기화
+        isExecuting = false
+        didFailExecution = false
+        currentExecutingBlockID = nil
+
+        // ▶️ 캐릭터 상태 초기화
+        characterPosition = startPosition
+        characterDirection = .right
+
+        // ▶️ 적 상태 초기화
+        enemies = initialEnemies
+
+        // ▶️ 다이얼로그 초기화
+        showFailureDialog = false
+        showSuccessDialog = false
+        successReward = nil
+    }
     
     // MARK: - Firestore에서 SubQuest 불러오기
     func fetchSubQuest(chapterId: String, subQuestId: String) {

@@ -24,78 +24,133 @@ struct SubQuest: Identifiable {
 
 // MARK: - QuestDetailView
 struct QuestDetailView: View {
+
+    // MARK: - 전달받는 값
     let chapter: QuestDocument
+
+    // MARK: - Environment
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
-    
+    @Environment(\.dismiss) private var dismiss   // 리스트로 바로 돌아가기
+
+    // MARK: - State
     @State private var subQuests: [SubQuest] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
-    @State private var selectedSubQuest: SubQuest? = nil
-    @State private var isNavigatingToBlock = false
+
+    // 🔑 현재 플레이 중인 서브퀘스트 ID
+    // nil이면 리스트 화면
+    @State private var currentSubQuestId: String? = nil
     @State private var showLockedAlert = false
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                
-                // 챕터 타이틀
-                Text(chapter.title)
-                    .font(.gmarketBold34)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 18)
-                
-                Spacer().frame(height: 32)
-                
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("코블링의 퀘스트")
-                        .font(.pretendardBold24)
-                        .padding(.bottom, 4)
-                    Text("코블링과 함께 문제를 해결해 보세요!")
-                        .font(.pretendardBold14)
-                        .foregroundColor(.gray)
-                }
-                
-                if isLoading {
-                    ProgressView("불러오는 중...")
-                        .padding()
-                } else if let errorMessage = errorMessage {
-                    Text("에러: \(errorMessage)")
-                        .foregroundColor(.red)
-                } else {
-                    VStack(spacing: 16) {
-                        subQuestList
+        ZStack {
+            
+            //QuestTheme.backgroundColor(order: chapter.order)
+                        //.ignoresSafeArea()
+
+            // =================================================
+            // 📋 서브퀘스트 리스트 화면
+            // =================================================
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+
+                    // -------------------------
+                    // 챕터 타이틀
+                    // -------------------------
+                    Text(chapter.title)
+                        .font(.gmarketBold34)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 18)
+
+                    Spacer().frame(height: 32)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("코블링의 퀘스트")
+                            .font(.pretendardBold24)
+                            .padding(.bottom, 4)
+
+                        Text("코블링과 함께 문제를 해결해 보세요!")
+                            .font(.pretendardBold14)
+                            .foregroundColor(.gray)
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
+
+                    // -------------------------
+                    // 상태별 UI
+                    // -------------------------
+                    if isLoading {
+                        ProgressView("불러오는 중...")
+                            .padding()
+                    } else if let errorMessage = errorMessage {
+                        Text("에러: \(errorMessage)")
+                            .foregroundColor(.red)
+                    } else {
+                        VStack(spacing: 16) {
+                            subQuestList
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    }
+
+                    Spacer(minLength: 40)
                 }
-                
-                Spacer(minLength: 40)
+                .frame(maxWidth: 600)
+                .padding(.horizontal)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.bottom, 80)
             }
-            .frame(maxWidth: 600)
-            .padding(.horizontal)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.bottom, 80)
+
+            // =================================================
+            // 🎮 QuestBlockView (단일, overlay)
+            // =================================================
+            if let subQuestId = currentSubQuestId {
+
+                // ❗️ push ❌
+                // ❗️ QuestDetailView 위에 overlay로 단 하나만 존재
+                QuestBlockView(
+                    chapterId: chapter.id,
+                    subQuestId: subQuestId,
+
+                    // ✅ 다음 서브퀘스트로 이동
+                    // → QuestBlockView가 직접 이동하지 않고
+                    // → 상태 변경 요청만 함
+                    onGoNextSubQuest: { nextId in
+                        currentSubQuestId = nextId
+                    },
+
+                    // ✅ 나가기
+                    // → 즉시 리스트 화면으로 복귀
+                    onExitToList: {
+                        currentSubQuestId = nil
+                        dismiss()
+                    }
+                )
+                .zIndex(10)
+                .transition(.move(edge: .trailing))
+            }
         }
+
+        // =================================================
+        // MARK: - Alert
+        // =================================================
         .alert("잠긴 퀘스트입니다", isPresented: $showLockedAlert) {
-            Button("확인", role: .cancel) {}
+            Button("확인", role: .cancel) { }
         }
-        .overlay(
-            Group {
-                if let sub = selectedSubQuest {
-                    NavigationLink(
-                        destination: QuestBlockView(chapterId: chapter.id, subQuestId: sub.id), // ✅ id만 넘김
-                        isActive: $isNavigatingToBlock
-                    ) { EmptyView() }
-                }
-            }
-        )
+
+        // =================================================
+        // MARK: - Lifecycle
+        // =================================================
         .onAppear {
             loadSubQuests()
+
+            // 🔥 리스트 화면에서는 탭바 노출
             tabBarViewModel.isTabBarVisible = true
         }
+
         .navigationBarTitleDisplayMode(.inline)
     }
-    
+
+    // =================================================
     // MARK: - 하위 퀘스트 리스트
+    // =================================================
     private var subQuestList: some View {
         let bgColor = QuestTheme.backgroundColor(order: chapter.order)
 
@@ -103,85 +158,88 @@ struct QuestDetailView: View {
             SubQuestCard(
                 subQuest: quest,
                 backgroundColor: bgColor,
-                onTap: { handleSubQuestTap(quest) }
+                onTap: {
+                    handleSubQuestTap(quest)
+                }
             )
         }
     }
-    
-    // MARK: - 챕터 배경색
-    private var chapterBackgroundColor: Color {
-        QuestTheme.backgroundColor(order: chapter.order)
-    }
-    
+
+    // =================================================
     // MARK: - 하위 퀘스트 선택
+    // =================================================
     private func handleSubQuestTap(_ quest: SubQuest) {
+
+        // 잠김 상태면 알럿
         if quest.state == .locked {
             showLockedAlert = true
-        } else {
-            selectedSubQuest = quest
-            DispatchQueue.main.async {
-                isNavigatingToBlock = true
-            }
+            return
         }
+
+        // 🔥 NavigationLink ❌
+        // 🔥 상태 변경 ⭕️
+        currentSubQuestId = quest.id
     }
-    
+
+    // =================================================
     // MARK: - Firestore 로드 & 병합
+    // =================================================
     private func loadSubQuests() {
         let db = Firestore.firestore()
         guard let userId = Auth.auth().currentUser?.uid else { return }
-        
-        // 1. 마스터 데이터 로드
+
+        // 1️⃣ 마스터 데이터 로드
         db.collection("quests")
             .document(chapter.id)
             .collection("subQuests")
             .order(by: "order")
             .getDocuments { snapshot, error in
+
                 if let error = error {
                     self.errorMessage = error.localizedDescription
                     self.isLoading = false
                     return
                 }
-                
-                var baseSubQuests: [SubQuest] = []
-                if let docs = snapshot?.documents {
-                    baseSubQuests = docs.compactMap { doc in
-                        let data = doc.data()
-                        return SubQuest(
-                            id: doc.documentID,
-                            title: data["title"] as? String ?? "",
-                            description: data["description"] as? String ?? "",
-                            state: .locked // 기본 잠김
-                        )
-                    }
-                }
-                
-                // 2. progress 데이터 로드
+
+                let baseSubQuests: [SubQuest] = snapshot?.documents.compactMap { doc in
+                    let data = doc.data()
+                    return SubQuest(
+                        id: doc.documentID,
+                        title: data["title"] as? String ?? "",
+                        description: data["description"] as? String ?? "",
+                        state: .locked
+                    )
+                } ?? []
+
+                // 2️⃣ 유저 progress 로드
                 db.collection("users")
                     .document(userId)
                     .collection("progress")
                     .document(chapter.id)
                     .collection("subQuests")
                     .getDocuments { progressSnap, _ in
+
                         var progressMap: [String: String] = [:]
-                        if let progressDocs = progressSnap?.documents {
-                            for doc in progressDocs {
-                                // 🔑 doc.documentID = "sq1" ...
-                                let subQuestId = doc.documentID
-                                let state = (doc.data()["state"] as? String)?
-                                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? "locked"
-                                progressMap[subQuestId] = state
-                            }
+
+                        progressSnap?.documents.forEach { doc in
+                            progressMap[doc.documentID] =
+                                (doc.data()["state"] as? String)?
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                ?? "locked"
                         }
-                        
-                        // 3. progress 병합
+
+                        // 3️⃣ 병합
                         self.subQuests = baseSubQuests.map { sq in
                             let stateStr = progressMap[sq.id] ?? "locked"
-                            let state: SubQuestState
-                            switch stateStr {
-                            case "completed": state = .completed
-                            case "inProgress": state = .inProgress
-                            default: state = .locked
-                            }
+
+                            let state: SubQuestState = {
+                                switch stateStr {
+                                case "completed": return .completed
+                                case "inProgress": return .inProgress
+                                default: return .locked
+                                }
+                            }()
+
                             return SubQuest(
                                 id: sq.id,
                                 title: sq.title,
@@ -189,12 +247,11 @@ struct QuestDetailView: View {
                                 state: state
                             )
                         }
-                        
+
                         self.isLoading = false
                     }
             }
     }
-
 }
 
 // MARK: - 하위 퀘스트 카드

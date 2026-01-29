@@ -104,6 +104,9 @@ final class QuestListViewModel: ObservableObject {
 struct QuestListView: View {
     @StateObject private var viewModel = QuestListViewModel()
     @State private var showLockedAlert = false
+    
+    @EnvironmentObject var tabBarViewModel: TabBarViewModel
+    @EnvironmentObject var appState: AppState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -142,6 +145,11 @@ struct QuestListView: View {
         }
         .task {
             await viewModel.fetchQuests()
+        }
+        
+        .onAppear {
+            tabBarViewModel.isTabBarVisible = true
+            appState.isInGame = false
         }
     }
 }
