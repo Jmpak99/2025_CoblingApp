@@ -6,38 +6,54 @@
 import SwiftUI
 
 struct QuestBlockView: View {
+    // =================================================
+    // MARK: - 전달받는 값 (고정)
+    // =================================================
     let chapterId: String
     let subQuestId: String
 
+    // 👉 부모(QuestDetailView)에게 상태 변경을 요청하는 콜백
+    let onGoNextSubQuest: (String) -> Void
+    let onExitToList: () -> Void
+
+    // =================================================
+    // MARK: - Environment
+    // =================================================
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
     @EnvironmentObject var appState: AppState
 
+    // =================================================
+    // MARK: - State / ViewModel
+    // =================================================
     @StateObject private var dragManager = DragManager()
     @StateObject private var viewModel = QuestViewModel()
 
-    // 팔레트 영역 프레임
+    // 팔레트 영역 프레임 (삭제 판별용)
     @State private var paletteFrame: CGRect = .zero
 
-    // 네비게이션 상태
-    @State private var goToNextQuestId: String? = nil
-    @State private var goBackToQuestList = false
-    
     // waiting / locked 상태
-        @State private var isWaitingOverlay = false
-        @State private var waitingRetryCount = 0
-        @State private var showWaitingAlert = false
-        @State private var showLockedAlert = false
+    @State private var isWaitingOverlay = false
+    @State private var waitingRetryCount = 0
+    @State private var showWaitingAlert = false
+    @State private var showLockedAlert = false
 
-    // MARK: - 팔레트 위에 있는지 판별 (삭제용)
+    // =================================================
+    // MARK: - 삭제 영역 판별
+    // =================================================
     private func isOverPalette() -> Bool {
         dragManager.isDragging &&
         dragManager.dragSource == .canvas &&
         paletteFrame.contains(dragManager.dragPosition)
     }
+    
+    
 
     var body: some View {
         ZStack {
-
+            
+            // ✅ 게임 화면 전용 배경 (뒤 화면 완전 차단)
+            Color(.white)
+                .ignoresSafeArea()
             // =================================================
             // 메인 콘텐츠
             // =================================================
@@ -356,14 +372,20 @@ struct QuestBlockView: View {
                 subQuestId: subQuestId
             )
         }
+        
+        .onChange(of: subQuestId) { newId in
+            print("🧹 새 서브퀘스트 진입, 블록 초기화:", newId)
 
-        // 네비게이션
-        .navigationDestination(item: $goToNextQuestId) { nextId in
-            QuestBlockView(chapterId: chapterId, subQuestId: nextId)
+            // 1️⃣ 블록 상태 완전 초기화
+            viewModel.resetForNewSubQuest()
+
+            // 2️⃣ 새 퀘스트 데이터 로드
+            viewModel.fetchSubQuest(
+                chapterId: chapterId,
+                subQuestId: newId
+            )
         }
-        .navigationDestination(isPresented: $goBackToQuestList) {
-            QuestListView()
-        }
+
         
         // 알럿
         .alert("⏳ 챕터를 여는 중이에요", isPresented: $showWaitingAlert) {
@@ -384,33 +406,37 @@ struct QuestBlockView: View {
         
         
     }
+    
 
-    // MARK: - 다음 퀘스트 이동 (waiting 포함)
+    // =================================================
+    // MARK: - 다음 서브퀘스트 처리 (핵심)
+    // =================================================
     private func tryGoNextHandlingWaiting() {
-        isWaitingOverlay = true
-        
+
         viewModel.goToNextSubQuest { action in
             DispatchQueue.main.async {
+
                 switch action {
-                // 다음 스테이지로 이동
+
+                // 🔁 다음 서브퀘스트
                 case .goToQuest(let nextId):
                     isWaitingOverlay = false
-                    goToNextQuestId = nextId
-                    
-                // 리스트로 이동
+                    onGoNextSubQuest(nextId)   
+
+                // 📋 리스트로 이동
                 case .goToList:
                     isWaitingOverlay = false
                     appState.isInGame = false
                     tabBarViewModel.isTabBarVisible = true
-                    goBackToQuestList = true
+                    onExitToList()
 
+                // ⏳ 서버 대기
                 case .waiting:
                     waitingRetryCount += 1
                     let maxRetry = 6
-                    let delay: Double = 0.6
 
                     if waitingRetryCount <= maxRetry {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                             tryGoNextHandlingWaiting()
                         }
                     } else {
@@ -418,6 +444,7 @@ struct QuestBlockView: View {
                         showWaitingAlert = true
                     }
 
+                // 🔒 잠김
                 case .locked:
                     isWaitingOverlay = false
                     showLockedAlert = true
