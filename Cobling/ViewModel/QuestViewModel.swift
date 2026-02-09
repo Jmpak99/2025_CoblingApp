@@ -69,11 +69,11 @@ final class QuestViewModel: ObservableObject {
 
     private let db = Firestore.firestore()
 
-    // ✅ fetch로 받은 식별자 저장 (클리어 시 progress 문서 지정에 사용)
+    // fetch로 받은 식별자 저장 (클리어 시 progress 문서 지정에 사용)
     var currentChapterId: String = ""
     private var currentSubQuestId: String = ""
 
-    // ✅ unlock 대기 리스너(중복 등록 방지)
+    // unlock 대기 리스너(중복 등록 방지)
     private var unlockListener: ListenerRegistration?
     
     // users 업데이트 감지 리스너 (보관 / 중복 제거용)
@@ -269,7 +269,7 @@ final class QuestViewModel: ObservableObject {
             completion(.goToQuest(subQuestId))
 
         case "locked":
-            // ✅ 잠깐 locked일 수 있으니 기다렸다가 열리면 진입
+            // 잠깐 locked일 수 있으니 기다렸다가 열리면 진입
             self.waitUntilUnlocked(
                 progressRef: progressRef,
                 timeoutSeconds: timeoutSeconds,
@@ -324,7 +324,7 @@ final class QuestViewModel: ObservableObject {
                 .collection("subQuests")
                 .document(nextId)
 
-            // ✅ 다음 퀘스트도 서버 우선으로 읽기(캐시 locked 완화)
+            // 다음 퀘스트도 서버 우선으로 읽기(캐시 locked 완화)
             progressRef.getDocument(source: .server) { [weak self] snap, error in
                 guard let self = self else { return }
 
@@ -557,7 +557,7 @@ final class QuestViewModel: ObservableObject {
         return search(in: startBlock)
     }
     
-    // MARK: - ✅ target이 ancestor의 "자손(하위 컨테이너)"인지 판별
+    // MARK: - target이 ancestor의 "자손(하위 컨테이너)"인지 판별
     func isDescendant(_ target: Block, of ancestor: Block) -> Bool {
         // ancestor 아래를 DFS로 탐색해서 target이 나오면 true
         func dfs(_ node: Block) -> Bool {
@@ -593,18 +593,25 @@ final class QuestViewModel: ObservableObject {
         completion: @escaping (_ level: Int, _ exp: Double) -> Void,
         onTimeout: @escaping () -> Void
     ) {
+        // 기존 리스너 제거 (중복 등록 방지)
+        userUpdateListener?.remove()
+        userUpdateListener = nil
+        
         var done = false
-        var listener: ListenerRegistration? = nil
 
         // 타임아웃
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+            guard let self else { return }
             guard !done else { return }
             done = true
-            listener?.remove()
+            self.userUpdateListener?.remove()
+            self.userUpdateListener = nil
             onTimeout()
         }
 
-        listener = userRef.addSnapshotListener { snap, err in
+        // listener를 userUpdateListener에 저장해서 관리
+        userUpdateListener = userRef.addSnapshotListener { [weak self] snap, err in
+            guard let self else { return }
             guard !done else { return }
             if let err = err {
                 print("❌ waitForUserUpdate listener error:", err)
@@ -618,7 +625,8 @@ final class QuestViewModel: ObservableObject {
             // (level, exp)가 이전과 달라졌으면 "정산 완료"로 간주
             if level != previousLevel || exp != previousExp {
                 done = true
-                listener?.remove()
+                self.userUpdateListener?.remove()
+                self.userUpdateListener = nil
                 completion(level, exp)
             }
         }
@@ -648,29 +656,32 @@ final class QuestViewModel: ObservableObject {
 
         let userRef = db.collection("users").document(userId)
 
-        // 0) 현재 level/exp를 먼저 읽어둠 (변경 감지 기준)
-        userRef.getDocument { [weak self] userSnap, _ in
+        // 재도전(이미 completed)면 level/exp 변화가 없으니 "기다리기"를 하면 타임아웃이 정상
+        // 따라서 progress의 현재 state를 먼저 확인해서 분기
+        progressRef.getDocument(source: .server) { [weak self] progressSnap, _ in
             guard let self else { return }
-            let prevLevel = userSnap?.data()?["level"] as? Int ?? 1
-            let prevExp = userSnap?.data()?["exp"] as? Double ?? 0
 
-            // 1) progress 업데이트 (Cloud Function 트리거)
-            progressRef.updateData([
-                "earnedExp": earned,
-                "perfectClear": isPerfect,
-                "state": "completed",
-                "attempts": FieldValue.increment(Int64(1)),
-                "updatedAt": FieldValue.serverTimestamp()
-            ])
+            let prevState = progressSnap?.data()?["state"] as? String ?? "locked"
 
-            // 2) users 문서가 실제로 갱신될 때까지 기다렸다가 reward 생성
-            self.waitForUserUpdate(
-                userRef: userRef,
-                previousLevel: prevLevel,
-                previousExp: prevExp,
-                timeout: 6.0,
-                completion: { [weak self] level, exp in
-                    guard let self else { return }
+            // =================================================
+            // 이미 완료된 퀘스트 재도전 케이스
+            //  - exp/level 변화 없음 → waitForUserUpdate를 타면 timeout이 나옴
+            //  - 대신 현재 users 값을 바로 읽어서 SuccessReward 생성
+            // =================================================
+            if prevState == "completed" {
+
+                // (선택) 재도전 기록만 남기고 싶으면 attempts만 증가
+                progressRef.updateData([
+                    "attempts": FieldValue.increment(Int64(1)),
+                    "updatedAt": FieldValue.serverTimestamp()
+                ])
+
+                // users는 "현재 값"만 읽어서 바로 reward 구성
+                userRef.getDocument(source: .server) { [weak self] userSnap, _ in
+                    guard let self, let data = userSnap?.data() else { return }
+
+                    let level = data["level"] as? Int ?? 1
+                    let exp = data["exp"] as? Double ?? 0
                     let maxExp = self.maxExpForLevel(level)
 
                     DispatchQueue.main.async {
@@ -678,20 +689,43 @@ final class QuestViewModel: ObservableObject {
                             level: level,
                             currentExp: CGFloat(exp),
                             maxExp: CGFloat(maxExp),
-                            gainedExp: earned,
-                            isPerfectClear: isPerfect
+                            gainedExp: 0,                 // 재도전이라 보상 0
+                            isPerfectClear: false         // 필요하면 progress에서 읽어와 표시해도 됨
                         )
                         self.showSuccessDialog = true
                     }
-                },
-                onTimeout: { [weak self] in
-                    guard let self else { return }
-                    print("⚠️ users update wait timeout → fallback getDocument")
+                }
 
-                    userRef.getDocument { [weak self] snap, _ in
-                        guard let self, let data = snap?.data() else { return }
-                        let level = data["level"] as? Int ?? 1
-                        let exp = data["exp"] as? Double ?? 0
+                return
+            }
+
+            // =================================================
+            // 처음 완료(보상 지급) 케이스
+            // =================================================
+
+            // 0) 현재 level/exp를 먼저 읽어둠 (변경 감지 기준)
+            userRef.getDocument { [weak self] userSnap, _ in
+                guard let self else { return }
+                let prevLevel = userSnap?.data()?["level"] as? Int ?? 1
+                let prevExp = userSnap?.data()?["exp"] as? Double ?? 0
+
+                // 1) progress 업데이트 (Cloud Function 트리거)
+                progressRef.updateData([
+                    "earnedExp": earned,
+                    "perfectClear": isPerfect,
+                    "state": "completed",
+                    "attempts": FieldValue.increment(Int64(1)),
+                    "updatedAt": FieldValue.serverTimestamp()
+                ])
+
+                // 2) users 문서가 실제로 갱신될 때까지 기다렸다가 reward 생성
+                self.waitForUserUpdate(
+                    userRef: userRef,
+                    previousLevel: prevLevel,
+                    previousExp: prevExp,
+                    timeout: 6.0,
+                    completion: { [weak self] level, exp in
+                        guard let self else { return }
                         let maxExp = self.maxExpForLevel(level)
 
                         DispatchQueue.main.async {
@@ -704,11 +738,34 @@ final class QuestViewModel: ObservableObject {
                             )
                             self.showSuccessDialog = true
                         }
+                    },
+                    onTimeout: { [weak self] in
+                        guard let self else { return }
+                        print("⚠️ users update wait timeout → fallback getDocument")
+
+                        userRef.getDocument { [weak self] snap, _ in
+                            guard let self, let data = snap?.data() else { return }
+                            let level = data["level"] as? Int ?? 1
+                            let exp = data["exp"] as? Double ?? 0
+                            let maxExp = self.maxExpForLevel(level)
+
+                            DispatchQueue.main.async {
+                                self.successReward = SuccessReward(
+                                    level: level,
+                                    currentExp: CGFloat(exp),
+                                    maxExp: CGFloat(maxExp),
+                                    gainedExp: earned,
+                                    isPerfectClear: isPerfect
+                                )
+                                self.showSuccessDialog = true
+                            }
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     }
+
 
 
     private func countUsedBlocks() -> Int {
