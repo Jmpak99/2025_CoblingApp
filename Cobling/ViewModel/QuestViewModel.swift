@@ -75,6 +75,9 @@ final class QuestViewModel: ObservableObject {
 
     // ✅ unlock 대기 리스너(중복 등록 방지)
     private var unlockListener: ListenerRegistration?
+    
+    // users 업데이트 감지 리스너 (보관 / 중복 제거용)
+    private var userUpdateListener: ListenerRegistration?
 
     deinit {
         unlockListener?.remove()
@@ -431,8 +434,9 @@ final class QuestViewModel: ObservableObject {
             
             // 성공 (깃발 + 적 전부 처치)
             print("성공 : 깃발 도착 + 적 전부 처치")
-            showSuccessDialog = true
             isExecuting = false
+            
+            // showSuccessDialog 여기서 켜지 않음 (reward 생성 후 켜야 함)
             
             if let subQuest = subQuest {
                 handleQuestClear(subQuest: subQuest, usedBlocks: countUsedBlocks())
@@ -580,6 +584,46 @@ final class QuestViewModel: ObservableObject {
         return table[level] ?? 100
     }
     
+    // MARK: - USERS 업데이트를 기다리는 헬퍼
+    private func waitForUserUpdate(
+        userRef: DocumentReference,
+        previousLevel: Int,
+        previousExp: Double,
+        timeout: Double = 6.0,
+        completion: @escaping (_ level: Int, _ exp: Double) -> Void,
+        onTimeout: @escaping () -> Void
+    ) {
+        var done = false
+        var listener: ListenerRegistration? = nil
+
+        // 타임아웃
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+            guard !done else { return }
+            done = true
+            listener?.remove()
+            onTimeout()
+        }
+
+        listener = userRef.addSnapshotListener { snap, err in
+            guard !done else { return }
+            if let err = err {
+                print("❌ waitForUserUpdate listener error:", err)
+                return
+            }
+            guard let data = snap?.data() else { return }
+
+            let level = data["level"] as? Int ?? 1
+            let exp = data["exp"] as? Double ?? 0
+
+            // (level, exp)가 이전과 달라졌으면 "정산 완료"로 간주
+            if level != previousLevel || exp != previousExp {
+                done = true
+                listener?.remove()
+                completion(level, exp)
+            }
+        }
+    }
+    
     
     // MARK: - 퀘스트 클리어 처리
     private func handleQuestClear(subQuest: SubQuestDocument, usedBlocks: Int) {
@@ -595,9 +639,6 @@ final class QuestViewModel: ObservableObject {
         let subId = currentSubQuestId
         guard !subId.isEmpty else { return }
 
-        // ===============================
-        // 1️⃣ 서브퀘스트 progress 업데이트
-        // ===============================
         let progressRef = db.collection("users")
             .document(userId)
             .collection("progress")
@@ -605,46 +646,70 @@ final class QuestViewModel: ObservableObject {
             .collection("subQuests")
             .document(subId)
 
-        progressRef.updateData([
-            "earnedExp": earned,
-            "perfectClear": isPerfect,
-            "state": "completed",
-            "attempts": FieldValue.increment(Int64(1)),
-            "updatedAt": FieldValue.serverTimestamp()
-        ])
-
-        // ===============================
-        // 2️⃣ 서버 반영 후 유저 정보 다시 읽기
-        // ===============================
         let userRef = db.collection("users").document(userId)
 
-        // ⏱️ Cloud Function 반영 대기
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            userRef.getDocument { [weak self] snap, error in
-                guard let self = self else { return }
-                guard let data = snap?.data() else { return }
+        // 0) 현재 level/exp를 먼저 읽어둠 (변경 감지 기준)
+        userRef.getDocument { [weak self] userSnap, _ in
+            guard let self else { return }
+            let prevLevel = userSnap?.data()?["level"] as? Int ?? 1
+            let prevExp = userSnap?.data()?["exp"] as? Double ?? 0
 
-                let level = data["level"] as? Int ?? 1
-                let currentExp = data["exp"] as? Double ?? 0
-                let maxExp = self.maxExpForLevel(level)
+            // 1) progress 업데이트 (Cloud Function 트리거)
+            progressRef.updateData([
+                "earnedExp": earned,
+                "perfectClear": isPerfect,
+                "state": "completed",
+                "attempts": FieldValue.increment(Int64(1)),
+                "updatedAt": FieldValue.serverTimestamp()
+            ])
 
-                // ===============================
-                // 3️⃣ SuccessReward (서버 기준!)
-                // ===============================
-                DispatchQueue.main.async {
-                    self.successReward = SuccessReward(
-                        level: level,
-                        currentExp: CGFloat(currentExp),
-                        maxExp: CGFloat(maxExp),
-                        gainedExp: earned,
-                        isPerfectClear: isPerfect
-                    )
+            // 2) users 문서가 실제로 갱신될 때까지 기다렸다가 reward 생성
+            self.waitForUserUpdate(
+                userRef: userRef,
+                previousLevel: prevLevel,
+                previousExp: prevExp,
+                timeout: 6.0,
+                completion: { [weak self] level, exp in
+                    guard let self else { return }
+                    let maxExp = self.maxExpForLevel(level)
 
-                    self.showSuccessDialog = true
+                    DispatchQueue.main.async {
+                        self.successReward = SuccessReward(
+                            level: level,
+                            currentExp: CGFloat(exp),
+                            maxExp: CGFloat(maxExp),
+                            gainedExp: earned,
+                            isPerfectClear: isPerfect
+                        )
+                        self.showSuccessDialog = true
+                    }
+                },
+                onTimeout: { [weak self] in
+                    guard let self else { return }
+                    print("⚠️ users update wait timeout → fallback getDocument")
+
+                    userRef.getDocument { [weak self] snap, _ in
+                        guard let self, let data = snap?.data() else { return }
+                        let level = data["level"] as? Int ?? 1
+                        let exp = data["exp"] as? Double ?? 0
+                        let maxExp = self.maxExpForLevel(level)
+
+                        DispatchQueue.main.async {
+                            self.successReward = SuccessReward(
+                                level: level,
+                                currentExp: CGFloat(exp),
+                                maxExp: CGFloat(maxExp),
+                                gainedExp: earned,
+                                isPerfectClear: isPerfect
+                            )
+                            self.showSuccessDialog = true
+                        }
+                    }
                 }
-            }
+            )
         }
     }
+
 
     private func countUsedBlocks() -> Int {
         return startBlock.children.count
