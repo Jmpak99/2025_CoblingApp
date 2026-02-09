@@ -6,25 +6,19 @@
 import SwiftUI
 
 struct QuestBlockView: View {
-    // =================================================
     // MARK: - 전달받는 값 (고정)
-    // =================================================
     let chapterId: String
     let subQuestId: String
 
-    // 👉 부모(QuestDetailView)에게 상태 변경을 요청하는 콜백
+    // 부모(QuestDetailView)에게 상태 변경을 요청하는 콜백
     let onGoNextSubQuest: (String) -> Void
     let onExitToList: () -> Void
 
-    // =================================================
     // MARK: - Environment
-    // =================================================
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
     @EnvironmentObject var appState: AppState
 
-    // =================================================
     // MARK: - State / ViewModel
-    // =================================================
     @StateObject private var dragManager = DragManager()
     @StateObject private var viewModel = QuestViewModel()
 
@@ -37,9 +31,7 @@ struct QuestBlockView: View {
     @State private var showWaitingAlert = false
     @State private var showLockedAlert = false
 
-    // =================================================
     // MARK: - 삭제 영역 판별
-    // =================================================
     private func isOverPalette() -> Bool {
         dragManager.isDragging &&
         dragManager.dragSource == .canvas &&
@@ -51,7 +43,7 @@ struct QuestBlockView: View {
     var body: some View {
         ZStack {
             
-            // ✅ 게임 화면 전용 배경 (뒤 화면 완전 차단)
+            // 게임 화면 전용 배경 (뒤 화면 완전 차단)
             Color(.white)
                 .ignoresSafeArea()
             // =================================================
@@ -81,7 +73,7 @@ struct QuestBlockView: View {
                         ZStack {
 
                             // =================================================
-                            // 🔥 삭제 오버레이 (팔레트 영역 전체, 여백 없음)
+                            // 삭제 오버레이 (팔레트 영역 전체, 여백 없음)
                             // =================================================
                             if isOverPalette() {
                                 GeometryReader { geo in
@@ -102,7 +94,7 @@ struct QuestBlockView: View {
                                         // 나머지 영역은 투명
                                         Color.clear
                                     }
-                                    .ignoresSafeArea()          // 🔥 하단 여백 제거 핵심
+                                    .ignoresSafeArea()          // 하단 여백 제거 핵심
                                 }
                                 .zIndex(20)
                             }
@@ -133,7 +125,7 @@ struct QuestBlockView: View {
             }
             
             // =================================================
-            // ⏳ Waiting Overlay
+            // Waiting Overlay
             // =================================================
             if isWaitingOverlay {
                 Color.black.opacity(0.35)
@@ -151,9 +143,31 @@ struct QuestBlockView: View {
                     )
                     .zIndex(50)
             }
+            
+            // =================================================
+            // Reward Loading Overlay (성공 후 보상 정산)
+            // =================================================
+            if viewModel.isRewardLoading {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+                    .overlay(
+                        VStack(spacing: 10) {
+                            ProgressView()
+                            Text("보상 정산 중입니다…")
+                                .font(.subheadline)
+                                .foregroundColor(.white)
+                        }
+                        .padding(18)
+                        .background(Color.black.opacity(0.55))
+                        .cornerRadius(14)
+                    )
+                    .zIndex(55)
+            }
+
+
 
             // =================================================
-            // 👻 고스트 블록 (일반 / 반복문 분기)
+            // 고스트 블록 (일반 / 반복문 분기)
             // =================================================
             if dragManager.isDragging,
                let type = dragManager.draggingType {
@@ -184,7 +198,7 @@ struct QuestBlockView: View {
             }
 
             // =================================================
-            // ❌ 실패 다이얼로그
+            // 실패 다이얼로그
             // =================================================
             if viewModel.showFailureDialog {
                 FailureDialogView {
@@ -199,7 +213,7 @@ struct QuestBlockView: View {
             }
 
             // =================================================
-            // ✅ 성공 다이얼로그
+            // 성공 다이얼로그
             // =================================================
             if viewModel.showSuccessDialog,
                let reward = viewModel.successReward {
@@ -231,7 +245,7 @@ struct QuestBlockView: View {
         .environmentObject(viewModel)
 
         // =================================================
-        // 🔥 드래그 종료 처리 (유일한 진입점)
+        // 드래그 종료 처리 (유일한 진입점)
         // =================================================
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
@@ -285,7 +299,7 @@ struct QuestBlockView: View {
                             return
                         }
                         
-                        // 👉 캔버스에 있던 블록을 반복문 안으로 드롭했을 때
+                        // 캔버스에 있던 블록을 반복문 안으로 드롭했을 때
                         if source == .canvas,
                            let block = block,
                            dragManager.isOverContainer,                 // 반복문 위에 드롭
@@ -304,7 +318,7 @@ struct QuestBlockView: View {
                             let rawIndex = dragManager.containerInsertIndex
                                 ?? target.children.count
 
-                            // ✅ index 범위 보정 (0 ~ count)
+                            // index 범위 보정 (0 ~ count)
                             let safeIndex = min(max(rawIndex, 0), target.children.count)
 
                             target.children.insert(block, at: safeIndex)
@@ -400,6 +414,12 @@ struct QuestBlockView: View {
             Text("선행 퀘스트를 먼저 완료해 주세요.")
         }
         
+        // (선택) 보상 정산 지연 알럿
+        .alert("⏳ 보상 정산이 지연되고 있어요", isPresented: $viewModel.showRewardDelayAlert) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text("서버 반영이 지연되고 있어요.\n잠시 후 다시 시도해 주세요.")
+        }
         
         .navigationBarBackButtonHidden(true)
         .ignoresSafeArea(.all, edges: .top)
