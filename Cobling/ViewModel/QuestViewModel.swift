@@ -57,6 +57,10 @@ final class QuestViewModel: ObservableObject {
     // MARK: - Success Reward
     @Published var successReward: SuccessReward? = nil
     
+    // 보상 정산 중 오버레이 표시 여부
+    @Published var isRewardLoading: Bool = false
+    @Published var showRewardDelayAlert: Bool = false
+    
     // MARK: - 적
     @Published private(set) var initialEnemies: [Enemy] = []
     @Published var enemies: [Enemy] = []
@@ -78,9 +82,16 @@ final class QuestViewModel: ObservableObject {
     
     // users 업데이트 감지 리스너 (보관 / 중복 제거용)
     private var userUpdateListener: ListenerRegistration?
+    
+    // 보상 로딩 시작 시간(최소 표시 시간 보장용)
+    private var rewardLoadingStartedAt: Date? = nil
+
+    // 오버레이 최소 표시 시간 (0.3~0.6 사이로 조절)
+    private let minRewardOverlayDuration: TimeInterval = 0.45
 
     deinit {
         unlockListener?.remove()
+        userUpdateListener?.remove() // 누수 방지
     }
     
     func resetForNewSubQuest() {
@@ -106,8 +117,33 @@ final class QuestViewModel: ObservableObject {
         showFailureDialog = false
         showSuccessDialog = false
         successReward = nil
+        
+        // ▶️ 로딩 오버레이도 초기화
+        isRewardLoading = false
+        rewardLoadingStartedAt = nil
     }
     
+    // 보상 정산 로딩 시작 (오버레이 ON)
+    private func beginRewardLoading() {
+        DispatchQueue.main.async {
+            self.rewardLoadingStartedAt = Date()
+            self.isRewardLoading = true
+        }
+    }
+
+    // 보상 정산 로딩 종료 + (성공 다이얼로그 표시를) 최소표시시간 이후 실행
+    private func endRewardLoadingAndShowSuccess(_ showSuccess: @escaping () -> Void) {
+        let started = rewardLoadingStartedAt ?? Date()
+        let elapsed = Date().timeIntervalSince(started)
+        let remaining = max(0, minRewardOverlayDuration - elapsed)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + remaining) {
+            self.isRewardLoading = false
+            self.rewardLoadingStartedAt = nil
+            showSuccess()
+        }
+    }
+
     // MARK: - Firestore에서 SubQuest 불러오기
     func fetchSubQuest(chapterId: String, subQuestId: String) {
         // 현재 컨텍스트 보관
@@ -636,6 +672,9 @@ final class QuestViewModel: ObservableObject {
     // MARK: - 퀘스트 클리어 처리
     private func handleQuestClear(subQuest: SubQuestDocument, usedBlocks: Int) {
 
+        // 보상 정산 시작 오버레이 ON
+        beginRewardLoading()
+
         let baseExp = subQuest.rewards.baseExp
         let bonusExp = subQuest.rewards.perfectBonusExp
         let maxSteps = subQuest.rules.maxSteps
@@ -656,8 +695,7 @@ final class QuestViewModel: ObservableObject {
 
         let userRef = db.collection("users").document(userId)
 
-        // 재도전(이미 completed)면 level/exp 변화가 없으니 "기다리기"를 하면 타임아웃이 정상
-        // 따라서 progress의 현재 state를 먼저 확인해서 분기
+        // 재도전(이미 completed)면 level/exp 변화가 없으니 기다리면 타임아웃이 정상
         progressRef.getDocument(source: .server) { [weak self] progressSnap, _ in
             guard let self else { return }
 
@@ -665,8 +703,6 @@ final class QuestViewModel: ObservableObject {
 
             // =================================================
             // 이미 완료된 퀘스트 재도전 케이스
-            //  - exp/level 변화 없음 → waitForUserUpdate를 타면 timeout이 나옴
-            //  - 대신 현재 users 값을 바로 읽어서 SuccessReward 생성
             // =================================================
             if prevState == "completed" {
 
@@ -676,7 +712,7 @@ final class QuestViewModel: ObservableObject {
                     "updatedAt": FieldValue.serverTimestamp()
                 ])
 
-                // users는 "현재 값"만 읽어서 바로 reward 구성
+                // users는 "현재 값"만 읽어서 reward 구성
                 userRef.getDocument(source: .server) { [weak self] userSnap, _ in
                     guard let self, let data = userSnap?.data() else { return }
 
@@ -689,9 +725,13 @@ final class QuestViewModel: ObservableObject {
                             level: level,
                             currentExp: CGFloat(exp),
                             maxExp: CGFloat(maxExp),
-                            gainedExp: 0,                 // 재도전이라 보상 0
-                            isPerfectClear: false         // 필요하면 progress에서 읽어와 표시해도 됨
+                            gainedExp: 0,
+                            isPerfectClear: false
                         )
+                    }
+
+                    // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
+                    self.endRewardLoadingAndShowSuccess {
                         self.showSuccessDialog = true
                     }
                 }
@@ -736,6 +776,10 @@ final class QuestViewModel: ObservableObject {
                                 gainedExp: earned,
                                 isPerfectClear: isPerfect
                             )
+                        }
+
+                        // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
+                        self.endRewardLoadingAndShowSuccess {
                             self.showSuccessDialog = true
                         }
                     },
@@ -743,7 +787,7 @@ final class QuestViewModel: ObservableObject {
                         guard let self else { return }
                         print("⚠️ users update wait timeout → fallback getDocument")
 
-                        userRef.getDocument { [weak self] snap, _ in
+                        userRef.getDocument(source: .server) { [weak self] snap, _ in
                             guard let self, let data = snap?.data() else { return }
                             let level = data["level"] as? Int ?? 1
                             let exp = data["exp"] as? Double ?? 0
@@ -757,6 +801,10 @@ final class QuestViewModel: ObservableObject {
                                     gainedExp: earned,
                                     isPerfectClear: isPerfect
                                 )
+                            }
+
+                            // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
+                            self.endRewardLoadingAndShowSuccess {
                                 self.showSuccessDialog = true
                             }
                         }
@@ -765,6 +813,8 @@ final class QuestViewModel: ObservableObject {
             }
         }
     }
+
+
 
 
 
@@ -813,7 +863,7 @@ final class QuestViewModel: ObservableObject {
         completion()
     }
     
-    // MARK: - ✅ 공격 처리 (가장 가까운 1명 처치)
+    // MARK: - 공격 처리 (가장 가까운 1명 처치)
     func attack(completion: @escaping () -> Void) {
         guard let target = enemyInAttackRange() else {
             print("공격: 범위 내 적 없음")
