@@ -15,6 +15,10 @@ struct LevelUpProgressView: View {
 
     // 외부(다이얼로그)의 레벨 텍스트를 같이 올리기 위한 바인딩
     @Binding var displayedLevel: Int
+    
+    // 현재 애니메이션 중 exp/maxExp를 바깥에서 표기하기 위한 바인딩
+    @Binding var displayedExp: CGFloat
+    @Binding var displayedMaxExp: CGFloat
 
     // 레벨별 maxExp 함수 (QuestViewModel과 동일 테이블 전달)
     let maxExpForLevel: (Int) -> CGFloat
@@ -22,6 +26,10 @@ struct LevelUpProgressView: View {
     // 2단계 시작/전체 종료 콜백 (버튼 활성화 타이밍 제어용)
     var onSecondStageStart: () -> Void = {}
     var onAllStagesFinished: () -> Void = {}
+    
+    // 시작 상태 계산 결과를 바깥에 알려주는 콜백
+    var onStartComputed: (_ startLevel: Int, _ startExp: CGFloat, _ startMaxExp: CGFloat) -> Void = { _,_,_  in }
+
 
     // ====== 내부 애니메이션 상태 ======
     @State private var animLevel: Int = 1
@@ -79,6 +87,11 @@ struct LevelUpProgressView: View {
         animMaxExp = maxExpForLevel(animLevel)
 
         displayedLevel = animLevel
+        
+        // 시작 상태를 바깥으로 전달 + 분수표기용 바인딩 초기화
+        onStartComputed(animLevel, animExp, animMaxExp)
+        displayedExp = animExp
+        displayedMaxExp = animMaxExp
 
 
         // 1단계 시작
@@ -126,6 +139,11 @@ struct LevelUpProgressView: View {
                 withAnimation(.easeOut(duration: 0.85)) {
                     animExp = target
                 }
+                
+                // 바깥 분수표기 갱신
+                displayedExp = target
+                displayedMaxExp = animMaxExp
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
                     completion()
                 }
@@ -138,6 +156,10 @@ struct LevelUpProgressView: View {
             withAnimation(.easeOut(duration: 0.65)) {
                 animExp = animMaxExp
             }
+            
+            // 바깥 분수표기 갱신
+            displayedExp = animMaxExp
+            displayedMaxExp = animMaxExp
 
             // 2) 채운 뒤 살짝 텀 → 레벨업 처리(레벨+1, exp=0)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.65 + 0.12) {
@@ -146,6 +168,10 @@ struct LevelUpProgressView: View {
 
                 animExp = 0
                 animMaxExp = maxExpForLevel(animLevel)
+                
+                // 레벨업 직후 바깥 분수표기 갱신
+                displayedExp = 0
+                displayedMaxExp = animMaxExp
 
                 // 다음 레벨에서 남은 gain 계속
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {

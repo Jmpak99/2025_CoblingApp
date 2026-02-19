@@ -15,6 +15,13 @@ struct SuccessDialogView: View {
 
     // 게이지 애니메이션과 함께 레벨 텍스트도 같이 변하도록 상태로 분리
     @State private var displayedLevel: Int = 1
+    
+    // 시작 레벨(레벨업 여부 판단용)
+    @State private var startLevel: Int = 1
+
+    // 레벨업일 때만 분수표시(현재/최대)
+    @State private var displayedExp: CGFloat = 0
+    @State private var displayedMaxExp: CGFloat = 100
 
     // 2단계(서브퀘스트 → 챕터보너스) 텍스트 연출용 상태
     @State private var showChapterBonusStage: Bool = false
@@ -27,6 +34,11 @@ struct SuccessDialogView: View {
         reward.isChapterCleared && reward.chapterBonusExp > 0
     }
     
+    // 레벨업 여부
+    private var didLevelUp: Bool {
+        reward.level > startLevel
+    }
+    
 
 
     var body: some View {
@@ -35,17 +47,26 @@ struct SuccessDialogView: View {
 
             VStack(spacing: 18) {
 
-                Text("🎉 성공!")
+                // 레벨업이면 타이틀 변경
+                Text(didLevelUp ? "🎉 레벨업!" : "🎉 성공!")
                     .font(.pretendardBold24)
                     .foregroundColor(.black)
 
-                Text("코블링이 한 단게 진화했어!")
+                Text(didLevelUp ? "코블링이 한 단계 진화했어!" : "코블링이 한 단게 성장했어!")
                     .font(.pretendardMedium14)
                     .foregroundColor(.black)
 
-                Text("Lv. \(displayedLevel)")
-                    .font(.pretendardBold24)
-                    .foregroundColor(.black)
+                // 레벨업이면 "Lv.1 → Lv.2" 형태
+                if didLevelUp {
+                    Text("Lv.\(startLevel) → Lv.\(max(startLevel, displayedLevel))")
+                        .font(.pretendardBold24)
+                        .foregroundColor(.black)
+                } else {
+                    Text("Lv. \(displayedLevel)")
+                        .font(.pretendardBold24)
+                        .foregroundColor(.black)
+                }
+
 
                 VStack(spacing: 6) {
 
@@ -56,6 +77,11 @@ struct SuccessDialogView: View {
                         chapterBonusGain: CGFloat(reward.chapterBonusExp),
                         enableTwoStage: shouldShowChapterBonusLine,
                         displayedLevel: $displayedLevel,
+
+                        // 분수표기용 바인딩 전달
+                        displayedExp: $displayedExp,
+                        displayedMaxExp: $displayedMaxExp,
+
                         maxExpForLevel: { level in
                             let table: [Int: CGFloat] = [
                                 1: 100, 2: 120, 3: 160, 4: 200, 5: 240,
@@ -72,10 +98,24 @@ struct SuccessDialogView: View {
                         },
                         onAllStagesFinished: {
                             isAnimatingTwoStage = false
+                        },
+
+                        // 시작 상태를 받아 startLevel 세팅
+                        onStartComputed: { sLevel, sExp, sMax in
+                            startLevel = sLevel
+                            displayedExp = sExp
+                            displayedMaxExp = sMax
                         }
                     )
+                    
+                    // 레벨업일 때만 (현재/최대) 표시
+                    if didLevelUp {
+                        Text("\(Int(displayedExp)) / \(Int(displayedMaxExp)) EXP")
+                            .font(.pretendardMedium12)
+                            .foregroundColor(.gray)
+                    }
 
-                    // ⭐ 수정: EXP 텍스트는 2줄 유지
+                    // EXP 텍스트는 2줄 유지
                     VStack(spacing: 4) {
                         Text("+\(reward.gainedExp) EXP")
                             .font(.pretendardMedium12)
@@ -89,7 +129,7 @@ struct SuccessDialogView: View {
                     }
                 }
 
-                // ⭐ 수정: 챕터 클리어를 완벽보다 위로 이동 (우선순위 강조)
+                // 챕터 클리어를 완벽보다 위로 이동 (우선순위 강조)
                 if shouldShowChapterBonusLine {
                     HStack(spacing: 6) {
                         Image(systemName: "crown.fill")
@@ -202,7 +242,7 @@ struct SuccessDialogView_Previews: PreviewProvider {
                     level: 2,
                     currentExp: 20,
                     maxExp: 120,
-                    gainedExp: 9,
+                    gainedExp: 63,
                     isPerfectClear: false,
                     chapterBonusExp: 30,
                     isChapterCleared: true
@@ -220,7 +260,7 @@ struct SuccessDialogView_Previews: PreviewProvider {
                     maxExp: 160,
                     gainedExp: 11,
                     isPerfectClear: true,
-                    chapterBonusExp: 30,
+                    chapterBonusExp: 140,
                     isChapterCleared: true
                 ),
                 onRetry: {},
