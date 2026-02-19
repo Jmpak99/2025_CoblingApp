@@ -83,6 +83,9 @@ final class QuestViewModel: ObservableObject {
     // users 업데이트 감지 리스너 (보관 / 중복 제거용)
     private var userUpdateListener: ListenerRegistration?
     
+    // 챕터 보너스 필드 반영 대기 리스너(레이스 해결용)
+    private var chapterBonusListener: ListenerRegistration?
+    
     // 보상 로딩 시작 시간(최소 표시 시간 보장용)
     private var rewardLoadingStartedAt: Date? = nil
 
@@ -92,6 +95,7 @@ final class QuestViewModel: ObservableObject {
     deinit {
         unlockListener?.remove()
         userUpdateListener?.remove() // 누수 방지
+        chapterBonusListener?.remove() // 챕터 보너스 리스너 누수 방지
     }
     
     func resetForNewSubQuest() {
@@ -263,7 +267,7 @@ final class QuestViewModel: ObservableObject {
             .document(subQuestId)
 
         // 서버 우선으로 읽어서 "캐시 locked" 오판 줄이기
-        progressRef.getDocument(source: .server) { [weak self] snap, error in
+        progressRef.getDocument(source: FirestoreSource.server) { [weak self] snap, error in
             guard let self = self else { return }
 
             // 서버 read 실패(오프라인 등)면 캐시로 fallback
@@ -361,7 +365,7 @@ final class QuestViewModel: ObservableObject {
                 .document(nextId)
 
             // 다음 퀘스트도 서버 우선으로 읽기(캐시 locked 완화)
-            progressRef.getDocument(source: .server) { [weak self] snap, error in
+            progressRef.getDocument(source: FirestoreSource.server) { [weak self] snap, error in
                 guard let self = self else { return }
 
                 // 서버 read 실패면 캐시 fallback
@@ -432,13 +436,11 @@ final class QuestViewModel: ObservableObject {
         isTopLevel: Bool = false,
         completion: @escaping () -> Void)
     {
-        
         // 실패 시 즉시 중단
         guard !didFailExecution else {
             print("실행 중단 : 실패 상태")
             return
         }
-        
         
         guard index < blocks.count else {
             
@@ -447,10 +449,10 @@ final class QuestViewModel: ObservableObject {
                 return
             }
             
-            // 🔴 실패 상태면 그냥 종료 (위로 전파 안 함)
-                if didFailExecution {
-                    return
-                }
+            // 실패 상태면 그냥 종료 (위로 전파 안 함)
+            if didFailExecution {
+                return
+            }
             
             print("✅ 모든 블록 실행 완료")
 
@@ -473,7 +475,6 @@ final class QuestViewModel: ObservableObject {
             isExecuting = false
             
             // showSuccessDialog 여기서 켜지 않음 (reward 생성 후 켜야 함)
-            
             if let subQuest = subQuest {
                 handleQuestClear(subQuest: subQuest, usedBlocks: countUsedBlocks())
             }
@@ -530,7 +531,6 @@ final class QuestViewModel: ObservableObject {
                         isTopLevel: isTopLevel,
                         completion: completion
                     )
-                    
                 }
             }
             
@@ -558,7 +558,7 @@ final class QuestViewModel: ObservableObject {
                 // 2. 잠깐 깜빡이게 딜레이
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
 
-                    // ⭐ 3. 내부 블록 실행
+                    // 3. 내부 블록 실행
                     self.executeBlocks(current.children) {
                         runRepeat(remaining - 1)
                     }
@@ -620,6 +620,23 @@ final class QuestViewModel: ObservableObject {
         return table[level] ?? 100
     }
     
+    // 보너스 exp를 로컬로 적용해서 (level, exp)를 계산하는 헬퍼 (users 반영 지연 대비 안전망)
+    private func applyGainLocally(
+        level: Int,
+        exp: Double,
+        gain: Int
+    ) -> (level: Int, exp: Double) {
+        var lv = level
+        var e = exp + Double(max(0, gain))
+
+        while e >= maxExpForLevel(lv) {
+            e -= maxExpForLevel(lv)
+            lv += 1
+        }
+        return (lv, e)
+    }
+
+    
     // MARK: - USERS 업데이트를 기다리는 헬퍼
     private func waitForUserUpdate(
         userRef: DocumentReference,
@@ -668,7 +685,101 @@ final class QuestViewModel: ObservableObject {
         }
     }
     
+    // 챕터 보너스 정보를 읽어오는 헬퍼
+    // - 서버(index.js)에서 users/{uid}/progress/{chapterId} 문서에
+    //   chapterBonusGranted / chapterBonusExp 를 저장해둔다고 가정
+    private func fetchChapterBonusInfo(
+        userId: String,
+        chapterId: String,
+        subQuestId: String,
+        completion: @escaping (_ isCleared: Bool, _ bonusExp: Int) -> Void
+    ) {
+        let subQuestProgressRef = db.collection("users")
+            .document(userId)
+            .collection("progress")
+            .document(chapterId)
+            .collection("subQuests")
+            .document(subQuestId)
+
+        subQuestProgressRef.getDocument(source: FirestoreSource.server) { snap, _ in
+            let data = snap?.data() ?? [:]
+
+            let cleared = data["chapterClearGranted"] as? Bool ?? false
+
+            let bonusExp =
+                data["chapterBonusExpGranted"] as? Int
+                ?? Int(data["chapterBonusExpGranted"] as? Double ?? 0)
+
+            completion(cleared, bonusExp)
+        }
+    }
     
+    // 챕터 보너스 필드가 "늦게 들어오는" 레이스 해결:
+    // - users 문서(level/exp)가 먼저 갱신되고
+    // - subQuest progress 문서의 chapterBonusExpGranted가 나중에 merge 될 수 있으므로
+    // - 성공 다이얼로그 띄우기 직전에 이 필드가 들어올 때까지 잠깐 대기
+    private func waitForChapterBonusWrite(
+        userId: String,
+        chapterId: String,
+        subQuestId: String,
+        timeout: Double = 2.0,
+        completion: @escaping (_ isCleared: Bool, _ bonusExp: Int) -> Void
+    ) {
+        let ref = db.collection("users")
+            .document(userId)
+            .collection("progress")
+            .document(chapterId)
+            .collection("subQuests")
+            .document(subQuestId)
+
+        var done = false
+        
+        // 기존 챕터 보너스 리스너 제거(중복 등록/누수 방지)
+        chapterBonusListener?.remove()
+        chapterBonusListener = nil
+
+        // 타임아웃: 끝까지 안 오면 현재 값으로 진행
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+            guard let self else { return }
+            guard !done else { return }
+            done = true
+            self.chapterBonusListener?.remove()
+            self.chapterBonusListener = nil
+
+            // 마지막으로 한번 읽고 종료
+            ref.getDocument(source: FirestoreSource.server) { snap, _ in
+                let data = snap?.data() ?? [:]
+                let cleared = data["chapterClearGranted"] as? Bool ?? false
+                let bonusExp =
+                    data["chapterBonusExpGranted"] as? Int
+                    ?? Int(data["chapterBonusExpGranted"] as? Double ?? 0)
+                completion(cleared, bonusExp)
+            }
+        }
+
+        // 리스너로 “필드가 생기는 순간”을 기다림
+        chapterBonusListener = ref.addSnapshotListener { [weak self] snap, _ in
+            guard let self else { return }
+            guard !done else { return }
+            let data = snap?.data() ?? [:]
+
+            let cleared = data["chapterClearGranted"] as? Bool ?? false
+            let bonusExp =
+                data["chapterBonusExpGranted"] as? Int
+                ?? Int(data["chapterBonusExpGranted"] as? Double ?? 0)
+
+            // cleared가 true이거나 bonusExp가 0보다 커지면 “보너스 준비 완료”
+            if cleared || bonusExp > 0 {
+                done = true
+                self.chapterBonusListener?.remove()
+                self.chapterBonusListener = nil
+                completion(cleared, bonusExp)
+            }
+        }
+    }
+    
+    
+
     // MARK: - 퀘스트 클리어 처리
     private func handleQuestClear(subQuest: SubQuestDocument, usedBlocks: Int) {
 
@@ -696,7 +807,7 @@ final class QuestViewModel: ObservableObject {
         let userRef = db.collection("users").document(userId)
 
         // 재도전(이미 completed)면 level/exp 변화가 없으니 기다리면 타임아웃이 정상
-        progressRef.getDocument(source: .server) { [weak self] progressSnap, _ in
+        progressRef.getDocument(source: FirestoreSource.server) { [weak self] progressSnap, _ in
             guard let self else { return }
 
             let prevState = progressSnap?.data()?["state"] as? String ?? "locked"
@@ -713,26 +824,45 @@ final class QuestViewModel: ObservableObject {
                 ])
 
                 // users는 "현재 값"만 읽어서 reward 구성
-                userRef.getDocument(source: .server) { [weak self] userSnap, _ in
+                userRef.getDocument(source: FirestoreSource.server) { [weak self] userSnap, _ in
                     guard let self, let data = userSnap?.data() else { return }
 
                     let level = data["level"] as? Int ?? 1
                     let exp = data["exp"] as? Double ?? 0
                     let maxExp = self.maxExpForLevel(level)
 
-                    DispatchQueue.main.async {
-                        self.successReward = SuccessReward(
-                            level: level,
-                            currentExp: CGFloat(exp),
-                            maxExp: CGFloat(maxExp),
-                            gainedExp: 0,
-                            isPerfectClear: false
-                        )
-                    }
+                    // 챕터 보너스 정보도 함께 읽어오기
+                    // (재도전이라도, UI에 "챕터 클리어됨" 표시가 필요할 수 있음)
+                    self.fetchChapterBonusInfo(
+                        userId: userId,
+                        chapterId: self.currentChapterId,
+                        subQuestId: subId
+                    ) { isCleared, chapterBonus in
 
-                    // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
-                    self.endRewardLoadingAndShowSuccess {
-                        self.showSuccessDialog = true
+                        print(
+                            "🟢 fetchChapterBonusInfo 결과",
+                            "isCleared:", isCleared,
+                            "bonus:", chapterBonus,
+                            "chapter:", self.currentChapterId,
+                            "subId:", subId
+                        )
+
+                        DispatchQueue.main.async {
+                            self.successReward = SuccessReward(
+                                level: level,
+                                currentExp: CGFloat(exp),
+                                maxExp: CGFloat(maxExp),
+                                gainedExp: 0,
+                                isPerfectClear: false,
+                                chapterBonusExp: chapterBonus,
+                                isChapterCleared: isCleared
+                            )
+                        }
+
+                        // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
+                        self.endRewardLoadingAndShowSuccess {
+                            self.showSuccessDialog = true
+                        }
                     }
                 }
 
@@ -766,46 +896,137 @@ final class QuestViewModel: ObservableObject {
                     timeout: 6.0,
                     completion: { [weak self] level, exp in
                         guard let self else { return }
-                        let maxExp = self.maxExpForLevel(level)
 
-                        DispatchQueue.main.async {
-                            self.successReward = SuccessReward(
-                                level: level,
-                                currentExp: CGFloat(exp),
-                                maxExp: CGFloat(maxExp),
-                                gainedExp: earned,
-                                isPerfectClear: isPerfect
+                        // 🔧 [수정] 여기의 level/exp는 "서브퀘스트 보상" 반영분일 수 있으므로 보관
+                        let afterSubquestLevel = level
+                        let afterSubquestExp = exp
+
+                        // 🔧 [수정] 보너스 필드가 써질 때까지 잠깐 기다림
+                        self.waitForChapterBonusWrite(
+                            userId: userId,
+                            chapterId: self.currentChapterId,
+                            subQuestId: subId,
+                            timeout: 2.0
+                        ) { [weak self] isCleared, chapterBonus in
+                            guard let self else { return }
+
+                            print("🟣 waitForChapterBonusWrite 결과",
+                                  "isCleared:", isCleared,
+                                  "bonus:", chapterBonus)
+
+                            // 🔧 [수정] 보너스가 없으면(또는 cleared 아님) 그냥 1단계 값으로 표시
+                            guard isCleared, chapterBonus > 0 else {
+                                let maxExp = self.maxExpForLevel(afterSubquestLevel)
+                                DispatchQueue.main.async {
+                                    self.successReward = SuccessReward(
+                                        level: afterSubquestLevel,
+                                        currentExp: CGFloat(afterSubquestExp),
+                                        maxExp: CGFloat(maxExp),
+                                        gainedExp: earned,
+                                        isPerfectClear: isPerfect,
+                                        chapterBonusExp: 0,
+                                        isChapterCleared: false
+                                    )
+                                }
+                                self.endRewardLoadingAndShowSuccess {
+                                    self.showSuccessDialog = true
+                                }
+                                return
+                            }
+
+                            // ✅ [추가] (핵심) 보너스가 users에 반영될 때까지 "한 번 더" users 업데이트를 기다림
+                            self.waitForUserUpdate(
+                                userRef: userRef,
+                                previousLevel: afterSubquestLevel,
+                                previousExp: afterSubquestExp,
+                                timeout: 2.5,
+                                completion: { [weak self] finalLevel, finalExp in
+                                    guard let self else { return }
+                                    let maxExp = self.maxExpForLevel(finalLevel)
+
+                                    DispatchQueue.main.async {
+                                        self.successReward = SuccessReward(
+                                            level: finalLevel,
+                                            currentExp: CGFloat(finalExp),
+                                            maxExp: CGFloat(maxExp),
+                                            gainedExp: earned,              // 1단계(서브퀘스트)
+                                            isPerfectClear: isPerfect,
+                                            chapterBonusExp: chapterBonus,  // 2단계(챕터 보너스)
+                                            isChapterCleared: true
+                                        )
+                                    }
+
+                                    self.endRewardLoadingAndShowSuccess {
+                                        self.showSuccessDialog = true
+                                    }
+                                },
+                                onTimeout: { [weak self] in
+                                    guard let self else { return }
+
+                                    // ✅ [추가] users 반영이 늦으면 로컬 계산으로 보정(안전망)
+                                    let applied = self.applyGainLocally(
+                                        level: afterSubquestLevel,
+                                        exp: afterSubquestExp,
+                                        gain: chapterBonus
+                                    )
+                                    let maxExp = self.maxExpForLevel(applied.level)
+
+                                    print("🟠 users 보너스 반영 대기 timeout → 로컬 보정 적용",
+                                          "level:", applied.level,
+                                          "exp:", applied.exp,
+                                          "bonus:", chapterBonus)
+
+                                    DispatchQueue.main.async {
+                                        self.successReward = SuccessReward(
+                                            level: applied.level,
+                                            currentExp: CGFloat(applied.exp),
+                                            maxExp: CGFloat(maxExp),
+                                            gainedExp: earned,
+                                            isPerfectClear: isPerfect,
+                                            chapterBonusExp: chapterBonus,
+                                            isChapterCleared: true
+                                        )
+                                    }
+
+                                    self.endRewardLoadingAndShowSuccess {
+                                        self.showSuccessDialog = true
+                                    }
+                                }
                             )
-                        }
-
-                        // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
-                        self.endRewardLoadingAndShowSuccess {
-                            self.showSuccessDialog = true
                         }
                     },
                     onTimeout: { [weak self] in
                         guard let self else { return }
                         print("⚠️ users update wait timeout → fallback getDocument")
 
-                        userRef.getDocument(source: .server) { [weak self] snap, _ in
+                        userRef.getDocument(source: FirestoreSource.server) { [weak self] snap, _ in
                             guard let self, let data = snap?.data() else { return }
                             let level = data["level"] as? Int ?? 1
                             let exp = data["exp"] as? Double ?? 0
                             let maxExp = self.maxExpForLevel(level)
 
-                            DispatchQueue.main.async {
-                                self.successReward = SuccessReward(
-                                    level: level,
-                                    currentExp: CGFloat(exp),
-                                    maxExp: CGFloat(maxExp),
-                                    gainedExp: earned,
-                                    isPerfectClear: isPerfect
-                                )
-                            }
+                            // timeout fallback에서도 챕터 보너스 정보 읽기
+                            self.fetchChapterBonusInfo(
+                                userId: userId,
+                                chapterId: self.currentChapterId,
+                                subQuestId: subId
+                            ) { isCleared, chapterBonus in
+                                DispatchQueue.main.async {
+                                    self.successReward = SuccessReward(
+                                        level: level,
+                                        currentExp: CGFloat(exp),
+                                        maxExp: CGFloat(maxExp),
+                                        gainedExp: earned,
+                                        isPerfectClear: isPerfect,
+                                        chapterBonusExp: chapterBonus,
+                                        isChapterCleared: isCleared
+                                    )
+                                }
 
-                            // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
-                            self.endRewardLoadingAndShowSuccess {
-                                self.showSuccessDialog = true
+                                // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
+                                self.endRewardLoadingAndShowSuccess {
+                                    self.showSuccessDialog = true
+                                }
                             }
                         }
                     }
@@ -815,9 +1036,7 @@ final class QuestViewModel: ObservableObject {
     }
 
 
-
-
-
+    
     private func countUsedBlocks() -> Int {
         return startBlock.children.count
     }
@@ -904,7 +1123,6 @@ final class QuestViewModel: ObservableObject {
         return nil
     }
         
-        
     // MARK: - 실패 시 초기화
     func resetToStart() {
         DispatchQueue.main.async {
@@ -932,7 +1150,6 @@ final class QuestViewModel: ObservableObject {
     }
 }
 
-    
 #if DEBUG
 extension QuestViewModel {
     func previewConfigure(
@@ -964,5 +1181,4 @@ extension QuestViewModel {
         return hint.message
     }
 }
-
 #endif

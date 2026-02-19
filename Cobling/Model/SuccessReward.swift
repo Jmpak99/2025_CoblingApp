@@ -16,7 +16,10 @@ struct SuccessReward {
 
     // 이번 퀘스트 보상 (연출용)
     let gainedExp: Int      // base + bonus 합산 값
-
     // 연출 분기용
     let isPerfectClear: Bool
+    
+    // 챕터 보너스
+    let chapterBonusExp: Int
+    let isChapterCleared: Bool
 }
