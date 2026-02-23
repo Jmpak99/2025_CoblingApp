@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SuccessDialogView: View {
     let reward: SuccessReward
+    let characterStage: String
     var onRetry: () -> Void
     var onNext: () -> Void
 
@@ -39,6 +40,12 @@ struct SuccessDialogView: View {
         reward.level > startLevel
     }
     
+    // stage > 에셋 이름 매핑
+    private var characterAssetName: String {
+        let stage = characterStage.trimmingCharacters(in: .whitespacesAndNewlines)
+        return stage.isEmpty ? "cobling_stage_egg" : "cobling_stage_\(stage)"
+    }
+    
 
 
     var body: some View {
@@ -55,6 +62,14 @@ struct SuccessDialogView: View {
                 Text(didLevelUp ? "코블링이 한 단계 진화했어!" : "코블링이 한 단게 성장했어!")
                     .font(.pretendardMedium14)
                     .foregroundColor(.black)
+                
+                // 캐릭터 추가 (가운데 정렬)
+                Image(characterAssetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 120, height: 120)
+                    .padding(.top, 2)
+                    .accessibilityLabel("코블링 캐릭터")
 
                 // 레벨업이면 "Lv.1 → Lv.2" 형태
                 if didLevelUp {
@@ -211,6 +226,7 @@ struct SuccessDialogView: View {
                 "🟡 shouldShowChapterBonusLine:",
                 shouldShowChapterBonusLine
             )
+            print("🟡 characterStage:" , characterStage, "asset: ", characterAssetName)
         }
     }
 }
@@ -231,6 +247,7 @@ struct SuccessDialogView_Previews: PreviewProvider {
                     chapterBonusExp: 0,
                     isChapterCleared: false
                 ),
+                characterStage: "egg",
                 onRetry: {},
                 onNext: {}
             )
@@ -247,6 +264,7 @@ struct SuccessDialogView_Previews: PreviewProvider {
                     chapterBonusExp: 30,
                     isChapterCleared: true
                 ),
+                characterStage: "kid",
                 onRetry: {},
                 onNext: {}
             )
@@ -263,6 +281,7 @@ struct SuccessDialogView_Previews: PreviewProvider {
                     chapterBonusExp: 140,
                     isChapterCleared: true
                 ),
+                characterStage: "legend",
                 onRetry: {},
                 onNext: {}
             )

@@ -12,12 +12,25 @@ struct GameMapView: View {
     var questTitle: String
 
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
+    @EnvironmentObject var authVM: AuthViewModel
     
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var appState: AppState
 
     @State private var isHintOn = false
     @State private var isStoryOn = false
+    
+    // DB stage → 에셋 이름 (게임 캐릭터용)
+    private var gameCharacterAssetName: String {
+        let stage = (authVM.userProfile?.character.stage ?? "egg")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        let allowed: Set<String> = ["egg", "kid", "super", "legend"]
+        let safeStage = allowed.contains(stage) ? stage : "egg"
+
+        return "cobling_stage_\(safeStage)"
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -131,7 +144,7 @@ struct GameMapView: View {
                         let x = CGFloat(viewModel.characterPosition.col) * tileSize + tileSize / 2
                         let y = CGFloat(viewModel.characterPosition.row) * tileSize + tileSize / 2
 
-                        Image("cobling_character_super")
+                        Image(gameCharacterAssetName)
                             .resizable()
                             .scaledToFit()
                             .frame(

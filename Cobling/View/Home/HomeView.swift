@@ -22,6 +22,18 @@ struct HomeView: View {
             return "반가워요"
         }
     }
+    
+    // MARK: - 캐릭터 에셋 이름 (DB stage 연동, stage 규칙 통일)
+    private var homeCharacterAssetName: String {
+        let stage = (authVM.userProfile?.character.stage ?? "egg")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        let allowed: Set<String> = ["egg", "kid", "super", "legend"]
+        let safeStage = allowed.contains(stage) ? stage : "egg"
+
+        return "cobling_stage_\(safeStage)"
+    }
 
     var body: some View {
         NavigationView {
@@ -47,7 +59,7 @@ struct HomeView: View {
                 .padding(.top, 48)
 
                 // MARK: - 캐릭터 이미지
-                Image("cobling_character_egg")
+                Image(homeCharacterAssetName)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 200, height: 200)
@@ -133,7 +145,10 @@ struct HomeView: View {
         }
         .navigationViewStyle(.stack)
         .onAppear {
-            homeVM.fetchUserData()
+            homeVM.startListeningUserData()
+        }
+        .onDisappear {
+            homeVM.stopListeningUserData()
         }
     }
 }
@@ -141,21 +156,21 @@ struct HomeView: View {
 
 
 #Preview {
-    // 프리뷰용 더미 VM 주입(닉네임 보이게 하려면 아래 주석 해제)
+    // 프리뷰용 더미 VM 주입(닉네임/스테이지 보이게 하려면 아래처럼 세팅)
     let previewAuth = AuthViewModel()
-    // previewAuth.userProfile = UserProfile(
-    //     id: "preview",
-    //     nickname: "코블러",
-    //     email: "preview@cobling.app",
-    //     level: nil,
-    //     exp: nil,
-    //     profileImageURL: nil,
-    //     createdAt: nil,
-    //     character: .init(stage: "egg", customization: [:]),
-    //     settings: .init(notificationsEnabled: true, darkMode: false),
-    //     lastLogin: nil
-    // )
+//    previewAuth.userProfile = UserProfile(
+//        id: "preview",
+//        nickname: "코블러",
+//        email: "preview@cobling.app",
+//        level: 3,
+//        exp: 10,
+//        profileImageURL: nil,
+//        createdAt: nil,
+//        character: .init(stage: "legend", customization: [:]),
+//        settings: .init(notificationsEnabled: true, darkMode: false),
+//        lastLogin: nil
+//    )
+
     return HomeView()
         .environmentObject(AppState())
-        .environmentObject(AuthViewModel())
 }

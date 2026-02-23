@@ -9,37 +9,55 @@ import Foundation
 import FirebaseAuth
 import FirebaseFirestore
 
-class HomeViewModel: ObservableObject {
+@MainActor
+final class HomeViewModel: ObservableObject {
     @Published var level: Int = 1
     @Published var exp: Int = 0
     @Published var expPercent: Double = 0.0   // 0.0 ~ 1.0
-    
+
     private let db = Firestore.firestore()
-    
-    func fetchUserData() {
+    private var listener: ListenerRegistration?
+    private var isListening = false
+
+    /// HomeView에서 onAppear에 호출 (중복 등록 방지)
+    func startListeningUserData() {
+        guard !isListening else { return }
+        isListening = true
+
         guard let userId = Auth.auth().currentUser?.uid else {
             print("❌ 로그인된 유저 없음")
+            isListening = false
             return
         }
-        
-        db.collection("users").document(userId).addSnapshotListener { snapshot, error in
+
+        listener = db.collection("users").document(userId).addSnapshotListener { [weak self] snapshot, error in
+            guard let self else { return }
+
             if let error = error {
                 print("❌ Firestore 불러오기 실패: \(error)")
                 return
             }
             guard let data = snapshot?.data() else { return }
-            
-            DispatchQueue.main.async {
-                self.level = data["level"] as? Int ?? 1
-                self.exp = data["exp"] as? Int ?? 0
-                
-                // 레벨별 필요 EXP 곡선 (간단 버전: 100 + 20 * (level-1))
-                let requiredExp = self.requiredExpForLevel(self.level)
-                self.expPercent = Double(self.exp) / Double(requiredExp)
-            }
+
+            let newLevel = data["level"] as? Int ?? 1
+            let newExp = data["exp"] as? Int ?? 0
+
+            self.level = newLevel
+            self.exp = newExp
+
+            let requiredExp = self.requiredExpForLevel(newLevel)
+            let raw = Double(newExp) / Double(requiredExp)
+            self.expPercent = min(max(raw, 0.0), 1.0)
         }
     }
-    
+
+    /// HomeView에서 onDisappear에 호출 (리스너 해제)
+    func stopListeningUserData() {
+        listener?.remove()
+        listener = nil
+        isListening = false
+    }
+
     private func requiredExpForLevel(_ level: Int) -> Int {
         switch level {
         case 1: return 100
@@ -52,7 +70,6 @@ class HomeViewModel: ObservableObject {
         case 8: return 480
         case 9: return 600
         case 10: return 750
-        // 필요시 계속 확장
         default: return 1000
         }
     }

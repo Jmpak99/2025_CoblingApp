@@ -17,6 +17,7 @@ struct QuestBlockView: View {
     // MARK: - Environment
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var authViewModel: AuthViewModel
 
     // MARK: - State / ViewModel
     @StateObject private var dragManager = DragManager()
@@ -219,6 +220,7 @@ struct QuestBlockView: View {
                let reward = viewModel.successReward {
                 SuccessDialogView(
                     reward : reward,
+                    characterStage: authViewModel.userProfile?.character.stage ?? "egg",
                     onRetry: {
                         withAnimation(.easeInOut(duration: 0.22)) {
                             viewModel.showSuccessDialog = false
