@@ -15,6 +15,31 @@ function isStandardPreId(preId) {
 }
 
 /**
+ * ✅ 레벨 → 캐릭터 스테이지 매핑
+ */
+function stageFromLevel(level) {
+  if (level >= 15) return "legend";
+  if (level >= 10) return "cobling";
+  if (level >= 5) return "kid";
+  return "egg";
+}
+
+/**
+ * ✅ 이번 레벨업에서 진화가 발생했는지 계산
+ */
+function computeEvolution(prevLevel, newLevel) {
+  const thresholds = [5, 10, 15];
+
+  const crossed = thresholds.filter((t) => prevLevel < t && newLevel >= t);
+  if (crossed.length === 0) return null;
+
+  return {
+    reachedLevel: Math.max(...crossed),
+    newStage: stageFromLevel(newLevel),
+  };
+}
+
+/**
  * ✅ 완료 전환 체크
  * - before != completed && after == completed
  */
@@ -169,6 +194,12 @@ exports.initUserProgress = onDocumentCreated("users/{userId}", async (event) => 
       level: 1,
       exp: 0,
       lastLogin: FieldValue.serverTimestamp(),
+      character: {
+        stage : "egg",
+        customization: {},
+        evolutionLevel: 0,
+        evolutionPending: false,
+      },
     },
     { merge: true }
   );
@@ -248,6 +279,9 @@ exports.updateUserExpOnClear = onDocumentUpdated(
         const user = userSnap.data();
         let exp = user.exp || 0;
         let level = user.level || 1;
+
+        const prevLevel = level;
+
         exp += deltaExp;
 
         const expTable = {
@@ -262,11 +296,50 @@ exports.updateUserExpOnClear = onDocumentUpdated(
           level++;
         }
 
-        t.update(userRef, {
+        // 이번 트랜잭션에서 진화가 발생했는지 체크
+        const evo = computeEvolution(prevLevel, level);
+
+        // 레벨 기반 스테이지 (항상 동기화)
+        const desiredStage = stageFromLevel(level);
+
+        // ============================
+        // ✅ prevCharacter / prevCustomization 정의
+        // ============================
+        const prevCharacter = user.character || {};
+        const prevCustomization = prevCharacter.customization || {};
+
+        // ============================
+        // ✅ [수정] customization.stage가 남아있어도 payload에서 제거
+        // - Firestore update에서 character(부모) + character.customization.stage(자식) 동시 지정 시 충돌 발생
+        // - 그래서 FieldValue.delete()를 payload에서 제거하고,
+        //   애초에 customization 객체에서 stage를 빼서 저장합니다.
+        // ============================
+        const { stage: _legacyStage, ...customizationWithoutStage } = prevCustomization; // ✅ [수정]
+
+        const payload = {
           exp,
           level,
           lastLogin: FieldValue.serverTimestamp(),
-        });
+
+          character: {
+            ...prevCharacter,
+            stage: desiredStage, // ✅ 앱이 읽는 위치로 stage 저장
+            customization: {
+              ...customizationWithoutStage, // ✅ [수정] stage 제거된 customization만 저장
+            },
+          },
+
+          // ❌ [삭제] 아래 줄이 character(부모)와 충돌을 일으켜 에러 발생
+          // "character.customization.stage": FieldValue.delete(), // ✅ [삭제]
+        };
+
+        if (evo) {
+          payload.character.evolutionLevel = evo.reachedLevel;
+          payload.character.evolutionPending = true;
+          console.log(`🌟 Evolution! user=${userId} -> ${evo.newStage} (Lv ${evo.reachedLevel})`);
+        }
+
+        t.update(userRef, payload);
       });
     } else {
       console.log(`ℹ️ 경험치 증가 없음: ${chapterId}/${subQuestId}`);
@@ -283,7 +356,7 @@ exports.updateUserExpOnClear = onDocumentUpdated(
         .collection("progress")
         .doc(chapterId);
 
-      // ✅ 지금 업데이트가 발생한 "해당 서브퀘스트 progress 문서"
+      // 지금 업데이트가 발생한 "해당 서브퀘스트 progress 문서"
       // - 챕터 보너스 지급이 일어난 '결과 화면'에서 이 문서를 읽어
       //   chapterBonusExpGranted를 UI에 표시할 수 있게 됩니다.
       const subQuestProgressRef = event.data.after.ref;
@@ -306,12 +379,12 @@ exports.updateUserExpOnClear = onDocumentUpdated(
 
         if (allCompleted) {
           // ============================
-          // ✅ [수정됨] 챕터 클리어 보상 고정 140 EXP 지급
+          // 챕터 클리어 보상 고정 140 EXP 지급
           // - 기존의 bonusPercent/needExp 기반 % 계산을 제거하고,
           //   정책대로 항상 140을 지급합니다.
           // ============================
           const bonusExp = 140; // ✅ 고정 챕터 보상 (모든 챕터 동일)
-          console.log(`🏆 Chapter ${chapterId} 완료 보상 지급 (+${bonusExp} exp)`); // ✅ [수정됨] 로그도 고정 EXP로 표시
+          console.log(`🏆 Chapter ${chapterId} 완료 보상 지급 (+${bonusExp} exp)`); // 로그도 고정 EXP로 표시
 
           const userRef = db.collection("users").doc(userId);
           await db.runTransaction(async (t) => {
@@ -322,6 +395,9 @@ exports.updateUserExpOnClear = onDocumentUpdated(
             let exp = user.exp || 0;
             let level = user.level || 1;
 
+            //  진화 판정용 이전 레벨
+            const prevLevel = level;
+
             const expTable = {
               1: 100, 2: 120, 3: 160, 4: 200, 5: 240,
               6: 310, 7: 380, 8: 480, 9: 600, 10: 750,
@@ -329,40 +405,71 @@ exports.updateUserExpOnClear = onDocumentUpdated(
               16: 2840, 17: 3550, 18: 4440, 19: 5550,
             };
 
-            // ✅ [수정됨] 보너스 140을 그대로 더함
+            // 보너스 140을 그대로 더함
             exp += bonusExp;
 
-            // ✅ 레벨업 계산 로직은 그대로 유지
+            // 레벨업 계산 로직은 그대로 유지
             while (exp >= (expTable[level] || Infinity)) {
               exp -= expTable[level];
               level++;
             }
 
+            // 이번 트랜잭션에서 진화가 발생했는지 체크
+            const evo = computeEvolution(prevLevel, level);
+
+            // 레벨 기반 스테이지 (항상 동기화)
+            const desiredStage = stageFromLevel(level);
+
+            // ============================
+            // ✅ prevCharacter / prevCustomization 정의
+            // ============================
+            const prevCharacter = user.character || {};
+            const prevCustomization = prevCharacter.customization || {};
+
+            // ============================
+            // ✅ [수정] customization.stage 제거 (위 트랜잭션과 동일한 이유)
+            // ============================
+            const { stage: _legacyStage2, ...customizationWithoutStage2 } = prevCustomization; // ✅ [수정]
+
+            const payload = {
+              exp,
+              level,
+
+              character: {
+                ...prevCharacter,
+                stage: desiredStage,
+                customization: {
+                  ...customizationWithoutStage2, // ✅ [수정]
+                },
+              },
+
+              // ❌ [삭제] 부모(character) + 자식(character.customization.stage) 동시 지정 충돌
+              // "character.customization.stage": FieldValue.delete(), // ✅ [삭제]
+            };
+
+            if (evo) {
+              payload.character.evolutionLevel = evo.reachedLevel;
+              payload.character.evolutionPending = true;
+              console.log(`🌟 Evolution! user=${userId} -> ${evo.newStage} (Lv ${evo.reachedLevel})`);
+            }
+
             // 1) users 업데이트
-            t.update(userRef, { exp, level });
+            t.update(userRef, payload);
 
             // 2) chapter 보너스 1회 지급 플래그
             t.set(chapterProgressRef, { chapterBonusGranted: true }, { merge: true });
 
-            // ✅ 3) "이번 결과 화면"에서 보여줄 챕터 보너스 정보를 subQuest progress 문서에 기록
-            // - UI에서 2단계(서브퀘스트 → 챕터보너스) 연출 가능
+            // 3) "이번 결과 화면"에서 보여줄 챕터 보너스 정보를 subQuest progress 문서에 기록
             t.set(
               subQuestProgressRef,
               {
                 chapterClearGranted: true,
-                // chapterBonusPercent: bonusPercent, // ❌ [수정됨] 고정 보상이므로 퍼센트 개념 제거 (필요하면 남겨도 되지만 혼란 방지 차원에서 제거 권장)
-                chapterBonusExpGranted: bonusExp, // ✅ [유지/수정됨] UI 표시용: 140
+                chapterBonusExpGranted: bonusExp, // UI 표시용: 140
                 chapterBonusGrantedAt: FieldValue.serverTimestamp(),
               },
               { merge: true }
             );
           });
-        } else {
-          // (선택) 아직 챕터 전체 완료가 아니면 명시적으로 false 기록하고 싶으면 아래 사용
-          // await event.data.after.ref.set(
-          //   { chapterClearGranted: false, chapterBonusExpGranted: 0 },
-          //   { merge: true }
-          // );
         }
       }
     }

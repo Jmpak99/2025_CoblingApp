@@ -29,7 +29,7 @@ struct HomeView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
-        let allowed: Set<String> = ["egg", "kid", "super", "legend"]
+        let allowed: Set<String> = ["egg", "kid", "cobling", "legend"]
         let safeStage = allowed.contains(stage) ? stage : "egg"
 
         return "cobling_stage_\(safeStage)"
