@@ -46,6 +46,10 @@ final class QuestViewModel: ObservableObject {
     // MARK: - 게임 상태
     @Published var characterPosition: (row: Int, col: Int) = (0, 0)
     @Published var characterDirection: Direction = .right
+    
+    // DB startDirection 값을 저장해두는 용도 (reset 시 이 값으로 복구)
+    private var startDirection: Direction = .right
+    
     @Published var mapData: [[Int]] = []         // Firestore에서 변환된 맵
     @Published var showFailureDialog = false
     @Published var showSuccessDialog = false
@@ -112,7 +116,7 @@ final class QuestViewModel: ObservableObject {
 
         // ▶️ 캐릭터 상태 초기화
         characterPosition = startPosition
-        characterDirection = .right
+        characterDirection = startDirection
 
         // ▶️ 적 상태 초기화
         enemies = initialEnemies
@@ -187,10 +191,10 @@ final class QuestViewModel: ObservableObject {
                             // 캐릭터 위치 초기화
                             self.characterPosition = self.startPosition
 
-                            // 방향 초기화
-                            self.characterDirection = Direction(
-                                rawValue: subQuest.map.startDirection.lowercased()
-                            ) ?? .right
+                            // 방향 초기화 + 시작 방향 저장
+                            let dir = Direction(rawValue: subQuest.map.startDirection.lowercased()) ?? .right
+                            self.startDirection = dir
+                            self.characterDirection = dir
 
                             // 허용 블록 반영
                             self.allowedBlocks = subQuest.rules.allowBlocks.compactMap { BlockType(rawValue: $0) }
@@ -1130,7 +1134,7 @@ final class QuestViewModel: ObservableObject {
             self.isExecuting = false
             self.currentExecutingBlockID = nil
             self.characterPosition = self.startPosition
-            self.characterDirection = .right
+            self.characterDirection = self.startDirection
             self.enemies = self.initialEnemies
             self.showFailureDialog = true
             print("🔁 캐릭터를 시작 위치로 되돌림")
@@ -1142,7 +1146,7 @@ final class QuestViewModel: ObservableObject {
         isExecuting = false
         currentExecutingBlockID = nil
         characterPosition = startPosition
-        characterDirection = .right
+        characterDirection = startDirection
         
         enemies = initialEnemies
         

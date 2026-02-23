@@ -20,8 +20,8 @@ struct GameMapView: View {
     @State private var isHintOn = false
     @State private var isStoryOn = false
     
-    // DB stage → 에셋 이름 (게임 캐릭터용)
-    private var gameCharacterAssetName: String {
+    // DB stage → 에셋 prefix (게임 캐릭터용)
+    private var gameCharacterAssetPrefix: String {
         let stage = (authVM.userProfile?.character.stage ?? "egg")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -30,6 +30,26 @@ struct GameMapView: View {
         let safeStage = allowed.contains(stage) ? stage : "egg"
 
         return "cobling_stage_\(safeStage)"
+    }
+    
+    // 방향 → suffix 매핑
+    // up    -> back
+    // down  -> front
+    // left  -> left
+    // right -> right
+    private var directionSuffix: String {
+        switch viewModel.characterDirection {
+        case .up: return "back"
+        case .down: return "front"
+        case .left: return "left"
+        case .right: return "right"
+        }
+    }
+    
+    // 최종 캐릭터 에셋 이름
+    // ex) "cobling_stage_kid_front"
+    private var gameCharacterDirectionalAssetName: String {
+        "\(gameCharacterAssetPrefix)_\(directionSuffix)"
     }
 
     var body: some View {
@@ -144,7 +164,7 @@ struct GameMapView: View {
                         let x = CGFloat(viewModel.characterPosition.col) * tileSize + tileSize / 2
                         let y = CGFloat(viewModel.characterPosition.row) * tileSize + tileSize / 2
 
-                        Image(gameCharacterAssetName)
+                        Image(gameCharacterDirectionalAssetName)
                             .resizable()
                             .scaledToFit()
                             .frame(
@@ -152,6 +172,9 @@ struct GameMapView: View {
                                 height: tileSize * 1.4
                             )
                             .position(x: x, y: y - 15)
+                            // 방향이 바뀔 때 자연스럽게 교체
+                            .transition(.opacity)
+                            .animation(.easeInOut(duration: 0.12), value: viewModel.characterDirection)
                     }
                     .frame(
                         width: CGFloat(map.first?.count ?? 0) * tileSize,
