@@ -20,6 +20,9 @@ struct SubQuest: Identifiable {
     let title: String
     let description: String
     let state: SubQuestState
+    
+    // UI전용 : 퍼펙트 클리어 여부
+    let perfectClear: Bool
 }
 
 // MARK: - QuestDetailView
@@ -188,7 +191,6 @@ struct QuestDetailView: View {
         let db = Firestore.firestore()
         guard let userId = Auth.auth().currentUser?.uid else { return }
 
-        // 1️⃣ 마스터 데이터 로드
         db.collection("quests")
             .document(chapter.id)
             .collection("subQuests")
@@ -207,11 +209,12 @@ struct QuestDetailView: View {
                         id: doc.documentID,
                         title: data["title"] as? String ?? "",
                         description: data["description"] as? String ?? "",
-                        state: .locked
+                        state: .locked,
+                        perfectClear: false
                     )
                 } ?? []
 
-                // 2️⃣ 유저 progress 로드
+                // 유저 progress 로드
                 db.collection("users")
                     .document(userId)
                     .collection("progress")
@@ -219,18 +222,26 @@ struct QuestDetailView: View {
                     .collection("subQuests")
                     .getDocuments { progressSnap, _ in
 
-                        var progressMap: [String: String] = [:]
+                        // state map
+                        var progressStateMap: [String: String] = [:]
+
+                        // perfectClear map
+                        var perfectClearMap: [String: Bool] = [:]
 
                         progressSnap?.documents.forEach { doc in
-                            progressMap[doc.documentID] =
-                                (doc.data()["state"] as? String)?
-                                .trimmingCharacters(in: .whitespacesAndNewlines)
-                                ?? "locked"
+                            let data = doc.data()
+
+                            progressStateMap[doc.documentID] =
+                                (data["state"] as? String)?
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                    ?? "locked"
+
+                            perfectClearMap[doc.documentID] = data["perfectClear"] as? Bool ?? false
                         }
 
                         // 3️⃣ 병합
                         self.subQuests = baseSubQuests.map { sq in
-                            let stateStr = progressMap[sq.id] ?? "locked"
+                            let stateStr = progressStateMap[sq.id] ?? "locked"
 
                             let state: SubQuestState = {
                                 switch stateStr {
@@ -240,11 +251,15 @@ struct QuestDetailView: View {
                                 }
                             }()
 
+                            // perfectClear도 병합
+                            let perfectClear = perfectClearMap[sq.id] ?? false
+
                             return SubQuest(
                                 id: sq.id,
                                 title: sq.title,
                                 description: sq.description,
-                                state: state
+                                state: state,
+                                perfectClear: perfectClear
                             )
                         }
 
@@ -303,6 +318,12 @@ struct SubQuestCard: View {
     }
     
     private var statusIconName: String {
+        
+        // 퍼펙트 클리어면 icon_perfectClear
+        if subQuest.state == .completed && subQuest.perfectClear {
+            return "icon_perfectClear"
+        }
+        
         switch subQuest.state {
         case .completed: return "icon_completed"
         case .inProgress: return "icon_inProgress"
