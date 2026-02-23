@@ -35,6 +35,8 @@ async function findUnlockTargetsByScan({ chapterId, subQuestId }) {
   const fullKey = `${chapterId}:${subQuestId}`; // 예: ch1:sq7
   const targets = [];
 
+  console.log("🔎 [SCAN START]", { chapterId, subQuestId, fullKey });
+
   const questsSnap = await db.collection("quests").get();
 
   for (const q of questsSnap.docs) {
@@ -43,6 +45,14 @@ async function findUnlockTargetsByScan({ chapterId, subQuestId }) {
     subSnap.forEach((d) => {
       const data = d.data();
       const p = data.preId;
+
+      console.log("[SCAN]", {
+        questDocId: q.id,
+        subQuestDocId: d.id,
+        preIdRaw: p,
+        preIdJSON: JSON.stringify(p),
+        matchTarget: fullKey,
+      });
 
       // 1) 표준: "chX:sqN"
       if (typeof p === "string" && p.includes(":")) {
@@ -266,92 +276,96 @@ exports.updateUserExpOnClear = onDocumentUpdated(
     const becameCompletedNow = didBecomeCompleted(before, after);
 
     // ----- (B) 챕터 전체 클리어 보너스: 완료 전환 시점에만 검사 -----
-if (becameCompletedNow) {
-  const chapterProgressRef = db
-    .collection("users")
-    .doc(userId)
-    .collection("progress")
-    .doc(chapterId);
+    if (becameCompletedNow) {
+      const chapterProgressRef = db
+        .collection("users")
+        .doc(userId)
+        .collection("progress")
+        .doc(chapterId);
 
-  // ✅ 지금 업데이트가 발생한 "해당 서브퀘스트 progress 문서"
-  // - 챕터 보너스 지급이 일어난 '결과 화면'에서 이 문서를 읽어
-  //   chapterBonusExpGranted를 UI에 표시할 수 있게 됩니다.
-  const subQuestProgressRef = event.data.after.ref;
+      // ✅ 지금 업데이트가 발생한 "해당 서브퀘스트 progress 문서"
+      // - 챕터 보너스 지급이 일어난 '결과 화면'에서 이 문서를 읽어
+      //   chapterBonusExpGranted를 UI에 표시할 수 있게 됩니다.
+      const subQuestProgressRef = event.data.after.ref;
 
-  const chapterSnap = await chapterProgressRef.get();
-  if (chapterSnap.exists && chapterSnap.data().chapterBonusGranted) {
-    console.log(`⚠️ Chapter ${chapterId} 보너스 이미 지급됨`);
+      const chapterSnap = await chapterProgressRef.get();
+      if (chapterSnap.exists && chapterSnap.data().chapterBonusGranted) {
+        console.log(`⚠️ Chapter ${chapterId} 보너스 이미 지급됨`);
 
-    // (선택) 혹시 이전에 남아있던 값을 지우고 싶으면 아래처럼 초기화도 가능
-    // await subQuestProgressRef.set(
-    //   { chapterClearGranted: false, chapterBonusExpGranted: 0 },
-    //   { merge: true }
-    // );
+        // (선택) 혹시 이전에 남아있던 값을 지우고 싶으면 아래처럼 초기화도 가능
+        // await subQuestProgressRef.set(
+        //   { chapterClearGranted: false, chapterBonusExpGranted: 0 },
+        //   { merge: true }
+        // );
 
-  } else {
-    const subQuestsSnap = await chapterProgressRef.collection("subQuests").get();
-    const allCompleted =
-      subQuestsSnap.docs.length > 0 &&
-      subQuestsSnap.docs.every((doc) => doc.data().state === "completed");
+      } else {
+        const subQuestsSnap = await chapterProgressRef.collection("subQuests").get();
+        const allCompleted =
+          subQuestsSnap.docs.length > 0 &&
+          subQuestsSnap.docs.every((doc) => doc.data().state === "completed");
 
-    if (allCompleted) {
-      const bonusPercent = 30;
-      console.log(`🏆 Chapter ${chapterId} 완료 보상 지급 (${bonusPercent}%)`);
+        if (allCompleted) {
+          // ============================
+          // ✅ [수정됨] 챕터 클리어 보상 고정 140 EXP 지급
+          // - 기존의 bonusPercent/needExp 기반 % 계산을 제거하고,
+          //   정책대로 항상 140을 지급합니다.
+          // ============================
+          const bonusExp = 140; // ✅ 고정 챕터 보상 (모든 챕터 동일)
+          console.log(`🏆 Chapter ${chapterId} 완료 보상 지급 (+${bonusExp} exp)`); // ✅ [수정됨] 로그도 고정 EXP로 표시
 
-      const userRef = db.collection("users").doc(userId);
-      await db.runTransaction(async (t) => {
-        const userSnap = await t.get(userRef);
-        if (!userSnap.exists) return;
+          const userRef = db.collection("users").doc(userId);
+          await db.runTransaction(async (t) => {
+            const userSnap = await t.get(userRef);
+            if (!userSnap.exists) return;
 
-        const user = userSnap.data();
-        let exp = user.exp || 0;
-        let level = user.level || 1;
+            const user = userSnap.data();
+            let exp = user.exp || 0;
+            let level = user.level || 1;
 
-        const expTable = {
-          1: 100, 2: 120, 3: 160, 4: 200, 5: 240,
-          6: 310, 7: 380, 8: 480, 9: 600, 10: 750,
-          11: 930, 12: 1160, 13: 1460, 14: 1820, 15: 2270,
-          16: 2840, 17: 3550, 18: 4440, 19: 5550,
-        };
+            const expTable = {
+              1: 100, 2: 120, 3: 160, 4: 200, 5: 240,
+              6: 310, 7: 380, 8: 480, 9: 600, 10: 750,
+              11: 930, 12: 1160, 13: 1460, 14: 1820, 15: 2270,
+              16: 2840, 17: 3550, 18: 4440, 19: 5550,
+            };
 
-        // ✅ 현재 레벨의 필요 EXP 기준으로 30% 지급 (지금 코드 정책 유지)
-        const needExp = expTable[level] || 100;
-        const bonusExp = Math.floor((needExp * bonusPercent) / 100);
+            // ✅ [수정됨] 보너스 140을 그대로 더함
+            exp += bonusExp;
 
-        exp += bonusExp;
-        while (exp >= (expTable[level] || Infinity)) {
-          exp -= expTable[level];
-          level++;
+            // ✅ 레벨업 계산 로직은 그대로 유지
+            while (exp >= (expTable[level] || Infinity)) {
+              exp -= expTable[level];
+              level++;
+            }
+
+            // 1) users 업데이트
+            t.update(userRef, { exp, level });
+
+            // 2) chapter 보너스 1회 지급 플래그
+            t.set(chapterProgressRef, { chapterBonusGranted: true }, { merge: true });
+
+            // ✅ 3) "이번 결과 화면"에서 보여줄 챕터 보너스 정보를 subQuest progress 문서에 기록
+            // - UI에서 2단계(서브퀘스트 → 챕터보너스) 연출 가능
+            t.set(
+              subQuestProgressRef,
+              {
+                chapterClearGranted: true,
+                // chapterBonusPercent: bonusPercent, // ❌ [수정됨] 고정 보상이므로 퍼센트 개념 제거 (필요하면 남겨도 되지만 혼란 방지 차원에서 제거 권장)
+                chapterBonusExpGranted: bonusExp, // ✅ [유지/수정됨] UI 표시용: 140
+                chapterBonusGrantedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          });
+        } else {
+          // (선택) 아직 챕터 전체 완료가 아니면 명시적으로 false 기록하고 싶으면 아래 사용
+          // await event.data.after.ref.set(
+          //   { chapterClearGranted: false, chapterBonusExpGranted: 0 },
+          //   { merge: true }
+          // );
         }
-
-        // 1) users 업데이트
-        t.update(userRef, { exp, level });
-
-        // 2) chapter 보너스 1회 지급 플래그
-        t.set(chapterProgressRef, { chapterBonusGranted: true }, { merge: true });
-
-        // ✅ 3) "이번 결과 화면"에서 보여줄 챕터 보너스 정보를 subQuest progress 문서에 기록
-        // - 이 문서 하나만 읽으면 UI에서 2단계(서브퀘스트 → 챕터보너스) 연출 가능
-        t.set(
-          subQuestProgressRef,
-          {
-            chapterClearGranted: true,
-            chapterBonusPercent: bonusPercent,
-            chapterBonusExpGranted: bonusExp,
-            chapterBonusGrantedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-      });
-    } else {
-      // (선택) 아직 챕터 전체 완료가 아니면 명시적으로 false 기록하고 싶으면 아래 사용
-      // await event.data.after.ref.set(
-      //   { chapterClearGranted: false, chapterBonusExpGranted: 0 },
-      //   { merge: true }
-      // );
+      }
     }
-  }
-}
 
     // ----- (C) 다음 서브퀘스트 해금: 완료 전환 시점에만 실행 -----
     if (!becameCompletedNow) {
@@ -456,7 +470,12 @@ exports.onSubQuestCreated = onDocumentCreated(
     const newSubQuestData = event.data.data();
     const preId = newSubQuestData.preId || null;
 
-    if (preId && !isStandardPreId(preId) && !(typeof preId === "string") && !(typeof preId === "object")) {
+    if (
+      preId &&
+      !isStandardPreId(preId) &&
+      !(typeof preId === "string") &&
+      !(typeof preId === "object")
+    ) {
       console.warn(`⚠️ preId 타입 이상: ${chapterId}/${subQuestId}`, preId);
     }
     if (typeof preId === "string" && preId.includes(":") && !isStandardPreId(preId)) {
