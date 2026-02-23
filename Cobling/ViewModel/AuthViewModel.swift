@@ -48,6 +48,8 @@ final class AuthViewModel: ObservableObject {
         guard FirebaseApp.app() != nil else { return nil }
         return Firestore.firestore()
     }
+
+    private var profileListener: ListenerRegistration? // ✅ [수정] 유저 프로필 실시간 리스너 추가
     #endif
 
     // MARK: - Init / Deinit
@@ -74,6 +76,11 @@ final class AuthViewModel: ObservableObject {
             if let uid = user?.uid {
                 self.fetchProfile(uid: uid)
             } else {
+                #if canImport(FirebaseFirestore)
+                self.profileListener?.remove() // ✅ [수정] 로그아웃/세션 종료 시 리스너 해제
+                self.profileListener = nil     // ✅ [수정]
+                #endif
+
                 self.userProfile = nil
             }
         }
@@ -83,6 +90,11 @@ final class AuthViewModel: ObservableObject {
     deinit {
         #if canImport(FirebaseAuth)
         if let authListener { Auth.auth().removeStateDidChangeListener(authListener) }
+        #endif
+
+        #if canImport(FirebaseFirestore)
+        profileListener?.remove() // 메모리 누수 방지: 프로필 리스너 해제
+        profileListener = nil     //
         #endif
     }
 
@@ -154,6 +166,12 @@ final class AuthViewModel: ObservableObject {
             try? Auth.auth().signOut()
         }
         #endif
+
+        #if canImport(FirebaseFirestore)
+        profileListener?.remove() // 로그아웃 시 프로필 리스너 해제
+        profileListener = nil     //
+        #endif
+
         self.isSignedIn = false
         self.currentUserEmail = nil
         self.userProfile = nil
@@ -163,29 +181,40 @@ final class AuthViewModel: ObservableObject {
     private func fetchProfile(uid: String) {
         #if canImport(FirebaseFirestore)
         guard let db else { return }
-        db.collection("users").document(uid).getDocument { [weak self] snap, err in
-            guard let self else { return }
-            if let err = err {
-                self.authError = err.localizedDescription
-                return
-            }
-            if let snap, snap.exists {
-                do {
-                    let profile = try snap.data(as: UserProfile.self)
-                    self.userProfile = profile
-                } catch {
-                    self.authError = error.localizedDescription
+
+        // 기존 1회 조회(getDocument) -> 실시간 리스너(addSnapshotListener)로 변경
+        // 중복 등록 방지: 기존 리스너 제거
+        profileListener?.remove()
+        profileListener = nil
+
+        profileListener = db.collection("users").document(uid)
+            .addSnapshotListener { [weak self] snap, err in
+                guard let self else { return }
+                if let err = err {
+                    self.authError = err.localizedDescription
+                    return
                 }
-            } else {
-                #if canImport(FirebaseAuth)
-                let email = Auth.auth().currentUser?.email ?? ""
-                Task {
-                    try? await self.createUserDocument(uid: uid, email: email, nickname: "코블러")
-                    self.fetchProfile(uid: uid)
+
+                guard let snap else { return }
+
+                if snap.exists {
+                    do {
+                        let profile = try snap.data(as: UserProfile.self)
+                        self.userProfile = profile
+                    } catch {
+                        self.authError = error.localizedDescription
+                    }
+                } else {
+                    #if canImport(FirebaseAuth)
+                    let email = Auth.auth().currentUser?.email ?? ""
+                    Task {
+                        try? await self.createUserDocument(uid: uid, email: email, nickname: "코블러")
+                        // 문서 생성되면 리스너가 자동으로 최신 데이터를 다시 받으므로
+                        // self.fetchProfile(uid: uid) 재호출은 하지 않음 (중복 리스너 방지)
+                    }
+                    #endif
                 }
-                #endif
             }
-        }
         #endif
     }
 
@@ -266,7 +295,7 @@ final class AuthViewModel: ObservableObject {
             return "이메일 주소 형식이 올바르지 않습니다."
         case .wrongPassword:           // 17009
             return "비밀번호가 올바르지 않습니다."
-        case .invalidCredential:       // 17004 ← ✅ 추가
+        case .invalidCredential:       // 17004
             return "이메일 또는 비밀번호가 올바르지 않습니다."
         case .userNotFound:            // 17011
             return "해당 이메일의 계정을 찾을 수 없습니다."
@@ -328,6 +357,10 @@ extension AuthViewModel {
         let uid = user.uid
         authError = nil
 
+        // 계정 삭제 시작 시 리스너 해제(삭제 중 리스너가 문서 변경을 받지 않게)
+        profileListener?.remove()
+        profileListener = nil
+
         // 1) 사용자 소유 데이터부터 삭제
         do {
             // 🔹 1-1. users/{uid}/progress/{chapterId}/subQuests/* 전부 삭제
@@ -380,7 +413,7 @@ extension AuthViewModel {
         }
         #endif
     }
-    
+
     func updateNickname(_ nickname: String) async throws {
         #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
         guard let db = db else { return }
