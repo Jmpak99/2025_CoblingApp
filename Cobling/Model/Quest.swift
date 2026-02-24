@@ -82,6 +82,10 @@ struct Rules: Codable {
     var allowBlocks: [String]
     var attackRange: Int
     var maxSteps: Int
+    
+    // if 조건 배열
+    var allowedIfConditions: [String]?   // ← 배열(String)
+    var defaultIfCondition: String?
 }
 
 // MARK: - Story & Hint

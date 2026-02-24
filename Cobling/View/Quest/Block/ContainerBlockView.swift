@@ -43,6 +43,51 @@ struct ContainerBlockView: View {
         }
         return 1.0
     }
+    
+    // 컨테이너 타입에 따라 색상 분기 (repeat / if / ifElse)
+    private var containerTint: Color {
+        switch block.type {
+        case .repeatCount, .repeatForever:
+            return Color(hex: "#86B0FF")      // repeat 계열
+        case .if, .ifElse:
+            return Color(hex: "#4CCB7A")      // if 계열
+        default:
+            return Color(hex: "#86B0FF")
+        }
+    }
+    
+    // 컨테이너 타입에 따라 빈 안내문구 분기
+    private var emptyGuideText: String {
+        switch block.type {
+        case .repeatCount, .repeatForever:
+            return "여기에 블록을 넣어주세요"
+        case .if:
+            return "조건이 맞으면 실행할 블록을 넣어주세요"
+        case .ifElse:
+            return "조건이 맞으면 실행할 블록을 넣어주세요" // (추후 else 영역 추가 시 문구 분리 가능)
+        default:
+            return "여기에 블록을 넣어주세요"
+        }
+    }
+    
+    // 컨테이너 타입에 따라 헤더 뷰 분기 (RepeatHeaderView / IfHeaderView)
+    @ViewBuilder
+    private var containerHeaderView: some View {
+        switch block.type {
+        case .repeatCount, .repeatForever:
+            RepeatHeaderView(block: block)
+        case .if, .ifElse:
+            // 스테이지별 허용 조건/기본 조건을 ViewModel에서 주입
+            IfHeaderView(
+                block: block,
+                options: viewModel.currentAllowedIfConditions,
+                defaultCondition: viewModel.currentDefaultIfCondition
+            )        // IfHeaderView가 프로젝트에 있어야 함
+        default:
+            RepeatHeaderView(block: block)
+        }
+    }
+    
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -51,7 +96,7 @@ struct ContainerBlockView: View {
             // 왼쪽 세로 바
             // =========================
             Rectangle()
-                .fill(Color(hex: "#86B0FF"))
+                .fill(containerTint)
                 .frame(width: leftBarWidth)
                 .clipShape(RoundedCorner(radius: 12, corners: [.topLeft, .bottomLeft]))
 
@@ -61,13 +106,13 @@ struct ContainerBlockView: View {
                 // 반복문 헤더
                 // =========================
                 GeometryReader { geo in
-                    RepeatHeaderView(block: block)
+                    containerHeaderView
                         .frame(width: blockWidth, height: 36)
                         .scaleEffect(isExecutingThisContainer ? 1.05 : 1.0)
                         .opacity(containerContentOpacity)
                         .animation(.easeInOut(duration: 0.15), value: isExecutingThisContainer)
                         .background(
-                            Color(hex: "#86B0FF")
+                            containerTint
                                 .clipShape(
                                     RoundedCorner(
                                         radius: 18,
@@ -83,7 +128,7 @@ struct ContainerBlockView: View {
                                         return
                                     }
 
-                                    // ✅ global 좌표 변환 (정답)
+                                    // global 좌표 변환
                                     let frame = geo.frame(in: .global)
                                     let position = CGPoint(
                                         x: frame.origin.x + value.location.x,
@@ -114,7 +159,7 @@ struct ContainerBlockView: View {
                                 }
                         )
                 }
-                .frame(width: blockWidth, height: 36) // 🔥 GeometryReader 크기 고정 필수
+                .frame(width: blockWidth, height: 36) // GeometryReader 크기 고정
 
                 // =========================
                 // 반복문 내부 영역
@@ -124,9 +169,9 @@ struct ContainerBlockView: View {
                     // 블록이 하나도 없을 때
                     
                     if block.children.isEmpty {
-                        Text("여기에 블록을 넣어주세요")
+                        Text(emptyGuideText)
                             .font(.pretendardBold14)
-                            .foregroundColor(Color(hex : "ACC9FF"))
+                            .foregroundColor(containerTint.opacity(0.35))
                             .padding(.vertical, 4)
                     }
 
@@ -182,7 +227,7 @@ struct ContainerBlockView: View {
                 // 하단 캡
                 // =========================
                 Rectangle()
-                    .fill(Color(hex: "#86B0FF"))
+                    .fill(containerTint)
                     .frame(width: 100, height: 12)
                     .clipShape(
                         RoundedCorner(
@@ -203,7 +248,7 @@ struct ContainerBlockView: View {
 
                         if frame.contains(globalPos) {
 
-                                // ✅ 기존 타겟이 없으면 바로 설정
+                                // 기존 타겟이 없으면 바로 설정
                                 if dragManager.containerTargetBlock == nil {
                                     dragManager.containerTargetBlock = block
                                     dragManager.isOverContainer = true
@@ -211,7 +256,7 @@ struct ContainerBlockView: View {
                                     return
                                 }
 
-                                // ✅ 기존 타겟이 있는데,
+                                // 기존 타겟이 있는데,
                                 // 내가 더 안쪽(자식) 컨테이너라면 교체 허용
                                 if let current = dragManager.containerTargetBlock,
                                    viewModel.isDescendant(block, of: current) {

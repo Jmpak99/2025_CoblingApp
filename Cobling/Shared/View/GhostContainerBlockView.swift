@@ -16,6 +16,42 @@ struct GhostContainerBlockView: View {
     private let blockWidth: CGFloat = 165
     private let leftBarWidth: CGFloat = 12
     private let previewCount = 3
+    
+    // IfHeaderView에 options/defaultCondition 주려면 ViewModel 필요
+    @EnvironmentObject var viewModel: QuestViewModel
+    
+    // 컨테이너 타입에 따라 색상 분기 (repeat / if / ifElse)
+    private var containerTint: Color {
+        switch block.type {
+        case .repeatCount, .repeatForever:
+            return Color(hex: "#86B0FF")      // repeat 계열
+        case .if, .ifElse:
+            return Color(hex: "#4CCB7A")      // if 계열
+        default:
+            return Color(hex: "#86B0FF")
+        }
+    }
+    
+    // 컨테이너 타입에 따라 헤더 뷰 분기 + IfHeaderView 파라미터 전달
+    @ViewBuilder
+    private var ghostHeaderView: some View {
+        switch block.type {
+        case .repeatCount, .repeatForever:
+            RepeatHeaderView(block: block)
+
+        case .if, .ifElse:
+            // 에러 원인 해결: options, defaultCondition 전달
+            IfHeaderView(
+                block: block,
+                options: viewModel.currentAllowedIfConditions,
+                defaultCondition: viewModel.currentDefaultIfCondition
+            )
+
+        default:
+            RepeatHeaderView(block: block)
+        }
+    }
+
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -24,7 +60,7 @@ struct GhostContainerBlockView: View {
             // 왼쪽 세로 바 (캔버스와 동일)
             // =========================
             Rectangle()
-                .fill(Color(hex: "#86B0FF"))
+                .fill(containerTint)
                 .frame(width: leftBarWidth)
                 .clipShape(
                     RoundedCorner(
@@ -38,10 +74,10 @@ struct GhostContainerBlockView: View {
                 // =========================
                 // 반복문 헤더 (캔버스와 동일)
                 // =========================
-                RepeatHeaderView(block: block)
+                ghostHeaderView
                     .frame(width: blockWidth, height: 36)
                     .background(
-                        Color(hex: "#86B0FF")
+                        containerTint
                             .clipShape(
                                 RoundedCorner(
                                     radius: 18,
@@ -62,7 +98,7 @@ struct GhostContainerBlockView: View {
                     if block.children.count > previewCount {
                         Text("⋯")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(Color(hex: "#86B0FF"))
+                            .foregroundColor(containerTint)
                             .padding(.leading, 8)
                     }
                 }
@@ -72,7 +108,7 @@ struct GhostContainerBlockView: View {
                 // 하단 캡 (캔버스와 동일)
                 // =========================
                 Rectangle()
-                    .fill(Color(hex: "#86B0FF"))
+                    .fill(containerTint)
                     .frame(width: 100, height: 12)
                     .clipShape(
                         RoundedCorner(

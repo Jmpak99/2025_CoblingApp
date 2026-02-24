@@ -17,7 +17,7 @@ struct BlockPaletteView: View {
                         .resizable()
                         .frame(
                             width: 120,
-                            height: type == .repeatCount ? 60 : 30
+                            height: type.isContainer ? 60 : 30
                         )
                         .scaleEffect(0.85)
                         .gesture(
@@ -51,7 +51,7 @@ struct BlockPaletteView: View {
                                 }
                         )
                 }
-                .frame(height: type == .repeatCount ? 44 : 40)
+                .frame(height: type.isContainer ? 44 : 40)
             }
 
             Spacer()

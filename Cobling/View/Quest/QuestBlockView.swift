@@ -173,20 +173,18 @@ struct QuestBlockView: View {
             if dragManager.isDragging,
                let type = dragManager.draggingType {
 
-                // 반복문 고스트
-                if type == .repeatCount {
+                // 컨테이너면 전부 컨테이너 고스트로
+                if type.isContainer {
 
                     GhostContainerBlockView(
                         block: dragManager.draggingBlock
-                            ?? Block(type: .repeatCount),
+                            ?? Block(type: type),   // repeatCount 고정 ❌ -> type 그대로
                         position: dragManager.dragPosition
                     )
                     .ignoresSafeArea()
                     .zIndex(30)
 
-                }
-                // 일반 블록 고스트
-                else if let type = dragManager.draggingType {
+                } else {
 
                     GhostBlockView(
                         type: type,
