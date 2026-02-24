@@ -304,6 +304,14 @@ struct QuestBlockView: View {
                            let block = block,
                            dragManager.isOverContainer,                 // 반복문 위에 드롭
                            let target = dragManager.containerTargetBlock {
+                            
+                            // 컨테이너를 자기 자신/자기 자손 컨테이너 안으로 넣는 것 금지 (사이클 방지)
+                            if block.type.isContainer {
+                                if target.id == block.id { return } // 자기 자신에게 드롭
+                                if viewModel.isDescendant(target, of: block) { return } // 자기 자손에게 드롭
+                            }
+                            
+                            
 
                             // 1️⃣ 기존 위치에서 제거
                             if let parent = viewModel.findParentContainer(of: block) {
