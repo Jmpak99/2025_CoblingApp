@@ -74,6 +74,10 @@ final class QuestViewModel: ObservableObject {
     @Published private(set) var startPosition: (row: Int, col: Int) = (0, 0)
     @Published private(set) var goalPosition: (row: Int, col: Int) = (0, 0)
     @Published var allowedBlocks: [BlockType] = []
+    
+    // if 조건 옵션(스테이지별)
+    @Published var currentAllowedIfConditions: [IfCondition] = IfCondition.allCases
+    @Published var currentDefaultIfCondition: IfCondition = .frontIsClear
 
     private let db = Firestore.firestore()
 
@@ -151,6 +155,28 @@ final class QuestViewModel: ObservableObject {
             showSuccess()
         }
     }
+    
+    // SubQuest rules에서 if 조건 옵션/기본값을 ViewModel에 반영
+    private func applyIfRules(from subQuest: SubQuestDocument) {
+
+        // 1) 허용 조건 리스트 (없으면 전체 허용)
+        let allowedRaw = subQuest.rules.allowedIfConditions ?? []
+        let allowed = allowedRaw.compactMap { IfCondition(rawValue: $0) }
+
+        self.currentAllowedIfConditions = allowed.isEmpty ? IfCondition.allCases : allowed
+
+        // 2) 기본 조건 (없거나 잘못된 값이면 frontIsClear)
+        if let raw = subQuest.rules.defaultIfCondition,
+           let cond = IfCondition(rawValue: raw) {
+            self.currentDefaultIfCondition = cond
+        } else {
+            self.currentDefaultIfCondition = .frontIsClear
+        }
+
+        print("🟩 IF 룰 반영 완료",
+              "allowed:", self.currentAllowedIfConditions.map { $0.rawValue },
+              "default:", self.currentDefaultIfCondition.rawValue)
+    }
 
     // MARK: - Firestore에서 SubQuest 불러오기
     func fetchSubQuest(chapterId: String, subQuestId: String) {
@@ -198,6 +224,9 @@ final class QuestViewModel: ObservableObject {
 
                             // 허용 블록 반영
                             self.allowedBlocks = subQuest.rules.allowBlocks.compactMap { BlockType(rawValue: $0) }
+                            
+                            // if 조건 룰(allowed/default) 반영
+                            self.applyIfRules(from: subQuest)
 
                             print("✅ 불러온 서브퀘스트: \(subQuest.title)")
                             print("📦 허용 블록: \(self.allowedBlocks)")

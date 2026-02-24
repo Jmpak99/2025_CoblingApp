@@ -48,6 +48,25 @@ enum BlockType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum IfCondition: String, Codable, CaseIterable, Identifiable {
+    var id: String { rawValue }
+
+    case frontIsClear
+    case frontIsBlocked
+    case atFlag
+    case always
+
+    var label: String {
+        switch self {
+        case .frontIsClear: return "앞이 비어있으면"
+        case .frontIsBlocked: return "앞이 막혀있으면"
+        case .atFlag: return "깃발에 도착했으면"
+        case .always: return "항상"
+        }
+    }
+}
+
+
 class Block: Identifiable, ObservableObject, Equatable {
     static func == (lhs: Block, rhs: Block) -> Bool {
         lhs.id == rhs.id
@@ -55,16 +74,36 @@ class Block: Identifiable, ObservableObject, Equatable {
 
     let id = UUID()
     let type: BlockType
+    
+    // 공통: 컨테이너 기본 영역(Repeat, if(then)은 여기 사용)
     @Published var children: [Block] = []
+    
+    // ifElse 전용 else 영역 (if는 비워둬도 됨)
+    @Published var elseChildren: [Block] = []
+    
     weak var parent: Block?
+    
+    // repeatCount 등 값
     @Published var value: String?
+    
+    // if 조건값
+    @Published var condition: IfCondition = .frontIsClear
 
-    init(type: BlockType, value: String? = nil, children: [Block] = []) {
+    init(
+        type: BlockType,
+        value: String? = nil,
+        condition: IfCondition = .frontIsClear,
+        children: [Block] = [],
+        elseChildren: [Block] = []
+    ) {
         self.type = type
         self.value = value
+        self.condition = condition
+
         self.children = children
-        for child in children {
-            child.parent = self
-        }
+        self.elseChildren = elseChildren
+
+        for child in children { child.parent = self }
+        for child in elseChildren { child.parent = self }
     }
 }
