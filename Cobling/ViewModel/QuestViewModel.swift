@@ -449,6 +449,64 @@ final class QuestViewModel: ObservableObject {
             completion(.locked)
         }
     }
+    
+    // MARK: - IF 조건 판정
+    private func evaluateIfCondition(_ cond: IfCondition) -> Bool {
+        switch cond {
+
+        case .frontIsClear:
+            return isFrontClear()
+
+        case .frontIsBlocked:
+            return !isFrontClear()
+
+        case .enemyInFront:
+            return isEnemyInFront()
+
+        default:
+            return false
+        }
+    }
+
+    // MARK: - 앞칸이 이동 가능한지(벽/맵 범위 체크)
+    private func isFrontClear() -> Bool {
+        
+        guard !mapData.isEmpty, !mapData[0].isEmpty else { return false }
+        
+        let (r, c) = characterPosition
+        var nr = r
+        var nc = c
+
+        switch characterDirection {
+        case .up: nr -= 1
+        case .down: nr += 1
+        case .left: nc -= 1
+        case .right: nc += 1
+        }
+
+        // 범위
+        guard nr >= 0, nr < mapData.count,
+              nc >= 0, nc < mapData[0].count else { return false }
+
+        // 벽(0)인지
+        return mapData[nr][nc] != 0
+    }
+
+    // MARK: - 한 칸 앞에 적이 있는지
+    private func isEnemyInFront() -> Bool {
+        let (r, c) = characterPosition
+        var nr = r
+        var nc = c
+
+        switch characterDirection {
+        case .up: nr -= 1
+        case .down: nr += 1
+        case .left: nc -= 1
+        case .right: nc += 1
+        }
+
+        return enemies.contains { $0.row == nr && $0.col == nc }
+    }
 
     // MARK: - 블록 실행 시작
     func startExecution() {
@@ -599,6 +657,37 @@ final class QuestViewModel: ObservableObject {
             }
 
             runRepeat(repeatCount)
+            
+        case .if:
+            let condition = current.condition
+            let shouldRun = evaluateIfCondition(condition)
+
+            DispatchQueue.main.async {
+                self.currentExecutingBlockID = current.id
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+
+                if shouldRun {
+                    // 조건 true → 내부 블록 실행
+                    self.executeBlocks(current.children) {
+                        self.executeBlocks(
+                            blocks,
+                            index: index + 1,
+                            isTopLevel: isTopLevel,
+                            completion: completion
+                        )
+                    }
+                } else {
+                    // 조건 false → 스킵
+                    self.executeBlocks(
+                        blocks,
+                        index: index + 1,
+                        isTopLevel: isTopLevel,
+                        completion: completion
+                    )
+                }
+            }
 
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -1071,7 +1160,17 @@ final class QuestViewModel: ObservableObject {
 
     
     private func countUsedBlocks() -> Int {
-        return startBlock.children.count
+        func dfs(_ blocks: [Block]) -> Int {
+            var total = 0
+            for b in blocks {
+                total += 1
+                if b.type.isContainer {
+                    total += dfs(b.children)
+                }
+            }
+            return total
+        }
+        return dfs(startBlock.children)
     }
 
     // MARK: - 앞으로 이동

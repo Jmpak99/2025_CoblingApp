@@ -54,12 +54,14 @@ enum IfCondition: String, Codable, CaseIterable, Identifiable {
     case frontIsClear
     case frontIsBlocked
     case atFlag
+    case enemyInFront
     case always
 
     var label: String {
         switch self {
         case .frontIsClear: return "앞이 비어있으면"
         case .frontIsBlocked: return "앞이 막혀있으면"
+        case .enemyInFront: return "앞에 적이 있으면"
         case .atFlag: return "깃발에 도착했으면"
         case .always: return "항상"
         }
