@@ -12,6 +12,12 @@ struct SuccessDialogView: View {
     let characterStage: String
     var onRetry: () -> Void
     var onNext: () -> Void
+    
+    // QuestViewModel 접근 (아웃트로 트리거용)
+    @EnvironmentObject var viewModel: QuestViewModel
+
+    // 아웃트로 중복 호출 방지 플래그
+    @State private var didTriggerOutro: Bool = false
 
 
     // 게이지 애니메이션과 함께 레벨 텍스트도 같이 변하도록 상태로 분리
@@ -38,6 +44,21 @@ struct SuccessDialogView: View {
     // 레벨업 여부
     private var didLevelUp: Bool {
         reward.level > startLevel
+    }
+    
+    // "Next를 누르면 컷신(아웃트로)이 뜨는 상황" 판단용
+    // - 챕터 클리어면 Next 버튼을 눌렀을 때 아웃트로 컷신을 띄우는 UX
+    // - (보너스 exp가 0이어도) 챕터 클리어면 아웃트로를 띄우고 싶어서 분리
+    private var shouldShowOutroOnNext: Bool {
+        reward.isChapterCleared
+    }
+    
+    // Next 버튼 텍스트 UX
+    // - 챕터 클리어(=아웃트로 컷신이 뜸)일 때는 "다음(아웃트로)"
+    // - 그 외는 기존 "다음 퀘스트로"
+    private var nextButtonTitle: String {
+        if isAnimatingTwoStage { return "정산 중..." }
+        return shouldShowOutroOnNext ? "다음(아웃트로)" : "다음 퀘스트로"
     }
     
     // stage > 에셋 이름 매핑
@@ -113,7 +134,14 @@ struct SuccessDialogView: View {
                         },
                         onAllStagesFinished: {
                             isAnimatingTwoStage = false
+
+                            // 여기서는 아웃트로를 "자동 트리거" 하지 않습니다.
+                            // - 사용자가 원한 플로우:
+                            //   성공다이얼로그 → 게이지 끝 → "다음" 버튼 클릭 → 컷신(아웃트로)
+                            // - 그래서 아웃트로 트리거는 QuestBlockView의 onNext에서 처리합니다.
+                            // - (didTriggerOutro도 여기서는 사용하지 않아도 됩니다. 필요하면 완전히 제거 가능)
                         },
+
 
                         // 시작 상태를 받아 startLevel 세팅
                         onStartComputed: { sLevel, sExp, sMax in
@@ -190,7 +218,11 @@ struct SuccessDialogView: View {
                     }
 
                     Button(action: onNext) {
-                        Text(isAnimatingTwoStage ? "정산 중..." : "다음 퀘스트로")
+                        // Next 버튼 텍스트 UX 적용
+                        // - 정산 중: "정산 중..."
+                        // - 챕터 클리어(=아웃트로 컷신 뜸): "다음(아웃트로)"
+                        // - 일반: "다음 퀘스트로"
+                        Text(nextButtonTitle) // ✅ [수정]
                             .font(.pretendardMedium16)
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
@@ -211,6 +243,9 @@ struct SuccessDialogView: View {
             displayedLevel = reward.level
             isAnimatingTwoStage = shouldShowChapterBonusLine
             showChapterBonusStage = false
+            
+            // 새로 뜰 때마다 중복 방지 플래그 초기화
+            didTriggerOutro = false
 
             print(
                 "🟡 SuccessDialog reward 확인",
@@ -251,6 +286,8 @@ struct SuccessDialogView_Previews: PreviewProvider {
                 onRetry: {},
                 onNext: {}
             )
+            // Preview에서 EnvironmentObject 주입 필요
+            .environmentObject(QuestViewModel())
             .previewDisplayName("기본 클리어")
 
             // 🟡 2️⃣ 챕터 보너스 포함 (2단계 연출)
@@ -268,6 +305,7 @@ struct SuccessDialogView_Previews: PreviewProvider {
                 onRetry: {},
                 onNext: {}
             )
+            .environmentObject(QuestViewModel())
             .previewDisplayName("챕터 보너스 포함")
 
             // 🏆 3️⃣ 완벽 클리어 + 챕터 보너스
@@ -285,6 +323,7 @@ struct SuccessDialogView_Previews: PreviewProvider {
                 onRetry: {},
                 onNext: {}
             )
+            .environmentObject(QuestViewModel())
             .previewDisplayName("완벽 + 챕터 보너스")
         }
         .background(Color.gray.opacity(0.2))

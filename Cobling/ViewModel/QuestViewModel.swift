@@ -61,6 +61,11 @@ final class QuestViewModel: ObservableObject {
     // MARK: - Success Reward
     @Published var successReward: SuccessReward? = nil
     
+    // - QuestDetailView 최초 진입 시 intro 1회
+    // - 챕터 클리어 보상(2단 게이지) 끝난 뒤 outro 표시
+    @Published var isShowingCutscene: Bool = false
+    @Published var currentCutscene: ChapterCutscene? = nil
+    
     // 보상 정산 중 오버레이 표시 여부
     @Published var isRewardLoading: Bool = false
     @Published var showRewardDelayAlert: Bool = false
@@ -133,6 +138,69 @@ final class QuestViewModel: ObservableObject {
         // ▶️ 로딩 오버레이도 초기화
         isRewardLoading = false
         rewardLoadingStartedAt = nil
+    }
+    
+    // Chapter Cutscene Control
+    // - intro: QuestDetailView 최초 진입에서 호출
+    // - outro: 챕터 보상(2단 게이지) 끝난 뒤 호출
+    func presentIntroIfNeeded(chapterId: String) {
+        if LocalStorageManager.isCutsceneShown(chapterId: chapterId, type: .intro) {
+            return
+        }
+
+        // ChapterDialogueStore에서 라인 가져오기
+        let lines = ChapterDialogueStore.lines(chapterId: chapterId, type: .intro)
+
+        // ChapterCutscene로 감싸기 (lines 비어있을 때 방어)
+        guard !lines.isEmpty else { return }
+
+        let cutscene = ChapterCutscene(
+            chapterId: chapterId,
+            type: .intro,
+            lines: lines
+        )
+
+        DispatchQueue.main.async {
+            self.currentCutscene = cutscene
+            self.isShowingCutscene = true
+        }
+    }
+    
+    /// 정책 : 챕터 클리어 보상(2단 게이지) 끝난 뒤 호출
+    func presentOutroAfterChapterReward(chapterId: String) {
+        if LocalStorageManager.isCutsceneShown(chapterId: chapterId, type: .outro) {
+            return
+        }
+
+        // ChapterDialogueStore에서 라인 가져오기
+        let lines = ChapterDialogueStore.lines(chapterId: chapterId, type: .outro)
+
+        guard !lines.isEmpty else { return }
+
+        let cutscene = ChapterCutscene(
+            chapterId: chapterId,
+            type: .outro,
+            lines: lines
+        )
+
+        DispatchQueue.main.async {
+            self.currentCutscene = cutscene
+            self.isShowingCutscene = true
+        }
+    }
+
+    func dismissCutsceneAndMarkShown() {
+        guard let cutscene = currentCutscene else {
+            isShowingCutscene = false
+            return
+        }
+
+        LocalStorageManager.setCutsceneShown(chapterId: cutscene.chapterId, type: cutscene.type)
+
+        DispatchQueue.main.async {
+            self.isShowingCutscene = false
+            self.currentCutscene = nil
+        }
     }
     
     // 보상 정산 로딩 시작 (오버레이 ON)
@@ -1056,7 +1124,7 @@ final class QuestViewModel: ObservableObject {
                                 return
                             }
 
-                            // ✅ [추가] (핵심) 보너스가 users에 반영될 때까지 "한 번 더" users 업데이트를 기다림
+                            // 보너스가 users에 반영될 때까지 "한 번 더" users 업데이트를 기다림
                             self.waitForUserUpdate(
                                 userRef: userRef,
                                 previousLevel: afterSubquestLevel,
@@ -1085,7 +1153,7 @@ final class QuestViewModel: ObservableObject {
                                 onTimeout: { [weak self] in
                                     guard let self else { return }
 
-                                    // ✅ [추가] users 반영이 늦으면 로컬 계산으로 보정(안전망)
+                                    // users 반영이 늦으면 로컬 계산으로 보정(안전망)
                                     let applied = self.applyGainLocally(
                                         level: afterSubquestLevel,
                                         exp: afterSubquestExp,

@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct QuestBlockView: View {
-    // MARK: - 전달받는 값 (고정)
+    // MARK: - 전달받는 값
     let chapterId: String
     let subQuestId: String
 
@@ -31,6 +31,12 @@ struct QuestBlockView: View {
     @State private var waitingRetryCount = 0
     @State private var showWaitingAlert = false
     @State private var showLockedAlert = false
+    
+    // "아웃트로 컷신 닫힌 뒤" 다음 퀘스트로 이어가기 플래그
+    // - 성공다이얼로그에서 Next를 눌렀을 때 챕터 클리어라면 컷신을 먼저 띄우고
+    // - 컷신이 닫히는 순간(onChange) tryGoNextHandlingWaiting()를 호출하기 위한 예약값
+    @State private var shouldGoNextAfterCutscene: Bool = false
+
 
     // MARK: - 삭제 영역 판별
     private func isOverPalette() -> Bool {
@@ -178,7 +184,7 @@ struct QuestBlockView: View {
 
                     GhostContainerBlockView(
                         block: dragManager.draggingBlock
-                            ?? Block(type: type),   // repeatCount 고정 ❌ -> type 그대로
+                            ?? Block(type: type),
                         position: dragManager.dragPosition
                     )
                     .ignoresSafeArea()
@@ -232,6 +238,16 @@ struct QuestBlockView: View {
                             viewModel.showSuccessDialog = false
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+
+                            // 챕터 클리어면: "다음" 클릭 시 아웃트로 컷신을 먼저 띄움
+                            // - 컷신이 닫히는 순간에 tryGoNextHandlingWaiting()가 실행되도록 예약 플래그를 세팅
+                            if reward.isChapterCleared {
+                                shouldGoNextAfterCutscene = true
+                                viewModel.presentOutroAfterChapterReward(chapterId: viewModel.currentChapterId)
+                                return
+                            }
+
+                            // 기존: 일반 케이스는 바로 다음 퀘스트로 이동
                             waitingRetryCount = 0
                             isWaitingOverlay = true
                             tryGoNextHandlingWaiting()
@@ -240,9 +256,38 @@ struct QuestBlockView: View {
                 )
                 .zIndex(40)
             }
+            
+            // =================================================
+            // Chapter Cutscene Overlay (Intro / Outro)
+            // - QuestViewModel의 isShowingCutscene / currentCutscene를 실제로 화면에 띄우는 오버레이
+            // - SuccessDialogView(40)보다 위에 떠야 하므로 zIndex를 더 크게 설정
+            // =================================================
+            if viewModel.isShowingCutscene,
+               let cutscene = viewModel.currentCutscene {
+
+                ChapterCutsceneView(
+                    cutscene: cutscene,
+                    onClose: {
+                        viewModel.dismissCutsceneAndMarkShown()
+                    }
+                )
+                .zIndex(60) // SuccessDialog(40)보다 위
+            }
         }
         .environmentObject(dragManager)
         .environmentObject(viewModel)
+        
+        // 컷신이 "닫히는 순간" 감지해서, 예약된 경우에만 다음 퀘스트 이동 실행
+        // - SuccessDialogView -> Next(아웃트로) -> 컷신 -> "계속하기" -> dismissCutsceneAndMarkShown()
+        // - dismiss되면 isShowingCutscene = false 로 바뀌고 여기서 트리거됨
+        .onChange(of: viewModel.isShowingCutscene) { isShowing in
+            if !isShowing, shouldGoNextAfterCutscene {
+                shouldGoNextAfterCutscene = false
+                waitingRetryCount = 0
+                isWaitingOverlay = true
+                tryGoNextHandlingWaiting()
+            }
+        }
 
         // =================================================
         // 드래그 종료 처리 (유일한 진입점)
