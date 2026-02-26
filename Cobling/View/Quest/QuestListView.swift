@@ -36,7 +36,7 @@ enum QuestStatus {
 // MARK: - ViewModel (Firestore 데이터 로드)
 @MainActor
 final class QuestListViewModel: ObservableObject {
-    @Published var quests: [(QuestDocument, QuestStatus)] = []
+    @Published var quests: [(QuestDocument, QuestStatus, Bool)] = []
     @Published var isLoading = true
     @Published var errorMessage: String?
 
@@ -55,7 +55,7 @@ final class QuestListViewModel: ObservableObject {
                 .order(by: "order")
                 .getDocuments()
 
-            var results: [(QuestDocument, QuestStatus)] = []
+            var results: [(QuestDocument, QuestStatus, Bool)] = []
 
             for doc in questSnap.documents {
                 let data = doc.data()
@@ -76,7 +76,14 @@ final class QuestListViewModel: ObservableObject {
                     .document(doc.documentID) // chapterId
 
                 let subSnap = try await progressRef.collection("subQuests").getDocuments()
-                let states = subSnap.documents.map { $0.data()["state"] as? String ?? "locked" }
+                let states: [String] = subSnap.documents.map {
+                    ($0.data()["state"] as? String ?? "locked")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                
+                let perfectFlags: [Bool] = subSnap.documents.map {
+                                    $0.data()["perfectClear"] as? Bool ?? false
+                }
 
                 // 3) 상태 집계
                 let status: QuestStatus
@@ -88,7 +95,16 @@ final class QuestListViewModel: ObservableObject {
                     status = .locked
                 }
 
-                results.append((quest, status))
+                // 챕터 퍼펙트 판정
+                // 조건:
+                // 1. 전부 completed
+                // 2. 전부 perfectClear == true
+                let isPerfectChapter =
+                    (status == .completed) &&
+                    (!perfectFlags.isEmpty) &&
+                    perfectFlags.allSatisfy { $0 == true }
+
+                results.append((quest, status, isPerfectChapter))
             }
 
             self.quests = results
@@ -125,10 +141,11 @@ struct QuestListView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 20) {
-                        ForEach(viewModel.quests, id: \.0.id) { (quest, status) in
+                        ForEach(viewModel.quests, id: \.0.id) { (quest, status, isPerfect) in
                             QuestCardWrapper_DB(
                                 quest: quest,
                                 status: status,
+                                isPerfectChapter: isPerfect,
                                 showLockedAlert: $showLockedAlert
                             )
                         }
@@ -158,6 +175,9 @@ struct QuestListView: View {
 struct QuestCardWrapper_DB: View {
     let quest: QuestDocument
     let status: QuestStatus
+    
+    let isPerfectChapter: Bool
+    
     @Binding var showLockedAlert: Bool
 
     var body: some View {
@@ -167,7 +187,8 @@ struct QuestCardWrapper_DB: View {
             QuestCardView_DB(
                 title: quest.title,
                 subtitle: quest.subtitle,
-                status: status
+                status: status,
+                isPerfectChapter: isPerfectChapter
             )
         }
         .frame(width: 335, height: 220)
@@ -194,6 +215,15 @@ struct QuestCardView_DB: View {
     let title: String
     let subtitle: String
     let status: QuestStatus
+    
+    let isPerfectChapter: Bool
+    
+    private var statusIconName: String {
+        if status == .completed && isPerfectChapter {
+            return "icon_perfectClear"   // 챕터 퍼펙트
+        }
+        return status.iconName          // 기존 로직 유지
+    }
 
     var body: some View {
         ZStack {
@@ -217,7 +247,7 @@ struct QuestCardView_DB: View {
 
                         Spacer()
 
-                        Image(status.iconName)
+                        Image(statusIconName)
                             .resizable()
                             .frame(
                                 width: status == .inProgress ? 83 : 70,
