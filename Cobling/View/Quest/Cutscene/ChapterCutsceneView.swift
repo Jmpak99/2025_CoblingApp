@@ -1,5 +1,5 @@
 //
-//  ChapterIntroView.swift
+//  ChapterCutsceneView.swift
 //  Cobling
 //
 //  Created by 박종민 on 2/26/26.
@@ -10,6 +10,8 @@ import SwiftUI
 struct ChapterCutsceneView: View {
     let cutscene: ChapterCutscene
     let onClose: () -> Void
+    
+    @EnvironmentObject var authVM: AuthViewModel
 
     @State private var index: Int = 0
 
@@ -20,25 +22,47 @@ struct ChapterCutsceneView: View {
     private var isLast: Bool {
         index >= cutscene.lines.count - 1
     }
+    
+    // 현재 유저 stage 기반 cobling 에셋 이름
+    // 우선순위:
+    // 1) userProfile.character.stage가 유효하면 무조건 그걸 사용
+    // 2) stage가 비정상/없으면 cutscene.coblingAssetName fallback
+    // 3) 그것도 없으면 egg
+    private var resolvedCoblingAssetName: String {
+        let stage = (authVM.userProfile?.character.stage ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
 
-    // ✅ 배경 페이드 인
+        let allowed: Set<String> = ["egg", "kid", "cobling", "legend"]
+        if allowed.contains(stage) {
+            return "cobling_stage_\(stage)"
+        }
+
+        if let fromCutscene = cutscene.coblingAssetName, !fromCutscene.isEmpty {
+            return fromCutscene
+        }
+
+        return "cobling_stage_egg"
+    }
+
+    // 배경 페이드 인
     @State private var backgroundOpacity: Double = 0.0
 
-    // ✅ 캐릭터 등장 애니메이션(슬라이드+페이드)
+    // 캐릭터 등장 애니메이션(슬라이드+페이드)
     @State private var leftCharacterOffsetX: CGFloat = -90
     @State private var rightCharacterOffsetX: CGFloat = 90
     @State private var charactersOpacity: Double = 0.0
 
-    // ✅ 말풍선 타이핑 효과 상태
+    // 말풍선 타이핑 효과 상태
     @State private var displayedText: String = ""
     @State private var isTyping: Bool = false
     @State private var typingTask: Task<Void, Never>? = nil
 
-    // ✅ 타이핑 속도
+    // 타이핑 속도
     private let typingInterval: UInt64 = 28_000_000 // 0.028s
     
     private func visualScale(for assetName: String) -> CGFloat {
-        // ✅ 에셋마다 투명 여백/비율이 달라서 보이는 크기를 맞추기 위한 보정값
+        // 에셋마다 투명 여백/비율이 달라서 보이는 크기를 맞추기 위한 보정값
         // - 처음엔 기본 1.0으로 두고, 눈으로 보면서 조금씩 조절하면 됩니다.
         switch assetName {
         case "cobling_stage_egg":
@@ -46,7 +70,7 @@ struct ChapterCutsceneView: View {
         case "spirit_forest":
             return 1.00
 
-        // 🔥 나중에 stage가 늘어나면 여기만 추가
+        // 나중에 stage가 늘어나면 여기만 추가
         case "cobling_stage_kid":
             return 0.94
         case "cobling_stage_cobling":
@@ -65,13 +89,13 @@ struct ChapterCutsceneView: View {
             let w = geo.size.width
             let h = geo.size.height
 
-            // ✅ 캐릭터 높이: 세로 기준 비율 고정
+            // 캐릭터 높이: 세로 기준 비율 고정
             let characterHeight = h * 0.28
 
-            // ✅ 대사 박스가 차지하는 하단 안전 높이(겹침 방지)
+            // 대사 박스가 차지하는 하단 안전 높이(겹침 방지)
             // 🔥 더 위로 올리고 싶으면 값을 "더 크게" 하시면 됩니다.
-            let dialogueBottomPadding: CGFloat = 130   // ✅ 기존 24 → 60 (대사 박스 자체를 더 위로)
-            let dialogueReservedHeight: CGFloat = 300 // ✅ 기존 140 → 190 (캐릭터/배경을 더 위로)
+            let dialogueBottomPadding: CGFloat = 130   // (대사 박스 자체를 더 위로)
+            let dialogueReservedHeight: CGFloat = 300 // (캐릭터/배경을 더 위로)
 
             ZStack {
                 // MARK: - Background
@@ -97,7 +121,7 @@ struct ChapterCutsceneView: View {
                     HStack(alignment: .bottom) {
                         // Left: Cobling
                         characterImage(
-                            assetName: cutscene.coblingAssetName ?? "cobling_stage_egg",
+                            assetName: resolvedCoblingAssetName,
                             isActive: currentLine.speaker == .cobling,
                             isLeft: true
                         )
@@ -271,7 +295,7 @@ private struct CutsceneDialogueBox: View {
                 .font(.pretendardBold18) // ✅ 약간 키움
                 .opacity(0.95)
 
-            // ✅ [수정] 대사 폰트/크기 업 + 라인 간격 업
+            // 대사 폰트/크기 업 + 라인 간격 업
             Text(text)
                 .font(.pretendardMedium18)
                 .lineSpacing(6)
