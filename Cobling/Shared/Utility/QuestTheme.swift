@@ -12,12 +12,12 @@ enum QuestTheme {
     // MARK: - 챕터 컬러 팔레트
     // 👉 챕터 수가 늘어나면 자동 순환
     private static let palette: [Color] = [
-        Color(hex: "#FFEEEF"), // 핑크
-        Color(hex: "#F3E8FF"), // 퍼플
-        Color(hex: "#E3EDFB"), // 블루
-        Color(hex: "#E8F6F3"), // 민트
-        Color(hex: "#FFF1DB"), // 베이지
-        Color(hex: "#FFF4E6"), // 오렌지
+        Color(hex: "#FFEEEF"), // 1챕터 핑크  // 기본 이동
+        Color(hex: "#F3E8FF"), // 2챕터 퍼플. // 공격
+        Color(hex: "#E3EDFB"), // 3챕터 블루. // repeatCount
+        Color(hex: "#DFF6E8"), // 4챕터 초록. // if
+        Color(hex: "#FFF1DB"), // 5챕터 베이지 // 공격 + repeatCount
+        Color(hex: "#FFF4E6"), // 6챕터 오렌지 // 공격 + 계속 반복
     ]
 
     // MARK: - 챕터 기준 색상
