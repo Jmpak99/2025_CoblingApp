@@ -20,10 +20,38 @@ struct SubQuest: Identifiable {
     let title: String
     let description: String
     let state: SubQuestState
-    
+
     // UI전용 : 퍼펙트 클리어 여부
     let perfectClear: Bool
+
+    // 1서브퀘스트(챕터 첫 진입) 판별용 order
+    let order: Int
 }
+
+// 챕터 컷씬 데이터 제공자 (Dialogue.swift의 DialogueLine/DialogueSpeaker 사용)
+private enum ChapterCutsceneProvider {
+
+    // 챕터별 배경 에셋
+    static func backgroundAssetName(chapterId: String) -> String? {
+        switch chapterId.lowercased() {
+        case "ch1": return "bg_ch1_intro"
+        default: return nil
+        }
+    }
+
+    // QuestDetail에서 띄울 cutscene 생성 (intro 전용)
+    static func introCutscene(chapterId: String) -> ChapterCutscene {
+        ChapterCutscene(
+            chapterId: chapterId,
+            type: .intro,
+            lines: ChapterDialogueStore.lines(chapterId: chapterId, type: .intro), // Store에서 가져오기
+            backgroundAssetName: backgroundAssetName(chapterId: chapterId),
+            coblingAssetName: "cobling_stage_egg",
+            spiritAssetName: "spirit_forest"
+        )
+    }
+}
+
 
 // MARK: - QuestDetailView
 struct QuestDetailView: View {
@@ -44,12 +72,15 @@ struct QuestDetailView: View {
     // nil이면 리스트 화면
     @State private var currentSubQuestId: String? = nil
     @State private var showLockedAlert = false
-    
+
+    // 인트로를 거쳐서 진입하기 위한 대기값
+    @State private var pendingSubQuestId: String? = nil
+
+    // fullScreenCover로 컷씬 표시 여부
+    @State private var showChapterCutscene: Bool = false
+
     var body: some View {
         ZStack {
-            
-            //QuestTheme.backgroundColor(order: chapter.order)
-                        //.ignoresSafeArea()
 
             // =================================================
             // 📋 서브퀘스트 리스트 화면
@@ -106,21 +137,14 @@ struct QuestDetailView: View {
             // =================================================
             if let subQuestId = currentSubQuestId {
 
-                // ❗️ push ❌
-                // ❗️ QuestDetailView 위에 overlay로 단 하나만 존재
                 QuestBlockView(
                     chapterId: chapter.id,
                     subQuestId: subQuestId,
 
-                    // ✅ 다음 서브퀘스트로 이동
-                    // → QuestBlockView가 직접 이동하지 않고
-                    // → 상태 변경 요청만 함
                     onGoNextSubQuest: { nextId in
                         currentSubQuestId = nextId
                     },
 
-                    // ✅ 나가기
-                    // → 즉시 리스트 화면으로 복귀
                     onExitToList: {
                         currentSubQuestId = nil
                         dismiss()
@@ -128,6 +152,34 @@ struct QuestDetailView: View {
                 )
                 .zIndex(10)
                 .transition(.move(edge: .trailing))
+            }
+        }
+
+        // =================================================
+        // "진짜 전체화면" 챕터 컷씬 (탭바 완전 차단 + 배경 전체 덮기)
+        // =================================================
+        .fullScreenCover(isPresented: $showChapterCutscene) {
+            ChapterCutsceneView(
+                cutscene: ChapterCutsceneProvider.introCutscene(chapterId: chapter.id), // Store 기반 provider로 통일
+                onClose: {
+                    // 인트로 1회 표시 처리(UserDefaults → LocalStorageManager로 통일)
+                    LocalStorageManager.setCutsceneShown(chapterId: chapter.id, type: .intro)
+
+                    // 컷씬 종료 후 실제 진입
+                    if let target = pendingSubQuestId {
+                        currentSubQuestId = target
+                    }
+                    pendingSubQuestId = nil
+                    showChapterCutscene = false
+
+                    // 컷씬 닫히고 게임 들어가면 탭바 계속 숨김 유지(QuestBlockView에서 이미 숨김 처리 가능)
+                    tabBarViewModel.isTabBarVisible = false
+                }
+            )
+            .ignoresSafeArea()
+            .onAppear {
+                // 탭바 완전 차단
+                tabBarViewModel.isTabBarVisible = false
             }
         }
 
@@ -144,10 +196,10 @@ struct QuestDetailView: View {
         .onAppear {
             loadSubQuests()
 
-            // 🔥 리스트 화면에서는 탭바 노출
+            // 리스트 화면에서는 탭바 노출
+            // (게임 진입 시 QuestBlockView에서 숨김 처리 중)
             tabBarViewModel.isTabBarVisible = true
         }
-
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -179,8 +231,16 @@ struct QuestDetailView: View {
             return
         }
 
-        // 🔥 NavigationLink ❌
-        // 🔥 상태 변경 ⭕️
+        // 첫 서브퀘스트 + 인트로 미시청이면 -> fullScreenCover 컷씬부터
+        // UserDefaults 기반 → LocalStorageManager 기반으로 통일
+        let didShowIntro = LocalStorageManager.isCutsceneShown(chapterId: chapter.id, type: .intro)
+        if quest.order == 1 && !didShowIntro {
+            pendingSubQuestId = quest.id
+            showChapterCutscene = true
+            return
+        }
+
+        // 바로 게임 진입
         currentSubQuestId = quest.id
     }
 
@@ -205,12 +265,17 @@ struct QuestDetailView: View {
 
                 let baseSubQuests: [SubQuest] = snapshot?.documents.compactMap { doc in
                     let data = doc.data()
+
+                    // order 로드 (Int/Double 안전 처리)
+                    let order = data["order"] as? Int ?? Int(data["order"] as? Double ?? 9999)
+
                     return SubQuest(
                         id: doc.documentID,
                         title: data["title"] as? String ?? "",
                         description: data["description"] as? String ?? "",
                         state: .locked,
-                        perfectClear: false
+                        perfectClear: false,
+                        order: order
                     )
                 } ?? []
 
@@ -259,7 +324,8 @@ struct QuestDetailView: View {
                                 title: sq.title,
                                 description: sq.description,
                                 state: state,
-                                perfectClear: perfectClear
+                                perfectClear: perfectClear,
+                                order: sq.order
                             )
                         }
 
@@ -274,31 +340,31 @@ struct SubQuestCard: View {
     let subQuest: SubQuest
     let backgroundColor: Color
     let onTap: () -> Void
-    
+
     var body: some View {
         Button(action: onTap) {
             ZStack {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 80)
-                    
+
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color.white)
                             .frame(width: 355, height: 60)
-                        
+
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(subQuest.title)
                                     .font(.gmarketBold16)
                                     .foregroundColor(.black)
-                                
+
                                 Text(subQuest.description)
                                     .font(.pretendardRegular14)
                                     .foregroundColor(.gray)
                             }
-                            
+
                             Spacer()
-                            
+
                             Image(statusIconName)
                                 .resizable()
                                 .frame(width: subQuest.state == .inProgress ? 83 : 70,
@@ -316,14 +382,14 @@ struct SubQuestCard: View {
         }
         .buttonStyle(PlainButtonStyle())
     }
-    
+
     private var statusIconName: String {
-        
+
         // 퍼펙트 클리어면 icon_perfectClear
         if subQuest.state == .completed && subQuest.perfectClear {
             return "icon_perfectClear"
         }
-        
+
         switch subQuest.state {
         case .completed: return "icon_completed"
         case .inProgress: return "icon_inProgress"
@@ -349,4 +415,3 @@ struct QuestDetailView_Previews: PreviewProvider {
         }
     }
 }
-
