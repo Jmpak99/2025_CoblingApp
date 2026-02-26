@@ -239,15 +239,34 @@ struct QuestBlockView: View {
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
 
-                            // 챕터 클리어면: "다음" 클릭 시 아웃트로 컷신을 먼저 띄움
-                            // - 컷신이 닫히는 순간에 tryGoNextHandlingWaiting()가 실행되도록 예약 플래그를 세팅
+                            // 챕터 클리어 케이스
                             if reward.isChapterCleared {
+
+                                // 1) 아웃트로를 이미 봤으면 → 바로 다음으로
+                                if viewModel.wasOutroShown(chapterId: viewModel.currentChapterId) {
+                                    waitingRetryCount = 0
+                                    isWaitingOverlay = true
+                                    tryGoNextHandlingWaiting()
+                                    return
+                                }
+
+                                // 2) 아직 안 봤으면 → 컷신 띄우고, 닫힐 때 다음으로
                                 shouldGoNextAfterCutscene = true
                                 viewModel.presentOutroAfterChapterReward(chapterId: viewModel.currentChapterId)
+
+                                // 안전장치: 혹시 VM이 컷신을 안 띄우는 경우(=isShowingCutscene 변화 없음) 바로 진행
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                    if shouldGoNextAfterCutscene, viewModel.isShowingCutscene == false {
+                                        shouldGoNextAfterCutscene = false
+                                        waitingRetryCount = 0
+                                        isWaitingOverlay = true
+                                        tryGoNextHandlingWaiting()
+                                    }
+                                }
                                 return
                             }
 
-                            // 기존: 일반 케이스는 바로 다음 퀘스트로 이동
+                            // 일반 케이스
                             waitingRetryCount = 0
                             isWaitingOverlay = true
                             tryGoNextHandlingWaiting()

@@ -140,6 +140,19 @@ final class QuestViewModel: ObservableObject {
         rewardLoadingStartedAt = nil
     }
     
+    // =================================================
+    // 컷신(인트로/아웃트로) "봤는지" 조회용 헬퍼
+    // - QuestBlockView / SuccessDialogView에서 분기 처리할 때 사용
+    // - LocalStorageManager 로직을 그대로 노출만 함
+    // =================================================
+    func wasCutsceneShown(chapterId: String, type: ChapterCutsceneType) -> Bool {
+        LocalStorageManager.isCutsceneShown(chapterId: chapterId, type: type)
+    }
+
+    func wasOutroShown(chapterId: String) -> Bool {
+        LocalStorageManager.isCutsceneShown(chapterId: chapterId, type: .outro)
+    }
+    
     // Chapter Cutscene Control
     // - intro: QuestDetailView 최초 진입에서 호출
     // - outro: 챕터 보상(2단 게이지) 끝난 뒤 호출
