@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct QuestBlockView: View {
     // MARK: - 전달받는 값
@@ -33,9 +34,27 @@ struct QuestBlockView: View {
     @State private var showLockedAlert = false
     
     // "아웃트로 컷신 닫힌 뒤" 다음 퀘스트로 이어가기 플래그
-    // - 성공다이얼로그에서 Next를 눌렀을 때 챕터 클리어라면 컷신을 먼저 띄우고
-    // - 컷신이 닫히는 순간(onChange) tryGoNextHandlingWaiting()를 호출하기 위한 예약값
     @State private var shouldGoNextAfterCutscene: Bool = false
+
+    // - SuccessDialogView -> (진화 조건이면) EvolutionView -> (챕터클리어면) Outro Cutscene -> Next
+    @State private var showEvolution: Bool = false
+    @State private var evolutionReachedLevel: Int = 0
+    @State private var shouldGoNextAfterFlow: Bool = false
+    @State private var shouldShowOutroAfterEvolution: Bool = false
+
+    // rewardSettled 대기 리스너(중복 방지)
+    @State private var rewardSettledListener: ListenerRegistration? = nil
+    @State private var isWaitingRewardSettled: Bool = false
+
+    // MARK: - 진화 필요 여부/레벨 추출
+    // 서버 필드명에 맞게 evolutionLevel 사용
+    private var pendingEvolutionLevel: Int? {
+        let pending = authViewModel.userProfile?.character.evolutionPending ?? false
+        if !pending { return nil }
+
+        let lv = authViewModel.userProfile?.character.evolutionLevel ?? 0
+        return [5, 10, 15].contains(lv) ? lv : nil
+    }
 
 
     // MARK: - 삭제 영역 판별
@@ -238,48 +257,50 @@ struct QuestBlockView: View {
                             viewModel.showSuccessDialog = false
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-
-                            // 챕터 클리어 케이스
-                            if reward.isChapterCleared {
-
-                                // 1) 아웃트로를 이미 봤으면 → 바로 다음으로
-                                if viewModel.wasOutroShown(chapterId: viewModel.currentChapterId) {
-                                    waitingRetryCount = 0
-                                    isWaitingOverlay = true
-                                    tryGoNextHandlingWaiting()
-                                    return
-                                }
-
-                                // 2) 아직 안 봤으면 → 컷신 띄우고, 닫힐 때 다음으로
-                                shouldGoNextAfterCutscene = true
-                                viewModel.presentOutroAfterChapterReward(chapterId: viewModel.currentChapterId)
-
-                                // 안전장치: 혹시 VM이 컷신을 안 띄우는 경우(=isShowingCutscene 변화 없음) 바로 진행
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                    if shouldGoNextAfterCutscene, viewModel.isShowingCutscene == false {
-                                        shouldGoNextAfterCutscene = false
-                                        waitingRetryCount = 0
-                                        isWaitingOverlay = true
-                                        tryGoNextHandlingWaiting()
-                                    }
-                                }
-                                return
-                            }
-
-                            // 일반 케이스
-                            waitingRetryCount = 0
-                            isWaitingOverlay = true
-                            tryGoNextHandlingWaiting()
+                            // Next 플로우를 함수로 분리
+                            // - SuccessDialog -> Evolution(조건) -> Outro(챕터클리어) -> Next
+                            handleNextFlowAfterSuccessWithSettlementGate(reward: reward)
                         }
                     }
                 )
                 .zIndex(40)
             }
             
+            // Evolution Overlay
+            // - SuccessDialogView 이후, 진화 조건이면 여기 먼저 띄움
+            // - "진화 완료" 시 onCompleted에서 다음 단계(컷신/다음퀘)로 이어짐
+            if showEvolution {
+                EvolutionView(
+                    reachedLevel: evolutionReachedLevel,
+                    onCompleted: {
+                        showEvolution = false
+
+                        Task { @MainActor in
+                            await authViewModel.completeEvolutionIfNeeded()
+                            
+                            // 진화 후 아웃트로 예약이면 컷신부터
+                            if shouldShowOutroAfterEvolution {
+                                shouldShowOutroAfterEvolution = false
+                                shouldGoNextAfterCutscene = true
+                                viewModel.presentOutroAfterChapterReward(chapterId: viewModel.currentChapterId)
+                                return
+                            }
+
+                            // 컷신 없으면 다음 퀘스트/리스트로
+                            if shouldGoNextAfterFlow {
+                                shouldGoNextAfterFlow = false
+                                waitingRetryCount = 0
+                                isWaitingOverlay = true
+                                tryGoNextHandlingWaiting()
+                            }
+                        }
+                    }
+                )
+                .zIndex(70)
+            }
+            
             // =================================================
             // Chapter Cutscene Overlay (Intro / Outro)
-            // - QuestViewModel의 isShowingCutscene / currentCutscene를 실제로 화면에 띄우는 오버레이
-            // - SuccessDialogView(40)보다 위에 떠야 하므로 zIndex를 더 크게 설정
             // =================================================
             if viewModel.isShowingCutscene,
                let cutscene = viewModel.currentCutscene {
@@ -290,15 +311,13 @@ struct QuestBlockView: View {
                         viewModel.dismissCutsceneAndMarkShown()
                     }
                 )
-                .zIndex(60) // SuccessDialog(40)보다 위
+                .zIndex(60)
             }
         }
         .environmentObject(dragManager)
         .environmentObject(viewModel)
         
-        // 컷신이 "닫히는 순간" 감지해서, 예약된 경우에만 다음 퀘스트 이동 실행
-        // - SuccessDialogView -> Next(아웃트로) -> 컷신 -> "계속하기" -> dismissCutsceneAndMarkShown()
-        // - dismiss되면 isShowingCutscene = false 로 바뀌고 여기서 트리거됨
+        // 컷신 닫히는 순간 감지 -> 예약된 경우에만 다음 진행
         .onChange(of: viewModel.isShowingCutscene) { isShowing in
             if !isShowing, shouldGoNextAfterCutscene {
                 shouldGoNextAfterCutscene = false
@@ -307,6 +326,7 @@ struct QuestBlockView: View {
                 tryGoNextHandlingWaiting()
             }
         }
+
 
         // =================================================
         // 드래그 종료 처리 (유일한 진입점)
@@ -496,8 +516,158 @@ struct QuestBlockView: View {
         .navigationBarBackButtonHidden(true)
         .ignoresSafeArea(.all, edges: .top)
         
-        
+        // 뷰 사라질 때 리스너 정리
+        .onDisappear {
+            rewardSettledListener?.remove()
+            rewardSettledListener = nil
+        }
     }
+    
+    //  Next 플로우: rewardSettled 게이트 추가
+    private func handleNextFlowAfterSuccessWithSettlementGate(reward: SuccessReward) {
+        // 이미 대기 중이면 중복 방지
+        if isWaitingRewardSettled { return }
+
+        isWaitingRewardSettled = true
+        isWaitingOverlay = true // rewardSettled 대기 중에도 사용자에게 “대기중”을 보여주기 위해 ON
+
+
+        // 서버가 rewardSettled를 progress 문서에 찍을 때까지 대기
+        waitForRewardSettled(chapterId: chapterId, subQuestId: subQuestId, timeout: 6.0) { settled in
+            DispatchQueue.main.async {
+                isWaitingRewardSettled = false
+                isWaitingOverlay = false // 대기 종료 시 OFF (성공/실패 공통)
+
+
+                if !settled {
+                    // 타임아웃이면 알럿(이미 보유하신 showRewardDelayAlert 재사용)
+                    viewModel.showRewardDelayAlert = true
+                    return
+                }
+
+                // settled 이후 유저 프로필 새로고침
+                // - evolutionPending/evolutionLevel 값이 최신이 되어야 함
+                Task { @MainActor in
+                    await authViewModel.refreshUserProfileIfNeeded() // async 보장(await)
+                    handleNextFlowAfterSuccess(reward: reward)
+                }
+            }
+        }
+    }
+
+    // rewardSettled 대기 (subQuest progress 문서 리스너)
+    private func waitForRewardSettled(
+        chapterId: String,
+        subQuestId: String,
+        timeout: TimeInterval,
+        completion: @escaping (Bool) -> Void
+    ) {
+        rewardSettledListener?.remove()
+        rewardSettledListener = nil
+
+        let db = Firestore.firestore()
+        let uid = authViewModel.currentUserId // userProfile.id(nil 가능) 대신 “진짜 uid”를 확실히 사용
+        if uid.isEmpty {
+            completion(false)
+            return
+        }
+
+        let ref = db
+            .collection("users")
+            .document(uid)
+            .collection("progress")
+            .document(chapterId)
+            .collection("subQuests")
+            .document(subQuestId)
+
+        var didFinish = false
+
+        // 타임아웃
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+            if didFinish { return }
+            didFinish = true
+            rewardSettledListener?.remove()
+            rewardSettledListener = nil
+            completion(false)
+        }
+
+        rewardSettledListener = ref.addSnapshotListener { snap, err in
+            if didFinish { return }
+            if err != nil {
+                // 에러가 나면 리스너 정리하고 실패 처리
+                didFinish = true
+                rewardSettledListener?.remove()
+                rewardSettledListener = nil
+                completion(false)
+                return
+            }
+
+            guard let data = snap?.data() else { return }
+            let settled = (data["rewardSettled"] as? Bool) ?? false
+
+            if settled {
+                didFinish = true
+                rewardSettledListener?.remove()
+                rewardSettledListener = nil
+                completion(true)
+            }
+        }
+    }
+    
+    // =================================================
+    // SuccessDialog Next 이후 “진화 -> 컷신 -> 다음” 플로우 제어
+    // =================================================
+    private func handleNextFlowAfterSuccess(reward: SuccessReward) {
+
+        // 1) 진화 조건이면: 진화를 먼저 띄우고, 진화 완료 후 다음 액션을 수행
+        if let evoLv = pendingEvolutionLevel {
+            evolutionReachedLevel = evoLv
+            showEvolution = true
+
+            // 진화 끝나면 기본적으로 다음으로 진행하도록 예약
+            shouldGoNextAfterFlow = true
+
+            // 챕터 클리어 + 아웃트로 미시청이면 “진화 끝난 뒤 컷신” 예약
+            if reward.isChapterCleared,
+               !viewModel.wasOutroShown(chapterId: viewModel.currentChapterId) {
+                shouldShowOutroAfterEvolution = true
+            }
+            return
+        }
+
+        // 2) 진화가 없으면: 기존 로직대로 “챕터 클리어면 컷신 -> 닫히면 다음”
+        if reward.isChapterCleared {
+
+            // 아웃트로를 이미 봤으면 → 바로 다음으로
+            if viewModel.wasOutroShown(chapterId: viewModel.currentChapterId) {
+                waitingRetryCount = 0
+                isWaitingOverlay = true
+                tryGoNextHandlingWaiting()
+                return
+            }
+
+            // 아직 안 봤으면 → 컷신 띄우고 닫히면 다음으로
+            shouldGoNextAfterCutscene = true
+            viewModel.presentOutroAfterChapterReward(chapterId: viewModel.currentChapterId)
+
+            // 안전장치: 혹시 VM이 컷신을 안 띄우는 경우(=isShowingCutscene 변화 없음) 바로 진행
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                if shouldGoNextAfterCutscene, viewModel.isShowingCutscene == false {
+                    shouldGoNextAfterCutscene = false
+                    waitingRetryCount = 0
+                    isWaitingOverlay = true
+                    tryGoNextHandlingWaiting()
+                }
+            }
+            return
+        }
+
+        // 3) 일반 케이스
+        waitingRetryCount = 0
+        isWaitingOverlay = true
+        tryGoNextHandlingWaiting()
+    }
+
     
 
     // =================================================
