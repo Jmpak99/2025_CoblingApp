@@ -49,8 +49,17 @@ final class AuthViewModel: ObservableObject {
         return Firestore.firestore()
     }
 
-    private var profileListener: ListenerRegistration? // ✅ [수정] 유저 프로필 실시간 리스너 추가
+    private var profileListener: ListenerRegistration?
     #endif
+
+    // 현재 로그인 UID를 안전하게 꺼내는 공통 프로퍼티
+    var currentUserId: String {
+        #if canImport(FirebaseAuth)
+        return Auth.auth().currentUser?.uid ?? ""
+        #else
+        return userProfile?.id ?? ""
+        #endif
+    }
 
     // MARK: - Init / Deinit
     init() {
@@ -76,11 +85,8 @@ final class AuthViewModel: ObservableObject {
             if let uid = user?.uid {
                 self.fetchProfile(uid: uid)
             } else {
-                #if canImport(FirebaseFirestore)
-                self.profileListener?.remove() // ✅ [수정] 로그아웃/세션 종료 시 리스너 해제
-                self.profileListener = nil     // ✅ [수정]
-                #endif
-
+                self.profileListener?.remove()
+                self.profileListener = nil
                 self.userProfile = nil
             }
         }
@@ -93,8 +99,8 @@ final class AuthViewModel: ObservableObject {
         #endif
 
         #if canImport(FirebaseFirestore)
-        profileListener?.remove() // 메모리 누수 방지: 프로필 리스너 해제
-        profileListener = nil     //
+        profileListener?.remove()
+        profileListener = nil
         #endif
     }
 
@@ -110,6 +116,9 @@ final class AuthViewModel: ObservableObject {
 
             await ensureUserDocumentExists(uid: uid, email: trimmedEmail)
             await updateLastLogin(uid: uid)
+
+            // 로그인 직후 즉시 1회 강제 리프레시(리스너 수신 지연 대비)
+            await refreshUserProfileIfNeeded()
         } catch {
             self.authError = koMessage(for: error)
             throw error
@@ -149,6 +158,9 @@ final class AuthViewModel: ObservableObject {
             let nick = (nickname?.isEmpty == false) ? nickname! : "코블러"
 
             try await createUserDocument(uid: uid, email: trimmedEmail, nickname: nick)
+
+            // 가입 직후 리스너 수신 전에 1회 리프레시
+            await refreshUserProfileIfNeeded()
         } catch {
             self.authError = koMessage(for: error)
             throw error
@@ -168,8 +180,8 @@ final class AuthViewModel: ObservableObject {
         #endif
 
         #if canImport(FirebaseFirestore)
-        profileListener?.remove() // 로그아웃 시 프로필 리스너 해제
-        profileListener = nil     //
+        profileListener?.remove()
+        profileListener = nil
         #endif
 
         self.isSignedIn = false
@@ -182,8 +194,7 @@ final class AuthViewModel: ObservableObject {
         #if canImport(FirebaseFirestore)
         guard let db else { return }
 
-        // 기존 1회 조회(getDocument) -> 실시간 리스너(addSnapshotListener)로 변경
-        // 중복 등록 방지: 기존 리스너 제거
+        // 중복 등록 방지
         profileListener?.remove()
         profileListener = nil
 
@@ -209,8 +220,6 @@ final class AuthViewModel: ObservableObject {
                     let email = Auth.auth().currentUser?.email ?? ""
                     Task {
                         try? await self.createUserDocument(uid: uid, email: email, nickname: "코블러")
-                        // 문서 생성되면 리스너가 자동으로 최신 데이터를 다시 받으므로
-                        // self.fetchProfile(uid: uid) 재호출은 하지 않음 (중복 리스너 방지)
                     }
                     #endif
                 }
@@ -221,13 +230,20 @@ final class AuthViewModel: ObservableObject {
     private func createUserDocument(uid: String, email: String, nickname: String) async throws {
         #if canImport(FirebaseFirestore)
         guard let db else { return }
+
+        // 서버(index.js) 스키마와 맞추기: character에 stage/customization + evolution 필드도 기본값
         let data: [String: Any] = [
             "nickname": nickname,
             "email": email,
             "createdAt": FieldValue.serverTimestamp(),
             "character": [
                 "stage": "egg",
-                "customization": [:] as [String: String]
+                "customization": [:] as [String: Any],
+
+                // 진화 연출 플래그 기본값
+                "evolutionLevel": 0,
+                "evolutionPending": false,
+                "evolutionToStage": "egg"
             ],
             "settings": [
                 "notificationsEnabled": true,
@@ -266,6 +282,74 @@ final class AuthViewModel: ObservableObject {
         #endif
     }
 
+    // “정산 완료(rewardSettled) 이후” 프로필을 확실히 최신으로 맞추기 위한 1회 강제 새로고침
+    // - 이미 addSnapshotListener가 있어도, 이벤트 타이밍 꼬임/지연 대비용으로 있으면 안정적입니다.
+    func refreshUserProfileIfNeeded() async {
+        #if canImport(FirebaseFirestore) && canImport(FirebaseAuth)
+        guard let db = db else { return }
+        let uid = currentUserId
+        guard !uid.isEmpty else { return }
+
+        do {
+            let snap = try await db.collection("users").document(uid).getDocument()
+            guard snap.exists else { return }
+            let profile = try snap.data(as: UserProfile.self)
+            self.userProfile = profile
+        } catch {
+            // 여기서 authError를 강하게 띄우면 UX가 거칠 수 있어 필요 시만
+            // self.authError = error.localizedDescription
+        }
+        #endif
+    }
+
+    // 진화 확정 처리
+    // - EvolutionView “완료” 시점에 호출하면:
+    //   1) stage를 evolutionToStage로 확정
+    //   2) evolutionPending=false로 내려서 다음 진화가 중복으로 뜨지 않게 함
+    func completeEvolutionIfNeeded() async {
+        #if canImport(FirebaseFirestore)
+        guard let db = db else { return }
+        let uid = currentUserId
+        guard !uid.isEmpty else { return }
+
+        guard let profile = userProfile else { return }
+        let char = profile.character
+
+        guard char.evolutionPending == true else { return }
+
+        // 목표 스테이지가 비어있으면, 서버 정책에 따라 level로 계산하는 fallback도 가능
+        let toStage = (char.evolutionToStage?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+            ? (char.evolutionToStage ?? char.stage)
+            : char.stage
+
+        do {
+            try await db.collection("users").document(uid).setData(
+                [
+                    "character": [
+                        "stage": toStage,
+                        "evolutionPending": false,
+                        "evolutionLevel": 0,
+                        "evolutionToStage": toStage,
+                        "evolutionCompletedAt": FieldValue.serverTimestamp() // 디버깅/분석용
+                    ]
+                ],
+                merge: true
+            )
+
+            // 로컬에도 즉시 반영(리스너 수신 전에 화면 업데이트)
+            var newProfile = profile
+            newProfile.character.stage = toStage
+            newProfile.character.evolutionPending = false
+            newProfile.character.evolutionLevel = 0
+            newProfile.character.evolutionToStage = toStage
+            self.userProfile = newProfile
+
+        } catch {
+            // self.authError = error.localizedDescription
+        }
+        #endif
+    }
+
     // MARK: - 개발 편의용(디버그 로그인)
     func debugSignIn() {
         isSignedIn = true
@@ -274,56 +358,68 @@ final class AuthViewModel: ObservableObject {
             id: "debug",
             nickname: "디버그유저",
             email: "debug@cobling.app",
-            level: nil,
-            exp: nil,
+            level: 1,
+            exp: 0,
             profileImageURL: nil,
             createdAt: Date(),
-            character: .init(stage: "egg", customization: [:]),
+            character: .init(
+                stage: "egg",
+                customization: [:],
+                evolutionLevel: 0,
+                evolutionPending: false,
+                evolutionToStage: "egg"
+            ),
             settings: .init(notificationsEnabled: true, darkMode: false),
             lastLogin: Date()
         )
     }
 
-    // MARK: - 에러 한국어 변환 (✅ 수정 포인트: AuthErrorCode 사용)
+    // MARK: - 에러 한국어 변환
     private func koMessage(for error: Error) -> String {
         let ns = error as NSError
         guard let code = AuthErrorCode(rawValue: ns.code) else {
             return "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요. (\(ns.code))"
         }
         switch code {
-        case .invalidEmail:            // 17008
+        case .invalidEmail:
             return "이메일 주소 형식이 올바르지 않습니다."
-        case .wrongPassword:           // 17009
+        case .wrongPassword:
             return "비밀번호가 올바르지 않습니다."
-        case .invalidCredential:       // 17004
+        case .invalidCredential:
             return "이메일 또는 비밀번호가 올바르지 않습니다."
-        case .userNotFound:            // 17011
+        case .userNotFound:
             return "해당 이메일의 계정을 찾을 수 없습니다."
-        case .userDisabled:            // 17005
+        case .userDisabled:
             return "해당 계정은 비활성화되어 있습니다."
-        case .emailAlreadyInUse:       // 17007
+        case .emailAlreadyInUse:
             return "이미 사용 중인 이메일 주소입니다."
-        case .weakPassword:            // 17026
+        case .weakPassword:
             return "비밀번호가 너무 약합니다. 더 강한 비밀번호를 사용해 주세요."
-        case .tooManyRequests:         // 17010
+        case .tooManyRequests:
             return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."
-        case .networkError:            // 17020
+        case .networkError:
             return "네트워크 오류가 발생했습니다. 연결을 확인하고 다시 시도해 주세요."
-        case .requiresRecentLogin:     // 17014
+        case .requiresRecentLogin:
             return "보안을 위해 최근 로그인 후 다시 시도해 주세요."
-        case .operationNotAllowed:     // 17006
+        case .operationNotAllowed:
             return "이 인증 방법은 현재 허용되지 않습니다."
         default:
-            // 필요 시 디버깅을 위해 코드도 같이 표기
             return "문제가 발생했습니다. 잠시 후 다시 시도해 주세요. (\(code.rawValue))"
         }
     }
 }
 
 // MARK: - UserProfile 모델 (DB 스키마에 맞춤)
+
+// 서버(index.js)와 동일: stage(egg/kid/cobling/legend) + 진화 필드 포함
 struct UserCharacter: Codable {
-    var stage: String               // "egg" | "baby" | "grown"
+    var stage: String                         // "egg" | "kid" | "cobling" | "legend"
     var customization: [String: String]?
+
+    // 서버에서 쓰는 진화 플래그
+    var evolutionLevel: Int?
+    var evolutionPending: Bool?
+    var evolutionToStage: String?
 }
 
 struct UserSettings: Codable {
@@ -346,7 +442,6 @@ struct UserProfile: Codable, Identifiable {
 
 // MARK: - Profile & Account Updates
 extension AuthViewModel {
-    /// 계정 탈퇴: Firestore 사용자 문서 삭제 → Firebase Auth 계정 삭제
     func deleteAccount() async throws {
         #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
         guard FirebaseApp.app() != nil else { return }
@@ -357,45 +452,38 @@ extension AuthViewModel {
         let uid = user.uid
         authError = nil
 
-        // 계정 삭제 시작 시 리스너 해제(삭제 중 리스너가 문서 변경을 받지 않게)
         profileListener?.remove()
         profileListener = nil
 
-        // 1) 사용자 소유 데이터부터 삭제
         do {
-            // 🔹 1-1. users/{uid}/progress/{chapterId}/subQuests/* 전부 삭제
             let chapters = try await db.collection("users").document(uid).collection("progress").getDocuments()
             for chapter in chapters.documents {
                 let subQuests = try await chapter.reference.collection("subQuests").getDocuments()
                 for sq in subQuests.documents {
                     try await sq.reference.delete()
                 }
-                try await chapter.reference.delete() // chapter 문서 자체 삭제
+                try await chapter.reference.delete()
             }
 
-            // 🔹 1-2. users/{uid} 문서 삭제
             try await db.collection("users").document(uid).delete()
 
-            // 1-3. blockSolutions 에서 본인 문서 일괄 삭제 (rules fix가 적용되어야 함)
-            let mySolutions = try await db.collection("blockSolutions").whereField("userId", isEqualTo: uid).getDocuments()
+            let mySolutions = try await db.collection("blockSolutions")
+                .whereField("userId", isEqualTo: uid)
+                .getDocuments()
             for doc in mySolutions.documents {
                 try await doc.reference.delete()
             }
 
-            // 1-4. users/{uid} 문서 삭제 (rules에 delete 추가 필수)
             try await db.collection("users").document(uid).delete()
         } catch {
-            // Firestore 권한/네트워크 오류 메시지 한국어 변환은 선택
             await MainActor.run { self.authError = self.koMessage(for: error) }
             throw error
         }
 
-        // 2) 마지막에 Auth 사용자 삭제 (최근 로그인 필요할 수 있음)
         do {
             try await user.delete()
         } catch {
             if let code = AuthErrorCode(rawValue: (error as NSError).code), code == .requiresRecentLogin {
-                // 최근 로그인 필요
                 let msg = "보안을 위해 최근 로그인 후 다시 시도해 주세요."
                 await MainActor.run { self.authError = msg }
                 throw NSError(domain: "Auth", code: code.rawValue, userInfo: [NSLocalizedDescriptionKey: msg])
@@ -405,7 +493,6 @@ extension AuthViewModel {
             }
         }
 
-        // 3) 로컬 상태 정리
         await MainActor.run {
             self.isSignedIn = false
             self.currentUserEmail = nil
@@ -447,7 +534,7 @@ extension AuthViewModel {
         authError = nil
         do {
             let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-            try await user.updateEmail(to: trimmed) // 최근 로그인 필요할 수 있음
+            try await user.updateEmail(to: trimmed)
             if let db = db {
                 try await db.collection("users").document(user.uid).setData(["email": trimmed], merge: true)
             }
@@ -473,7 +560,7 @@ extension AuthViewModel {
         }
         authError = nil
         do {
-            try await user.updatePassword(to: newPassword) // 최근 로그인 필요할 수 있음
+            try await user.updatePassword(to: newPassword)
         } catch {
             await MainActor.run { self.authError = self.koMessage(for: error) }
             throw error

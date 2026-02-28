@@ -80,7 +80,7 @@ struct SuccessDialogView: View {
                     .font(.pretendardBold24)
                     .foregroundColor(.black)
 
-                Text(didLevelUp ? "코블링이 한 단계 진화했어!" : "코블링이 한 단게 성장했어!")
+                Text(didLevelUp ? "코블링이 한 단계 진화했어!" : "코블링이 한 단계 성장했어!")
                     .font(.pretendardMedium14)
                     .foregroundColor(.black)
                 
