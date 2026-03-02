@@ -82,8 +82,8 @@ struct SignupView: View {
                         title: "이메일로 시작하기",
                         leftIcon: .system(name: "envelope")
                     ) {
-                        onTapEmailSignup()
-                        pushToEmailSignup = true
+                        onTapLogin()
+                        pushToLogin = true
                     }
                 }
                 .padding(.horizontal, 24)
@@ -102,17 +102,18 @@ struct SignupView: View {
         }
         
         .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.black.opacity(0.75))
-                }
-            }
-        }
+        // 뒤로가기 코드 제거
+//        .toolbar {
+//            ToolbarItem(placement: .topBarLeading) {
+//                Button {
+//                    dismiss()
+//                } label: {
+//                    Image(systemName: "chevron.left")
+//                        .font(.system(size: 18, weight: .semibold))
+//                        .foregroundColor(.black.opacity(0.75))
+//                }
+//            }
+//        }
         // 기존 네비게이션들(필요하면 유지)
         .navigationDestination(isPresented: $pushToLogin) {
             LoginView(
