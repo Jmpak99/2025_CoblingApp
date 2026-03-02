@@ -48,6 +48,7 @@ extension Font {
     // LeeSeoyun
     static let leeseoyun48 : Font = .custom("LeeSeoyun", size: 48)
     static let leeseoyun24 : Font = .custom("LeeSeoyun", size: 24)
+    static let leeseoyun16 : Font = .custom("LeeSeoyun", size: 16)
     
     
 }

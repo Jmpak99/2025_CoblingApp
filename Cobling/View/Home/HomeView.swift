@@ -109,35 +109,35 @@ struct HomeView: View {
                     )
 
                 // MARK: - 오늘의 미션 카드
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(Color(hex: isMissionCompleted ? "#FFECEC" : "#F8F8F6"))
-                    .frame(width: 335, height: 72)
-                    .overlay(
-                        HStack(alignment: .center) {
-                            Image(systemName: "questionmark.circle")
-                                .resizable()
-                                .frame(width: 24, height: 24)
-                                .foregroundColor(.gray)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("오늘의 미션")
-                                    .font(.gmarketMedium16)
-                                    .foregroundColor(.black)
-                                Text("두 문제 이상 풀기")
-                                    .font(.pretendardRegular14)
-                                    .foregroundColor(.gray)
-                            }
-                            .padding(.leading, 4)
-
-                            Spacer()
-
-                            Image(systemName: isMissionCompleted ? "checkmark.square.fill" : "square")
-                                .resizable()
-                                .frame(width: 24, height: 24)
-                                .foregroundColor(isMissionCompleted ? Color(hex: "#EA4C89") : .gray)
-                        }
-                        .padding(.horizontal, 20)
-                    )
+//                RoundedRectangle(cornerRadius: 24)
+//                    .fill(Color(hex: isMissionCompleted ? "#FFECEC" : "#F8F8F6"))
+//                    .frame(width: 335, height: 72)
+//                    .overlay(
+//                        HStack(alignment: .center) {
+//                            Image(systemName: "questionmark.circle")
+//                                .resizable()
+//                                .frame(width: 24, height: 24)
+//                                .foregroundColor(.gray)
+//
+//                            VStack(alignment: .leading, spacing: 2) {
+//                                Text("오늘의 미션")
+//                                    .font(.gmarketMedium16)
+//                                    .foregroundColor(.black)
+//                                Text("두 문제 이상 풀기")
+//                                    .font(.pretendardRegular14)
+//                                    .foregroundColor(.gray)
+//                            }
+//                            .padding(.leading, 4)
+//
+//                            Spacer()
+//
+//                            Image(systemName: isMissionCompleted ? "checkmark.square.fill" : "square")
+//                                .resizable()
+//                                .frame(width: 24, height: 24)
+//                                .foregroundColor(isMissionCompleted ? Color(hex: "#EA4C89") : .gray)
+//                        }
+//                        .padding(.horizontal, 20)
+//                    )
 
                 Spacer()
             }

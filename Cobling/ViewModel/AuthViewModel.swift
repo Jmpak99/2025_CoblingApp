@@ -568,3 +568,39 @@ extension AuthViewModel {
         #endif
     }
 }
+
+// MARK: - Social Login (TODO)
+extension AuthViewModel {
+
+    /// ✅ Apple 로그인 (TODO)
+    /// - 나중에: ASAuthorizationController + Firebase OAuthProvider("apple.com") 연결
+    func handleAppleLogin() async {
+        authError = nil
+
+        // TODO: Apple SDK + Firebase Auth 연동 구현
+        // 현재는 "눌림 확인"용 더미 처리만 넣어둡니다.
+        print("🍎 Apple Login Tapped")
+
+        // 원하시면 테스트용으로 임시 로그인 처리도 가능:
+        // self.isSignedIn = true
+        // self.currentUserEmail = "apple@cobling.app"
+    }
+
+    /// ✅ Google 로그인 (TODO)
+    /// - 나중에: GoogleSignIn -> GoogleAuthProvider.credential -> Auth.signIn
+    func handleGoogleLogin() async {
+        authError = nil
+
+        // TODO: Google SDK + Firebase Auth 연동 구현
+        print("🟦 Google Login Tapped")
+    }
+
+    /// ✅ Kakao 로그인 (TODO)
+    /// - 나중에: Kakao SDK 로그인 -> accessToken -> Cloud Functions(custom token) -> Auth.signIn(withCustomToken:)
+    func handleKakaoLogin() async {
+        authError = nil
+
+        // TODO: Kakao SDK + Firebase Custom Token 연동 구현
+        print("🟨 Kakao Login Tapped")
+    }
+}
