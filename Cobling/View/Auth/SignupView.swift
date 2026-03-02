@@ -24,7 +24,7 @@ struct SignupView: View {
 
             VStack(spacing: 0) {
 
-                Spacer().frame(height: 60)
+                Spacer().frame(height: 160)
 
                 // 상단 로고/타이틀 영역 (스크린샷 느낌)
                 VStack(spacing: 18) {
@@ -44,7 +44,7 @@ struct SignupView: View {
                     .font(.gmarketMedium16) .foregroundColor(.black.opacity(0.65))
                 }
 
-                Spacer().frame(height: 200)
+                Spacer().frame(height: 160)
 
                 // 로그인 버튼
                 VStack(spacing: 10) {
@@ -87,7 +87,7 @@ struct SignupView: View {
                     }
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 60)
+                .padding(.bottom, 10)
 
                 Spacer(minLength: 0)
             }
@@ -98,7 +98,7 @@ struct SignupView: View {
             Text("Copyright 2026. cobling")
                 .font(.system(size: 14))
                 .foregroundColor(.black.opacity(0.25))
-                .padding(.bottom, 10) // 바닥에서 살짝 띄우기
+                .padding(.bottom, 20) // 바닥에서 살짝 띄우기
         }
         
         .navigationBarBackButtonHidden(true)

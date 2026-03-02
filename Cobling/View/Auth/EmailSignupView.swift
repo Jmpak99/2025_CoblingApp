@@ -5,8 +5,21 @@
 //  Created by 박종민 on 8/9/25.
 //
 
-
 import SwiftUI
+import SafariServices // 인앱 Safari(SFSafariViewController) 사용
+
+// MARK: - In-app Safari
+struct SafariView: UIViewControllerRepresentable { // 인앱 Safari 래퍼
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let vc = SFSafariViewController(url: url)
+        vc.preferredControlTintColor = UIColor(Color(hex: "#6B8F5D")) // 링크/버튼 틴트(선택)
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) { }
+}
 
 struct EmailSignupView: View {
     @Environment(\.dismiss) private var dismiss
@@ -21,6 +34,14 @@ struct EmailSignupView: View {
     @State private var confirm = ""
     @State private var isLoading = false
     @State private var errorText: String?
+
+    // 인앱 Safari 띄우기 상태 + 선택된 URL
+    @State private var showSafari = false
+    @State private var selectedURL: URL? = nil
+
+    // 각각 다른 URL
+    private let termsURL = URL(string: "https://certain-exoplanet-9bc.notion.site/Cobling-Terms-of-Service-31720a2218b1807e9cf0e802f279e0bd?source=copy_link")! // 이용약관 URL
+    private let privacyURL = URL(string: "https://certain-exoplanet-9bc.notion.site/Cobling-Privacy-Policy-31720a2218b1808783b3da4379d1ec9f?source=copy_link")! // 개인정보처리방침 URL
 
     private let fieldHeight: CGFloat = 48
     private let fieldRadius: CGFloat = 10
@@ -72,16 +93,25 @@ struct EmailSignupView: View {
                             .foregroundColor(.red)
                     }
 
-                    (
-                        Text("가입을 완료하실 경우 ")
-                            .foregroundColor(.black.opacity(0.65))
-                        + Text("코블링의 이용약관 및 개인정보처리방침")
-                            .underline()
-                            .foregroundColor(Color(hex: "#6B8F5D"))
-                        + Text("에 동의하는 것으로 간주합니다.")
-                            .foregroundColor(.black.opacity(0.65))
-                    )
-                    .font(.system(size: 12))
+                    //  Markdown 대신 AttributedString으로 링크 + Bold를 직접 적용 (완전 해결)
+                    Text(makePolicyText()) //AttributedString 생성 함수 사용
+                        .font(.pretendardMedium12) // (기존 프로젝트 폰트 유지)
+                        .foregroundColor(.black.opacity(0.65))
+                        .tint(Color(hex: "#6B8F5D")) // 링크 색상 유지
+                        .environment(\.openURL, OpenURLAction { url in // 링크 탭 이벤트 가로채기
+                            switch url.absoluteString {
+                            case "terms":
+                                selectedURL = termsURL
+                                showSafari = true
+                                return .handled
+                            case "privacy":
+                                selectedURL = privacyURL
+                                showSafari = true
+                                return .handled
+                            default:
+                                return .systemAction
+                            }
+                        })
 
                     Button {
                         Task { await signUp() }
@@ -101,10 +131,47 @@ struct EmailSignupView: View {
                 .padding(.bottom, 32)
             }
         }
+        // 앱 안에서 Safari 열기
+        .sheet(isPresented: $showSafari) {
+            if let url = selectedURL {
+                SafariView(url: url)
+            }
+        }
+
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
         .navigationBarBackButtonHidden(false)
         .toolbar { ToolbarItem(placement: .principal) { EmptyView() } }
+    }
+
+    // MARK: - 약관 문구 AttributedString 생성 (링크 + Bold 확실하게)
+    private func makePolicyText() -> AttributedString {
+        // 기본 문장
+        var result = AttributedString("가입을 완료하실 경우 ")
+
+        // 이용약관 (Bold + 링크)
+        var terms = AttributedString("이용약관")
+        terms.link = URL(string: "terms") // openURL에서 가로채는 키
+        terms.font = .pretendardBold14 // Bold 확실 적용
+
+        // 연결 문구
+        let middle = AttributedString(" 및 ")
+
+        // 개인정보처리방침 (Bold + 링크)
+        var privacy = AttributedString("개인정보처리방침")
+        privacy.link = URL(string: "privacy") // openURL에서 가로채는 키
+        privacy.font = .pretendardBold14 // Bold 확실 적용
+
+        // 마무리 문구
+        let tail = AttributedString("에 동의하는 것으로 간주합니다.")
+
+        // 합치기
+        result.append(terms)
+        result.append(middle)
+        result.append(privacy)
+        result.append(tail)
+
+        return result
     }
 
     // MARK: - Subviews
