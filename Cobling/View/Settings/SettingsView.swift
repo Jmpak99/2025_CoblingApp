@@ -57,7 +57,7 @@ struct SettingsView: View {
 
                 VStack(spacing: 0) {
                     NavigationLink(destination: Text("코블링 인스타그램")) {
-                        ServiceRow(iconSystemName: "camera", title: "나만의 네컷 인스타그램")
+                        ServiceRow(iconSystemName: "camera", title: "코블링 인스타그램")
                     }
                     Divider().padding(.leading, 52)
 
@@ -66,7 +66,7 @@ struct SettingsView: View {
 //                    }
 //                    Divider().padding(.leading, 52)
 
-                    NavigationLink(destination: Text("코블링 기여해주세요!")) {
+                    NavigationLink(destination: ContributionThanksView()) {
                         ServiceRow(iconSystemName: "person.2", title: "코블링에 기여해주세요!")
                     }
                     Divider().padding(.leading, 52)

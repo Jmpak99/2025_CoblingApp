@@ -210,9 +210,7 @@ struct ContributionThanksView: View {
         }
         .sheet(isPresented: $showContributeSheet) {
             NavigationStack {
-                Text("기여하기 화면 연결해주세요")
-                    .navigationTitle("기여하기")
-                    .navigationBarTitleDisplayMode(.inline)
+                ContributionFormView()
             }
         }
     }
