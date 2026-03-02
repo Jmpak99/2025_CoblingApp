@@ -71,7 +71,9 @@ struct SettingsView: View {
                     }
                     Divider().padding(.leading, 52)
 
-                    NavigationLink(destination: Text("개인정보 처리방침")) {
+                    Link(
+                        destination: URL(string: "https://certain-exoplanet-9bc.notion.site/Cobling-Privacy-Policy-31720a2218b1808783b3da4379d1ec9f?source=copy_link")!
+                    ) {
                         ServiceRow(iconSystemName: "person", title: "개인정보 처리방침")
                     }
                     Divider().padding(.leading, 52)
@@ -81,26 +83,14 @@ struct SettingsView: View {
 //                    }
 
                     Divider().padding(.leading, 52)
-
-                    // 버전 정보 (오른쪽에 회색 텍스트)
-                    HStack(spacing: 12) {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 22, weight: .regular))
-                            .frame(width: 28)
-                            .foregroundColor(.black)
-
-                        Text("버전 정보")
-                            .font(.system(size: 16))
-                            .foregroundColor(.black)
-
-                        Spacer()
-
-                        Text(appVersionString)
-                            .font(.system(size: 16))
-                            .foregroundColor(.gray)
-                    }
-                    .padding(.vertical, 14)
-                    .contentShape(Rectangle())
+                    
+                    // ✅ 버전 정보도 동일한 서비스 Row 스타일로
+                    ServiceRow(
+                        iconSystemName: "info.circle",
+                        title: "버전 정보",
+                        trailingText: appVersionString,
+                        showChevron: false
+                    )
                 }
                 .padding(.horizontal)
                 .background(Color.white)
@@ -236,6 +226,9 @@ private struct LockedToggleRow: View {
 private struct ServiceRow: View {
     let iconSystemName: String
     let title: String
+    
+    var trailingText: String? = nil
+    var showChevron: Bool = true
 
     var body: some View {
         HStack(spacing: 12) {
@@ -250,9 +243,19 @@ private struct ServiceRow: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.gray.opacity(0.8))
+            // ✅ 버전 텍스트처럼 오른쪽 회색 텍스트
+            if let trailingText {
+                Text(trailingText)
+                    .font(.system(size: 16))
+                    .foregroundColor(.gray)
+            }
+
+            // ✅ 필요할 때만 chevron
+            if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.gray.opacity(0.8))
+            }
         }
         .padding(.vertical, 14)
         .contentShape(Rectangle())
