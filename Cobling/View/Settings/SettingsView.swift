@@ -23,6 +23,20 @@ struct SettingsView: View {
     @State private var showLogoutConfirm = false
     @State private var isLoggingOut = false
 
+    // ✅ [수정] 프리뷰에서도 바꾸기 쉽게 init으로 주입 가능하게 변경
+    @State private var isPremiumMember: Bool
+    @State private var pushToMembership: Bool = false
+
+    // ✅ [추가] 기본 init (실사용)
+    init() {
+        _isPremiumMember = State(initialValue: false)
+    }
+
+    // ✅ [추가] 프리뷰 전용 init (원하는 멤버십 상태로 프리뷰 가능)
+    init(previewIsPremiumMember: Bool) {
+        _isPremiumMember = State(initialValue: previewIsPremiumMember)
+    }
+
     var body: some View {
         ZStack {
             ScrollView {
@@ -38,17 +52,12 @@ struct SettingsView: View {
                     // MARK: - 유저 정보 카드
                     userCard
 
+                    // ✅ 멤버십 배너 카드 (유저 카드 바로 아래)
+                    membershipBannerCard
+
                     // MARK: - 추가 기능
-                    // sectionTitle("추가 기능")
                     VStack(spacing: 0) {
-//                        LockedToggleRow(
-//                            iconSystemName: "lock",
-//                            leadingSymbolSystemName: "rectangle.on.rectangle",
-//                            title: "광고 노출",
-//                            isOn: $isAdEnabled,
-//                            locked: true
-//                        )
-//                        Divider().padding(.leading, 52)
+                        // 필요 시 토글 추가
                     }
                     .padding(.horizontal)
                     .background(Color.white)
@@ -76,11 +85,8 @@ struct SettingsView: View {
                         }
                         Divider().padding(.leading, 52)
 
-                        // (원하시면 문의하기 등 추가)
-
                         Divider().padding(.leading, 52)
 
-                        // ✅ 버전 정보도 동일한 서비스 Row 스타일로
                         ServiceRow(
                             iconSystemName: "info.circle",
                             title: "버전 정보",
@@ -109,9 +115,14 @@ struct SettingsView: View {
             .ignoresSafeArea(.keyboard)
             .navigationBarHidden(true)
             .background(Color.white)
-            .disabled(showLogoutConfirm) // ✅ 팝업 떠 있을 때 뒤 터치/스크롤 막기(추천)
+            .disabled(showLogoutConfirm)
 
-            // ✅ 커스텀 로그아웃 확인 다이얼로그 오버레이 (항상 화면 정중앙)
+            // 멤버십 화면 이동(임시)
+            NavigationLink(destination: PremiumSubscriptionView(), isActive: $pushToMembership) {
+                EmptyView()
+            }
+            .hidden()
+
             if showLogoutConfirm {
                 LogoutConfirmDialogView(
                     title: "로그아웃",
@@ -128,9 +139,9 @@ struct SettingsView: View {
                         }
                     }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity) // ✅ 화면 전체 기준 중앙
-                .ignoresSafeArea()                                  // ✅ 탭바/세이프영역 영향 제거
-                .zIndex(999)                                        // ✅ 항상 최상단
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+                .zIndex(999)
                 .transition(.opacity.combined(with: .scale))
             }
         }
@@ -185,6 +196,63 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 멤버십 배너 카드 (프리미엄/일반 분기)
+    private var membershipBannerCard: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            pushToMembership = true
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(isPremiumMember ? Color(hex: "#FFF1D6") : Color(hex: "#F3F6FF"))
+                        .frame(width: 52, height: 52)
+
+                    Image(systemName: isPremiumMember ? "star.fill" : "star")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(isPremiumMember ? Color(hex: "#C08A2D") : Color(hex: "#5B6B9A"))
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(isPremiumMember ? "프리미엄 멤버" : "코블링 프리미엄")
+                        .font(.pretendardBold18)
+                        .foregroundColor(.black)
+                        .lineLimit(1)
+
+                    Text(isPremiumMember
+                         ? "현재 프리미엄 이용 중이에요."
+                         : "광고 제거 · EXP +5% · 추가 챕터 혜택을 받아보세요!")
+                        .font(.pretendardMedium14)
+                        .foregroundColor(.gray)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                if isPremiumMember {
+                    Text("이용중")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: "#6B8F5D"))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(hex: "#E9F2E6"))
+                        .clipShape(Capsule())
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.gray.opacity(0.8))
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.gray.opacity(0.18), lineWidth: 1)
+            )
+            .padding(.horizontal)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - 섹션 타이틀
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
@@ -205,51 +273,12 @@ struct SettingsView: View {
         isLoggingOut = true
         defer { isLoggingOut = false }
 
-        // 다이얼로그 닫기(UX)
         withAnimation(.easeOut(duration: 0.15)) {
             showLogoutConfirm = false
         }
 
-        // 로그아웃
         authVM.signOut()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-    }
-}
-
-// MARK: - 잠금 토글 Row (현재 미사용)
-private struct LockedToggleRow: View {
-    let iconSystemName: String
-    let leadingSymbolSystemName: String
-    let title: String
-    @Binding var isOn: Bool
-    let locked: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconSystemName)
-                .font(.system(size: 20, weight: .regular))
-                .frame(width: 28)
-                .foregroundColor(.black)
-
-            Image(systemName: leadingSymbolSystemName)
-                .font(.system(size: 20, weight: .regular))
-                .frame(width: 24)
-                .foregroundColor(locked ? .gray.opacity(0.7) : .black)
-
-            Text(title)
-                .font(.system(size: 16))
-                .foregroundColor(locked ? .gray.opacity(0.7) : .black)
-
-            Spacer()
-
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .disabled(locked)
-                .opacity(locked ? 0.6 : 1.0)
-        }
-        .padding(.vertical, 14)
-        .contentShape(Rectangle())
-        .padding(.horizontal, 12)
     }
 }
 
@@ -322,7 +351,6 @@ private struct LogoutConfirmDialogView: View {
 
     var body: some View {
         ZStack {
-            // Dimmed Background
             Color.black.opacity(0.3)
                 .ignoresSafeArea()
 
@@ -341,7 +369,6 @@ private struct LogoutConfirmDialogView: View {
                     }
 
                     HStack(spacing: 16) {
-                        // 취소
                         Button(action: onSecondary) {
                             Text(secondaryTitle)
                                 .font(.headline)
@@ -352,7 +379,6 @@ private struct LogoutConfirmDialogView: View {
                                 .cornerRadius(12)
                         }
 
-                        // 로그아웃
                         Button(action: onPrimary) {
                             Text(primaryTitle)
                                 .font(.headline)
@@ -375,9 +401,16 @@ private struct LogoutConfirmDialogView: View {
     }
 }
 
-#Preview {
+#Preview("일반 멤버") {
     NavigationStack {
-        SettingsView()
+        SettingsView(previewIsPremiumMember: false)
+            .environmentObject(AuthViewModel())
+    }
+}
+
+#Preview("프리미엄 멤버") {
+    NavigationStack {
+        SettingsView(previewIsPremiumMember: true)
             .environmentObject(AuthViewModel())
     }
 }

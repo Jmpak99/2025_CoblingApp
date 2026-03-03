@@ -11,18 +11,26 @@ extension Font {
     
     // Pretendard-Bold
     static let pretendardBold12: Font = .custom("Pretendard-Bold", size: 12)
-    static let pretendardBold28: Font = .custom("Pretendard-Bold", size: 28)
-    static let pretendardBold24: Font = .custom("Pretendard-Bold", size: 24)
-    static let pretendardBold18: Font = .custom("Pretendard-Bold", size: 18)
-    static let pretendardBold16: Font = .custom("Pretendard-Bold", size: 16)
     static let pretendardBold14: Font = .custom("Pretendard-Bold", size: 14)
+    static let pretendardBold16: Font = .custom("Pretendard-Bold", size: 16)
+    static let pretendardBold18: Font = .custom("Pretendard-Bold", size: 18)
+    static let pretendardBold22: Font = .custom("Pretendard-Bold", size: 22)
+    static let pretendardBold24: Font = .custom("Pretendard-Bold", size: 24)
+    static let pretendardBold28: Font = .custom("Pretendard-Bold", size: 28)
     static let pretendardBold34: Font = .custom("Pretendard-Bold", size: 34)
     
     // Pretendard-SemiBold
+    static let pretendardSemiBold10: Font = .custom("Pretendard-SemiBold", size: 10)
+    static let pretendardSemiBold12: Font = .custom("Pretendard-SemiBold", size: 12)
     static let pretendardSemiBold16: Font = .custom("Pretendard-SemiBold", size: 16)
     static let pretendardSemiBold18: Font = .custom("Pretendard-SemiBold", size: 18)
+    static let pretendardSemiBold20: Font = .custom("Pretendard-SemiBold", size: 20)
+    static let pretendardSemiBold22: Font = .custom("Pretendard-SemiBold", size: 22)
+    static let pretendardSemiBold24: Font = .custom("Pretendard-SemiBold", size: 24)
     
     // Pretendard-Medium
+    static let pretendardMedium8: Font = .custom("Pretendard-Medium", size: 8)
+    static let pretendardMedium10: Font = .custom("Pretendard-Medium", size: 10)
     static let pretendardMedium12: Font = .custom("Pretendard-Medium", size: 12)
     static let pretendardMedium14: Font = .custom("Pretendard-Medium", size: 14)
     static let pretendardMedium18: Font = .custom("Pretendard-Medium", size: 18)
