@@ -249,7 +249,17 @@ final class AuthViewModel: ObservableObject {
                 "notificationsEnabled": true,
                 "darkMode": false
             ],
-            "lastLogin": FieldValue.serverTimestamp()
+            "lastLogin": FieldValue.serverTimestamp(),
+            "premium": [
+                "isActive": false,
+                "plan": NSNull(),                // 또는 아예 키를 빼도 됨(추천은 null로 명시)
+                "productId": NSNull(),
+                "source": "none",
+                "since": NSNull(),
+                "expiresAt": NSNull(),
+                "updatedAt": FieldValue.serverTimestamp()
+            ]
+            
         ]
         try await db.collection("users").document(uid).setData(data, merge: true)
         #endif

@@ -15,6 +15,32 @@ function isStandardPreId(preId) {
 }
 
 /**
+ * ✅ [추가] 챕터 아이디("ch6")에서 숫자만 뽑기
+ */
+function chapterNumberFromId(chapterId) {
+  if (typeof chapterId !== "string") return 0;
+  const m = chapterId.match(/^ch(\d+)$/i);
+  return m ? Number(m[1]) : 0;
+}
+
+/**
+ * ✅ [추가] 6챕터부터 프리미엄 전용 정책
+ * - ch1~ch5: 무료
+ * - ch6~: premiumRequired
+ */
+function isPremiumRequiredChapter(chapterId) {
+  return chapterNumberFromId(chapterId) >= 6;
+}
+
+/**
+ * ✅ [추가] 유저 프리미엄 활성 여부
+ * - users/{uid}.premium.isActive === true
+ */
+function isPremiumActive(userDoc) {
+  return !!userDoc?.premium?.isActive;
+}
+
+/**
  * 레벨 → 캐릭터 스테이지 매핑
  */
 function stageFromLevel(level) {
@@ -36,7 +62,7 @@ function computeEvolution(prevLevel, newLevel) {
   const reachedLevel = Math.max(...crossed);
   return {
     reachedLevel,
-    newStage: stageFromLevel(reachedLevel), // ✅ reachedLevel 기준
+    newStage: stageFromLevel(reachedLevel), // reachedLevel 기준
   };
 }
 
@@ -49,6 +75,16 @@ function didBecomeCompleted(before, after) {
 }
 
 /**
+ * 프리미엄 EXP 보너스 적용 함수
+ * - 챕터보너스에는 적용하지 않음
+ * - users/{uid}.premium.isActive === true 인 경우에만 +5%
+ */
+function applyPremiumExpBonus(baseExp, userDoc) {
+  if (!userDoc?.premium?.isActive) return baseExp;
+  return Math.round(baseExp * 1.05);
+}
+
+/**
  * 보상 정산 완료 플래그를 subQuest progress 문서에 기록
  * - "모든 EXP 트랜잭션이 끝난 뒤" iOS가 이것을 보고 진화화면을 띄움
  * - 한 번만 true로 찍히도록 설계 (merge)
@@ -56,15 +92,14 @@ function didBecomeCompleted(before, after) {
 async function markRewardSettled(subQuestProgressRef, meta = {}) {
   await subQuestProgressRef.set(
     {
-      rewardSettled: true, 
-      rewardSettledAt: FieldValue.serverTimestamp(), 
+      rewardSettled: true,
+      rewardSettledAt: FieldValue.serverTimestamp(),
       rewardSettleVersion: 1, //디버깅/확장용
       ...meta, // 어떤 단계에서 settled 되었는지 남기고 싶으면 사용
     },
     { merge: true }
   );
 }
-
 
 /**
  * (중요) 해금 타겟 찾기: where() 절대 사용하지 않고 전부 스캔
@@ -150,14 +185,15 @@ async function applyUnlockSafely({ userId, fromChapterId, fromSubQuestId, target
 
   const userRef = db.collection("users").doc(userId);
 
+  // ✅ [추가] 유저 프리미엄 여부를 해금 로직에서도 확인 (ch6~ 프리미엄 잠금 유지)
+  const userSnap = await userRef.get(); // ✅ [추가]
+  const userDoc = userSnap.exists ? userSnap.data() : null; // ✅ [추가]
+  const premiumActive = isPremiumActive(userDoc); // ✅ [추가]
+
   const refs = [];
   const items = [];
   for (const { nextChapterId, nextSubQuestId } of unique.values()) {
-    const ref = userRef
-      .collection("progress")
-      .doc(nextChapterId)
-      .collection("subQuests")
-      .doc(nextSubQuestId);
+    const ref = userRef.collection("progress").doc(nextChapterId).collection("subQuests").doc(nextSubQuestId);
 
     refs.push(ref);
     items.push({ ref, nextChapterId, nextSubQuestId });
@@ -170,6 +206,33 @@ async function applyUnlockSafely({ userId, fromChapterId, fromSubQuestId, target
   snaps.forEach((snap, idx) => {
     const { ref, nextChapterId, nextSubQuestId } = items[idx];
     const curState = snap.exists ? snap.data().state : null;
+
+    // ✅ [추가] 6챕터부터 프리미엄 전용: 비프리미엄이면 premiumLocked 유지/설정
+    if (isPremiumRequiredChapter(nextChapterId) && !premiumActive) {
+      if (!snap.exists) {
+        batch.set(
+          ref,
+          {
+            questId: nextChapterId,
+            subQuestId: nextSubQuestId,
+            state: "premiumLocked", // ✅ [추가]
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        changed++;
+        console.log(`🔒 premiumLocked (create) => ${nextChapterId}/${nextSubQuestId}`); // ✅ [추가]
+      } else {
+        console.log(`↪︎ skip unlock (premium) => ${nextChapterId}/${nextSubQuestId} (state=${curState})`); // ✅ [추가]
+      }
+      return;
+    }
+
+    // ✅ [추가] premiumLocked 상태는 절대 inProgress로 풀지 않음
+    if (curState === "premiumLocked") {
+      console.log(`↪︎ skip unlock => ${nextChapterId}/${nextSubQuestId} (state=premiumLocked)`); // ✅ [추가]
+      return;
+    }
 
     if (!snap.exists || curState === "locked") {
       batch.set(
@@ -214,15 +277,21 @@ exports.initUserProgress = onDocumentCreated("users/{userId}", async (event) => 
       exp: 0,
       lastLogin: FieldValue.serverTimestamp(),
       character: {
-        stage : "egg",
+        stage: "egg",
         customization: {},
         evolutionLevel: 0,
         evolutionPending: false,
         evolutionToStage: "egg", // 진화 연출용 목표 스테이지(없어도 되지만 UX/데이터 일관성에 좋음)
       },
+      premium: { isActive: false }, // ✅ [추가] 기본값(원하시면 제거 가능)
     },
     { merge: true }
   );
+
+  // ✅ [추가] init 시점 유저 프리미엄 상태
+  const createdUserSnap = await userRef.get(); // ✅ [추가]
+  const createdUserDoc = createdUserSnap.exists ? createdUserSnap.data() : null; // ✅ [추가]
+  const premiumActive = isPremiumActive(createdUserDoc); // ✅ [추가]
 
   // 모든 챕터/서브퀘스트 progress 생성
   const chaptersSnap = await db.collection("quests").get();
@@ -234,14 +303,16 @@ exports.initUserProgress = onDocumentCreated("users/{userId}", async (event) => 
     const batch = db.batch();
 
     subQuestsSnap.forEach((sqDoc) => {
-      const progressRef = userRef
-        .collection("progress")
-        .doc(chapterDoc.id)
-        .collection("subQuests")
-        .doc(sqDoc.id);
+      const progressRef = userRef.collection("progress").doc(chapterDoc.id).collection("subQuests").doc(sqDoc.id);
 
       let state = "locked";
-      if (chapterDoc.id === "ch1" && index === 0) state = "inProgress";
+
+      // ✅ [추가] 6챕터부터 프리미엄 전용: 비프리미엄이면 premiumLocked로 생성
+      if (isPremiumRequiredChapter(chapterDoc.id) && !premiumActive) {
+        state = "premiumLocked"; // ✅ [추가]
+      } else {
+        if (chapterDoc.id === "ch1" && index === 0) state = "inProgress";
+      }
 
       batch.set(progressRef, {
         questId: chapterDoc.id,
@@ -279,63 +350,57 @@ exports.initUserProgress = onDocumentCreated("users/{userId}", async (event) => 
  *
  * 이걸 추가하면 "진화는 끝났는데 stage가 안 바뀌는" 문제가 해결됩니다.
  */
-exports.applyEvolutionStageOnPendingCleared = onDocumentUpdated(
-  "users/{userId}",
-  async (event) => {
-    const { userId } = event.params;
-    const before = event.data.before.data();
-    const after = event.data.after.data();
-    if (!before || !after) return;
+exports.applyEvolutionStageOnPendingCleared = onDocumentUpdated("users/{userId}", async (event) => {
+  const { userId } = event.params;
+  const before = event.data.before.data();
+  const after = event.data.after.data();
+  if (!before || !after) return;
 
-    const bChar = before.character || {};
-    const aChar = after.character || {};
+  const bChar = before.character || {};
+  const aChar = after.character || {};
 
-    const wasPending = !!bChar.evolutionPending;
-    const isPending = !!aChar.evolutionPending;
+  const wasPending = !!bChar.evolutionPending;
+  const isPending = !!aChar.evolutionPending;
 
-    // pending이 true -> false로 "전환"된 순간만 처리
-    if (!(wasPending && !isPending)) {
-      return true;
-    }
-
-    const toStage = (aChar.evolutionToStage || "").trim().toLowerCase();
-    const curStage = (aChar.stage || "").trim().toLowerCase();
-
-    // toStage가 비정상이면 아무것도 안 함
-    const allowed = new Set(["egg", "kid", "cobling", "legend"]);
-    if (!allowed.has(toStage)) {
-      console.log("⚠️ evolutionToStage invalid, skip apply:", { userId, toStage, curStage });
-      return true;
-    }
-
-    // 이미 stage가 같으면 굳이 업데이트 안 함(무한루프 방지)
-    if (curStage === toStage) {
-      console.log("ℹ️ stage already applied, skip:", { userId, curStage, toStage });
-      return true;
-    }
-
-    const userRef = db.collection("users").doc(userId);
-
-    // stage 확정 + 정리
-    await userRef.set(
-      {
-        character: {
-          stage: toStage,
-          evolutionAppliedAt: FieldValue.serverTimestamp(),
-
-          // 필요하면 evolutionToStage를 비워도 됩니다.
-          // (남겨두면 디버깅/UX에 도움되지만, 혼동될 수 있음)
-          evolutionToStage: FieldValue.delete(), // 확정 후 목표값 제거
-          evolutionLevel: FieldValue.delete(),   // 확정 후 정리(원치 않으면 삭제 라인 제거)
-        },
-      },
-      { merge: true }
-    );
-
-    console.log("✅ Evolution stage applied:", { userId, from: curStage, to: toStage });
+  // pending이 true -> false로 "전환"된 순간만 처리
+  if (!(wasPending && !isPending)) {
     return true;
   }
-);
+
+  const toStage = (aChar.evolutionToStage || "").trim().toLowerCase();
+  const curStage = (aChar.stage || "").trim().toLowerCase();
+
+  // toStage가 비정상이면 아무것도 안 함
+  const allowed = new Set(["egg", "kid", "cobling", "legend"]);
+  if (!allowed.has(toStage)) {
+    console.log("⚠️ evolutionToStage invalid, skip apply:", { userId, toStage, curStage });
+    return true;
+  }
+
+  // 이미 stage가 같으면 굳이 업데이트 안 함(무한루프 방지)
+  if (curStage === toStage) {
+    console.log("ℹ️ stage already applied, skip:", { userId, curStage, toStage });
+    return true;
+  }
+
+  const userRef = db.collection("users").doc(userId);
+
+  // stage 확정 + 정리
+  await userRef.set(
+    {
+      character: {
+        stage: toStage,
+        evolutionAppliedAt: FieldValue.serverTimestamp(),
+        evolutionToStage: FieldValue.delete(), // 확정 후 목표값 제거
+        evolutionLevel: FieldValue.delete(), // 확정 후 정리(원치 않으면 삭제 라인 제거)
+      },
+    },
+    { merge: true }
+  );
+
+  console.log("✅ Evolution stage applied:", { userId, from: curStage, to: toStage });
+  return true;
+});
 
 /**
  * progress 업데이트 훅
@@ -355,12 +420,21 @@ exports.updateUserExpOnClear = onDocumentUpdated(
     const after = event.data.after.data();
     if (!before || !after) return;
 
+    // ✅ [추가] 프리미엄 전용 챕터(ch6~)인데 비프리미엄 유저가 업데이트를 시도하면 서버에서 차단
+    const gateUserRef = db.collection("users").doc(userId); // ✅ [추가]
+    const gateUserSnap = await gateUserRef.get(); // ✅ [추가]
+    const gateUserDoc = gateUserSnap.exists ? gateUserSnap.data() : null; // ✅ [추가]
+    if (isPremiumRequiredChapter(chapterId) && !isPremiumActive(gateUserDoc)) {
+      console.log("🚫 Non-premium attempted to update premium chapter progress. Skip.", { userId, chapterId, subQuestId }); // ✅ [추가]
+      return true; // ✅ [추가]
+    }
+
     // 현재 subQuest progress ref를 공통으로 사용 (정산 완료 플래그 기록용)
-    const subQuestProgressRef = event.data.after.ref; 
+    const subQuestProgressRef = event.data.after.ref;
 
     // 이번 업데이트 사이클에서 "정산 완료"를 언제 찍을지 결정하기 위한 플래그
     // - 챕터 보너스까지 있는 케이스는 챕터 트랜잭션 끝난 뒤에만 settled 찍어야 함
-    let shouldSettleAfterChapterBonus = false; 
+    let shouldSettleAfterChapterBonus = false;
 
     // ----- (A) EXP 업데이트: earnedExp 증가분만 반영 -----
     const beforeExp = before.earnedExp || 0;
@@ -381,13 +455,37 @@ exports.updateUserExpOnClear = onDocumentUpdated(
 
         const prevLevel = level;
 
-        exp += deltaExp;
+        // 프리미엄 EXP 보너스(서브퀘스트에만 적용)
+        const deltaExpWithPremium = applyPremiumExpBonus(deltaExp, user);
+
+        // 기존 exp += deltaExp; 대신 프리미엄 적용 값 사용
+        exp += deltaExpWithPremium;
+
+        // 로그도 실제 반영값 기준으로 남기기(디버깅 편함)
+        console.log(
+          `⭐ premium=${!!user?.premium?.isActive} deltaExp=${deltaExp} -> applied=${deltaExpWithPremium}`
+        );
 
         const expTable = {
-          1: 100, 2: 120, 3: 160, 4: 200, 5: 240,
-          6: 310, 7: 380, 8: 480, 9: 600, 10: 750,
-          11: 930, 12: 1160, 13: 1460, 14: 1820, 15: 2270,
-          16: 2840, 17: 3550, 18: 4440, 19: 5550,
+          1: 100,
+          2: 120,
+          3: 160,
+          4: 200,
+          5: 240,
+          6: 310,
+          7: 380,
+          8: 480,
+          9: 600,
+          10: 750,
+          11: 930,
+          12: 1160,
+          13: 1460,
+          14: 1820,
+          15: 2270,
+          16: 2840,
+          17: 3550,
+          18: 4440,
+          19: 5550,
         };
 
         while (exp >= (expTable[level] || Infinity)) {
@@ -413,7 +511,7 @@ exports.updateUserExpOnClear = onDocumentUpdated(
         // - 그래서 FieldValue.delete()를 payload에서 제거하고,
         //   애초에 customization 객체에서 stage를 빼서 저장합니다.
         // ============================
-        const { stage: _legacyStage, ...customizationWithoutStage } = prevCustomization; 
+        const { stage: _legacyStage, ...customizationWithoutStage } = prevCustomization;
 
         const payload = {
           exp,
@@ -456,38 +554,23 @@ exports.updateUserExpOnClear = onDocumentUpdated(
 
     // ----- (B) 챕터 전체 클리어 보너스: 완료 전환 시점에만 검사 -----
     if (becameCompletedNow) {
-      const chapterProgressRef = db
-        .collection("users")
-        .doc(userId)
-        .collection("progress")
-        .doc(chapterId);
-
-      // 지금 업데이트가 발생한 "해당 서브퀘스트 progress 문서"
-      // - 챕터 보너스 지급이 일어난 '결과 화면'에서 이 문서를 읽어
-      //   chapterBonusExpGranted를 UI에 표시할 수 있게 됩니다.
-      //const subQuestProgressRef = event.data.after.ref;
+      const chapterProgressRef = db.collection("users").doc(userId).collection("progress").doc(chapterId);
 
       const chapterSnap = await chapterProgressRef.get();
       if (chapterSnap.exists && chapterSnap.data().chapterBonusGranted) {
         console.log(`⚠️ Chapter ${chapterId} 보너스 이미 지급됨`);
 
-        // 챕터 보너스가 "이미 지급"된 경우라도,
-        // 이 서브퀘스트에 대한 정산 완료 플래그는 찍어줘야 iOS가 진행할 수 있음
-        // (서브퀘스트 exp만 있었든/없었든 “정산 완료”로 간주)
-        await markRewardSettled(subQuestProgressRef, { settledBy: "chapterBonusAlreadyGranted" }); 
-
+        await markRewardSettled(subQuestProgressRef, { settledBy: "chapterBonusAlreadyGranted" });
       } else {
         const subQuestsSnap = await chapterProgressRef.collection("subQuests").get();
         const allCompleted =
-          subQuestsSnap.docs.length > 0 &&
-          subQuestsSnap.docs.every((doc) => doc.data().state === "completed");
+          subQuestsSnap.docs.length > 0 && subQuestsSnap.docs.every((doc) => doc.data().state === "completed");
 
         if (allCompleted) {
-          // 이 케이스는 "챕터보너스 트랜잭션"까지 끝나야 정산 완료를 찍을 수 있음
-          shouldSettleAfterChapterBonus = true; 
+          shouldSettleAfterChapterBonus = true;
 
           // ============================
-          // 챕터 클리어 보상 고정 140 EXP 지급
+          // 챕터 클리어 보상 고정 140 EXP 지급 (❗프리미엄 적용 안 함)
           // ============================
           const bonusExp = 140; // 고정 챕터 보상 (모든 챕터 동일)
           console.log(`🏆 Chapter ${chapterId} 완료 보상 지급 (+${bonusExp} exp)`);
@@ -504,36 +587,41 @@ exports.updateUserExpOnClear = onDocumentUpdated(
             const prevLevel = level;
 
             const expTable = {
-              1: 100, 2: 120, 3: 160, 4: 200, 5: 240,
-              6: 310, 7: 380, 8: 480, 9: 600, 10: 750,
-              11: 930, 12: 1160, 13: 1460, 14: 1820, 15: 2270,
-              16: 2840, 17: 3550, 18: 4440, 19: 5550,
+              1: 100,
+              2: 120,
+              3: 160,
+              4: 200,
+              5: 240,
+              6: 310,
+              7: 380,
+              8: 480,
+              9: 600,
+              10: 750,
+              11: 930,
+              12: 1160,
+              13: 1460,
+              14: 1820,
+              15: 2270,
+              16: 2840,
+              17: 3550,
+              18: 4440,
+              19: 5550,
             };
 
             exp += bonusExp;
 
-            // 레벨업 계산 로직은 그대로 유지
             while (exp >= (expTable[level] || Infinity)) {
               exp -= expTable[level];
               level++;
             }
 
-            // 이번 트랜잭션에서 진화가 발생했는지 체크
             const evo = computeEvolution(prevLevel, level);
-
-            // 레벨 기반 스테이지 (항상 동기화)
             const desiredStage = stageFromLevel(level);
 
-            // ============================
-            // prevCharacter / prevCustomization 정의
-            // ============================
             const prevCharacter = user.character || {};
             const prevCustomization = prevCharacter.customization || {};
 
-            // ============================
-            // customization.stage 제거 (위 트랜잭션과 동일한 이유)
-            // ============================
-            const { stage: _legacyStage2, ...customizationWithoutStage2 } = prevCustomization; 
+            const { stage: _legacyStage2, ...customizationWithoutStage2 } = prevCustomization;
 
             const payload = {
               exp,
@@ -541,35 +629,25 @@ exports.updateUserExpOnClear = onDocumentUpdated(
 
               character: {
                 ...prevCharacter,
-
-                // ✅ [수정] 진화 발생 시 stage를 즉시 바꾸지 않음
                 stage: prevCharacter.stage || "egg",
-
                 customization: {
                   ...customizationWithoutStage2,
                 },
               },
-
-              // ❌ [삭제] 부모(character) + 자식(character.customization.stage) 동시 지정 충돌
-              // "character.customization.stage": FieldValue.delete(), // [삭제]
             };
 
             if (evo) {
               payload.character.evolutionLevel = evo.reachedLevel;
               payload.character.evolutionPending = true;
-              payload.character.evolutionToStage = evo.newStage; // 목표 스테이지 저장
+              payload.character.evolutionToStage = evo.newStage;
               console.log(`🌟 Evolution! user=${userId} -> ${evo.newStage} (Lv ${evo.reachedLevel})`);
             } else {
-              payload.character.stage = desiredStage; // 진화가 없으면 stage 동기화
+              payload.character.stage = desiredStage;
             }
 
-            // 1) users 업데이트
             t.update(userRef, payload);
-
-            // 2) chapter 보너스 1회 지급 플래그
             t.set(chapterProgressRef, { chapterBonusGranted: true }, { merge: true });
 
-            // 3) "이번 결과 화면"에서 보여줄 챕터 보너스 정보를 subQuest progress 문서에 기록
             t.set(
               subQuestProgressRef,
               {
@@ -581,31 +659,21 @@ exports.updateUserExpOnClear = onDocumentUpdated(
             );
           });
 
-          // 챕터 보너스 트랜잭션까지 끝난 "마지막 순간"에 정산 완료 플래그 기록
           await markRewardSettled(subQuestProgressRef, { settledBy: "chapterBonusGranted" });
         }
       }
     }
 
-
     // ----- (C) 다음 서브퀘스트 해금: 완료 전환 시점에만 실행 -----
     if (!becameCompletedNow) {
       console.log("ℹ️ 완료 상태 전환 아님 → 해금/보너스 스킵");
-
-      // 완료 전환이 아닌 경우엔 "정산 완료"를 찍지 않습니다.
-      // (보통 결과 화면이 뜨는 케이스가 아니라서)
       return true;
     }
 
-    // 챕터 클리어 보너스가 "발생하지 않은" 완료 전환(일반 클리어)이라면,
-    // 이 시점에서 정산 완료를 찍어도 안전합니다.
-    // - 서브퀘스트 exp 트랜잭션은 위에서 이미 끝났음(deltaExp > 0이면)
-    // - 챕터 보너스는 이 케이스에 없음
     if (!shouldSettleAfterChapterBonus) {
-      await markRewardSettled(subQuestProgressRef, { settledBy: "subQuestClearOnly" }); 
+      await markRewardSettled(subQuestProgressRef, { settledBy: "subQuestClearOnly" });
     }
 
-    // where() 없이 스캔으로 해금 타겟 찾기
     let fullKey = `${chapterId}:${subQuestId}`;
     try {
       const res = await findUnlockTargetsByScan({ chapterId, subQuestId });
@@ -627,7 +695,6 @@ exports.updateUserExpOnClear = onDocumentUpdated(
   }
 );
 
-
 /**
  * 새로운 Chapter가 추가될 때 모든 유저 progress 생성
  *  - ch1의 첫 서브퀘스트만 inProgress, 나머지는 locked
@@ -648,18 +715,24 @@ exports.onChapterCreated = onDocumentCreated("quests/{chapterId}", async (event)
     const batch = db.batch();
     let index = 0;
 
+    // ✅ [추가] 유저별 프리미엄 상태 확인
+    const userData = userDoc.data(); // ✅ [추가]
+    const premiumActive = isPremiumActive(userData); // ✅ [추가]
+
     for (const sqDoc of subQuestsSnap.docs) {
-      const progressRef = userDoc.ref
-        .collection("progress")
-        .doc(chapterId)
-        .collection("subQuests")
-        .doc(sqDoc.id);
+      const progressRef = userDoc.ref.collection("progress").doc(chapterId).collection("subQuests").doc(sqDoc.id);
 
       const existed = await progressRef.get();
       if (existed.exists) continue;
 
       let state = "locked";
-      if (index === 0 && chapterId === "ch1") state = "inProgress";
+
+      // ✅ [추가] 6챕터부터 프리미엄 전용: 비프리미엄이면 premiumLocked
+      if (isPremiumRequiredChapter(chapterId) && !premiumActive) {
+        state = "premiumLocked"; // ✅ [추가]
+      } else {
+        if (index === 0 && chapterId === "ch1") state = "inProgress";
+      }
 
       batch.set(progressRef, {
         questId: chapterId,
@@ -691,108 +764,84 @@ exports.onChapterCreated = onDocumentCreated("quests/{chapterId}", async (event)
  * 권장 정책:
  *  - preId는 "chX:sqN"으로 통일
  */
-exports.onSubQuestCreated = onDocumentCreated(
-  "quests/{chapterId}/subQuests/{subQuestId}",
-  async (event) => {
-    const { chapterId, subQuestId } = event.params;
-    console.log(`🧩 New SubQuest created: ${chapterId}/${subQuestId}`);
+exports.onSubQuestCreated = onDocumentCreated("quests/{chapterId}/subQuests/{subQuestId}", async (event) => {
+  const { chapterId, subQuestId } = event.params;
+  console.log(`🧩 New SubQuest created: ${chapterId}/${subQuestId}`);
 
-    const newSubQuestData = event.data.data();
-    const preId = newSubQuestData.preId || null;
+  const newSubQuestData = event.data.data();
+  const preId = newSubQuestData.preId || null;
 
-    if (
-      preId &&
-      !isStandardPreId(preId) &&
-      !(typeof preId === "string") &&
-      !(typeof preId === "object")
-    ) {
-      console.warn(`⚠️ preId 타입 이상: ${chapterId}/${subQuestId}`, preId);
+  if (preId && !isStandardPreId(preId) && !(typeof preId === "string") && !(typeof preId === "object")) {
+    console.warn(`⚠️ preId 타입 이상: ${chapterId}/${subQuestId}`, preId);
+  }
+  if (typeof preId === "string" && preId.includes(":") && !isStandardPreId(preId)) {
+    console.warn(`⚠️ preId 표준 포맷 아님(권장: chX:sqN): ${chapterId}/${subQuestId} preId=${preId}`);
+  }
+
+  const usersSnap = await db.collection("users").get();
+  for (const userDoc of usersSnap.docs) {
+    const userRef = userDoc.ref;
+
+    const progressRef = userRef.collection("progress").doc(chapterId).collection("subQuests").doc(subQuestId);
+
+    const existed = await progressRef.get();
+    if (existed.exists) {
+      console.log(`↪︎ skip: ${userDoc.id} already has ${chapterId}/${subQuestId}`);
+      continue;
     }
-    if (typeof preId === "string" && preId.includes(":") && !isStandardPreId(preId)) {
-      console.warn(`⚠️ preId 표준 포맷 아님(권장: chX:sqN): ${chapterId}/${subQuestId} preId=${preId}`);
-    }
 
-    const usersSnap = await db.collection("users").get();
-    for (const userDoc of usersSnap.docs) {
-      const userRef = userDoc.ref;
+    // ✅ [추가] 유저별 프리미엄 상태 확인
+    const premiumActive = isPremiumActive(userDoc.data()); // ✅ [추가]
 
-      const progressRef = userRef
-        .collection("progress")
-        .doc(chapterId)
-        .collection("subQuests")
-        .doc(subQuestId);
+    let initialState = "locked";
 
-      const existed = await progressRef.get();
-      if (existed.exists) {
-        console.log(`↪︎ skip: ${userDoc.id} already has ${chapterId}/${subQuestId}`);
-        continue;
-      }
+    // ✅ [추가] 6챕터부터 프리미엄 전용: 비프리미엄이면 무조건 premiumLocked (선행조건과 무관)
+    if (isPremiumRequiredChapter(chapterId) && !premiumActive) {
+      initialState = "premiumLocked"; // ✅ [추가]
+    } else if (!preId) {
+      initialState = "inProgress";
+    } else if (typeof preId === "string") {
+      if (preId.includes(":")) {
+        const [preCh, preSq] = preId.split(":");
+        const preRef = userRef.collection("progress").doc(preCh).collection("subQuests").doc(preSq);
 
-      let initialState = "locked";
-
-      if (!preId) {
-        // 선행 조건 없으면 바로 오픈
-        initialState = "inProgress";
-      } else if (typeof preId === "string") {
-        if (preId.includes(":")) {
-          // 문자열 키 "chX:sqY"
-          const [preCh, preSq] = preId.split(":");
-          const preRef = userRef
-            .collection("progress")
-            .doc(preCh)
-            .collection("subQuests")
-            .doc(preSq);
-
-          const preSnap = await preRef.get();
-          if (preSnap.exists && preSnap.data().state === "completed") {
-            initialState = "inProgress";
-          }
-        } else {
-          // 레거시: 같은 챕터 내 "sqY" (호환용)
-          const preRef = userRef
-            .collection("progress")
-            .doc(chapterId)
-            .collection("subQuests")
-            .doc(preId);
-
-          const preSnap = await preRef.get();
-          if (preSnap.exists && preSnap.data().state === "completed") {
-            initialState = "inProgress";
-          }
+        const preSnap = await preRef.get();
+        if (preSnap.exists && preSnap.data().state === "completed") {
+          initialState = "inProgress";
         }
-      } else if (typeof preId === "object" && preId.chapter && preId.sub) {
-        // 오브젝트 키 {chapter, sub} (호환용)
-        const preRef = userRef
-          .collection("progress")
-          .doc(preId.chapter)
-          .collection("subQuests")
-          .doc(preId.sub);
+      } else {
+        const preRef = userRef.collection("progress").doc(chapterId).collection("subQuests").doc(preId);
 
         const preSnap = await preRef.get();
         if (preSnap.exists && preSnap.data().state === "completed") {
           initialState = "inProgress";
         }
       }
+    } else if (typeof preId === "object" && preId.chapter && preId.sub) {
+      const preRef = userRef.collection("progress").doc(preId.chapter).collection("subQuests").doc(preId.sub);
 
-      await progressRef.set(
-        {
-          questId: chapterId,
-          subQuestId,
-          state: initialState,
-          earnedExp: 0,
-          attempts: 0,
-          perfectClear: false,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      console.log(
-        `✅ User ${userDoc.id} → ${chapterId}/${subQuestId} progress 추가 (state: ${initialState})`
-      );
+      const preSnap = await preRef.get();
+      if (preSnap.exists && preSnap.data().state === "completed") {
+        initialState = "inProgress";
+      }
     }
 
-    return true;
+    await progressRef.set(
+      {
+        questId: chapterId,
+        subQuestId,
+        state: initialState,
+        earnedExp: 0,
+        attempts: 0,
+        perfectClear: false,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    console.log(`✅ User ${userDoc.id} → ${chapterId}/${subQuestId} progress 추가 (state: ${initialState})`);
   }
-);
+
+  return true;
+});
