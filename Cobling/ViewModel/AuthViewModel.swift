@@ -24,6 +24,11 @@ import FirebaseFirestore
 import FirebaseFirestoreSwift
 #endif
 
+#if canImport(FirebaseMessaging) // FCM 토큰 저장을 위해 추가
+import FirebaseMessaging
+#endif
+
+
 private enum BuildEnv {
     static let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
 }
@@ -37,6 +42,8 @@ final class AuthViewModel: ObservableObject {
 
     // Firestore 프로필 (UI에서 바인딩 가능)
     @Published var userProfile: UserProfile? = nil
+    
+    @Published private(set) var lastFcmToken: String? = nil // 마지막 FCM 토큰 캐시
     
     // 프리미엄 활성 여부(뷰에서 바로 쓰기 편하게)
     var isPremiumActive: Bool {
@@ -89,6 +96,23 @@ final class AuthViewModel: ObservableObject {
 
             if let uid = user?.uid {
                 self.fetchProfile(uid: uid)
+                
+                if let cached = self.lastFcmToken, !cached.isEmpty {
+                    self.db?.collection("users").document(uid).setData([
+                        "fcmToken": cached,
+                        "fcmTokenUpdatedAt": FieldValue.serverTimestamp()
+                    ], merge: true) { err in
+                        if let err = err {
+                            print("❌ (cached) fcmToken 저장 실패:", err.localizedDescription)
+                        } else {
+                            print("✅ (cached) fcmToken 저장 완료:", cached)
+                        }
+                    }
+                }
+                
+                // 자동 로그인/상태 복원 시점에도 fcmToken을 유저 문서에 동기화
+                // - 로그인 화면을 안 거쳐도 토큰이 DB에 들어가도록 보장
+                Task { await self.syncFcmTokenToUserDocIfPossible(uid: uid) }
             } else {
                 self.profileListener?.remove()
                 self.profileListener = nil
@@ -121,6 +145,9 @@ final class AuthViewModel: ObservableObject {
 
             await ensureUserDocumentExists(uid: uid, email: trimmedEmail)
             await updateLastLogin(uid: uid)
+
+            // 로그인 직후 FCM 토큰을 users/{uid}에 저장(또는 갱신)
+            await syncFcmTokenToUserDocIfPossible(uid: uid)
 
             // 로그인 직후 즉시 1회 강제 리프레시(리스너 수신 지연 대비)
             await refreshUserProfileIfNeeded()
@@ -163,7 +190,10 @@ final class AuthViewModel: ObservableObject {
             let nick = (nickname?.isEmpty == false) ? nickname! : "코블러"
 
             try await createUserDocument(uid: uid, email: trimmedEmail, nickname: nick)
-
+            
+            // 가입 직후 FCM 토큰을 users/{uid}에 저장(또는 갱신)
+            await syncFcmTokenToUserDocIfPossible(uid: uid)
+            
             // 가입 직후 리스너 수신 전에 1회 리프레시
             await refreshUserProfileIfNeeded()
         } catch {
@@ -296,6 +326,59 @@ final class AuthViewModel: ObservableObject {
         }
         #endif
     }
+    
+    // FCM 토큰을 users/{uid} 문서에 저장(또는 갱신)
+    // - 로그인 직후 / 회원가입 직후 / 자동로그인(리스너) 시점에 호출
+    // - 토큰은 앱 재설치/기기변경/토큰 갱신 등으로 바뀔 수 있어, "업데이트" 형태가 안전합니다.
+    func syncFcmTokenToUserDocIfPossible(uid: String? = nil) async {
+        #if canImport(FirebaseFirestore) && canImport(FirebaseAuth) && canImport(FirebaseMessaging)
+        guard !BuildEnv.isPreview else { return }
+        guard FirebaseApp.app() != nil else { return }
+        guard let db = self.db else { return } // ✅ [수정] self.db 명시
+
+        // 1) 일단 FCM token을 가져와서 캐시
+        Messaging.messaging().token { [weak self] token, error in
+            guard let self else { return }
+
+            if let error = error {
+                print("❌ FCM token 가져오기 실패:", error.localizedDescription)
+                return
+            }
+            guard let token, !token.isEmpty else {
+                print("❌ FCM token이 비어있음")
+                return
+            }
+
+            self.lastFcmToken = token // ✅ [추가] 캐시 저장
+
+            // 2) uid 결정 (파라미터 > currentUser)
+            let resolvedUid: String = {
+                if let uid, !uid.isEmpty { return uid }
+                return Auth.auth().currentUser?.uid ?? ""
+            }()
+
+            guard !resolvedUid.isEmpty else {
+                print("❌ 로그인된 유저 없음 (토큰은 캐시됨)")
+                return
+            }
+
+            // 3) 유저 문서에 저장
+            db.collection("users").document(resolvedUid).setData(
+                [
+                    "fcmToken": token,
+                    "fcmTokenUpdatedAt": FieldValue.serverTimestamp()
+                ],
+                merge: true
+            ) { err in
+                if let err = err {
+                    print("❌ fcmToken 저장 실패:", err.localizedDescription)
+                } else {
+                    print("✅ fcmToken 저장 완료:", token)
+                }
+            }
+        }
+        #endif
+    }
 
     // “정산 완료(rewardSettled) 이후” 프로필을 확실히 최신으로 맞추기 위한 1회 강제 새로고침
     // - 이미 addSnapshotListener가 있어도, 이벤트 타이밍 꼬임/지연 대비용으로 있으면 안정적입니다.
@@ -396,6 +479,8 @@ final class AuthViewModel: ObservableObject {
                 updatedAt: nil
             )
         )
+        // 디버그 로그인 시에도 fcmToken 저장을 시도(원치 않으면 삭제 가능)
+        Task { await self.syncFcmTokenToUserDocIfPossible(uid: self.currentUserId) }
     }
 
     // MARK: - 에러 한국어 변환
