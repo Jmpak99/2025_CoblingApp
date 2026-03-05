@@ -80,20 +80,32 @@ struct GameMapView: View {
                         Button {
                             viewModel.startExecution()
                         } label: {
-                            Image("gp_play")
-                                .resizable()
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(Color(hex: "#58ED98"))
+                        }
+                        
+                        
+                        // 멈춤 버튼
+                        Button {
+                            viewModel.stopExecution()   // 실행 중단
+                        } label: {
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(Color(hex: "#E85A5A"))
                                 .frame(width: 28, height: 28)
                         }
 
-                        Button {
-                            withAnimation {
-                                isHintOn.toggle()
-                            }
-                        } label: {
-                            Image(isHintOn ? "gp_hint_on" : "gp_hint_off")
-                                .resizable()
-                                .frame(width: 28, height: 28)
-                        }
+
+//                        Button {
+//                            withAnimation {
+//                                isHintOn.toggle()
+//                            }
+//                        } label: {
+//                            Image(isHintOn ? "gp_hint_on" : "gp_hint_off")
+//                                .resizable()
+//                                .frame(width: 28, height: 28)
+//                        }
                     }
                     .padding(.leading, 40)
 

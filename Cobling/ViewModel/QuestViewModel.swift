@@ -58,6 +58,13 @@ final class QuestViewModel: ObservableObject {
     @Published var isExecuting = false
     @Published var didFailExecution = false
     
+    // "멈춤" 요청 플래그 (즉시 중단용)
+    @Published var didStopExecution: Bool = false
+
+    // 실행 세션 토큰 (asyncAfter가 남아있어도 무효화)
+    private var executionToken: UUID = UUID()
+
+    
     // MARK: - Success Reward
     @Published var successReward: SuccessReward? = nil
     
@@ -114,6 +121,10 @@ final class QuestViewModel: ObservableObject {
     func resetForNewSubQuest() {
 
         print("🧹 resetForNewSubQuest() 호출")
+        
+        // ▶️ 실행 세션 무효화
+        executionToken = UUID()
+        didStopExecution = false
 
         // ▶️ 블록 트리 초기화
         startBlock = Block(type: .start)
@@ -138,6 +149,39 @@ final class QuestViewModel: ObservableObject {
         // ▶️ 로딩 오버레이도 초기화
         isRewardLoading = false
         rewardLoadingStartedAt = nil
+    }
+    
+
+    // 멈춤(Stop): 실행 즉시 중단 + 무조건 시작으로 리셋
+    func stopExecution() {
+        // 실행 중이 아니어도 "무조건 처음으로" 정책이면 그대로 리셋
+        DispatchQueue.main.async {
+            self.didStopExecution = true
+
+            // 기존에 예약된 asyncAfter 콜백 전부 무효화
+            self.executionToken = UUID()
+
+            // 실행 상태 정리
+            self.isExecuting = false
+            self.didFailExecution = false
+            self.currentExecutingBlockID = nil
+
+            // 시작 상태로 강제 복귀(다이얼로그는 띄우지 않음)
+            self.characterPosition = self.startPosition
+            self.characterDirection = self.startDirection
+            self.enemies = self.initialEnemies
+
+            // 실패/성공 다이얼로그는 STOP에서는 띄우지 않게(원하시면 true로 바꿔도 됨)
+            self.showFailureDialog = false
+            self.showSuccessDialog = false
+
+            print("⏹️ stopExecution(): 실행 중단 + 시작 위치로 리셋 완료")
+        }
+    }
+
+    // 현재 토큰이 유효한지 체크하는 헬퍼
+    private func isTokenValid(_ token: UUID) -> Bool {
+        return token == executionToken && !didStopExecution
     }
     
     // =================================================
@@ -593,11 +637,16 @@ final class QuestViewModel: ObservableObject {
     func startExecution() {
         guard !isExecuting else { return }
         
+        // 새 실행 시작 시 stop 플래그 해제 + 토큰 갱신
+        didStopExecution = false
+        executionToken = UUID()
+        let token = executionToken
+        
         didFailExecution = false
         isExecuting = true
 
-        executeBlocks(startBlock.children, isTopLevel: true) {
-            // 최상위 실행 종료 (여기서는 아무것도 안 해도 됨)
+        executeBlocks(startBlock.children, isTopLevel: true, token: token) {
+            // 최상위 실행 종료
         }
     }
 
@@ -606,8 +655,15 @@ final class QuestViewModel: ObservableObject {
         _ blocks: [Block],
         index: Int = 0,
         isTopLevel: Bool = false,
-        completion: @escaping () -> Void)
-    {
+        token: UUID,
+        completion: @escaping () -> Void
+    ) {
+        // STOP 누르면 즉시 종료
+        guard isTokenValid(token) else {
+            print("⏹️ 실행 중단: 토큰 무효(Stop 또는 새 실행)")
+            return
+        }
+        
         // 실패 시 즉시 중단
         guard !didFailExecution else {
             print("실행 중단 : 실패 상태")
@@ -615,6 +671,9 @@ final class QuestViewModel: ObservableObject {
         }
         
         guard index < blocks.count else {
+            
+            // 종료 직전에도 토큰 체크
+            guard isTokenValid(token) else { return }
             
             if !isTopLevel {
                 completion()
@@ -663,10 +722,12 @@ final class QuestViewModel: ObservableObject {
         case .moveForward:
             moveForward {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    guard self.isTokenValid(token) else { return }
                     self.executeBlocks(
                         blocks,
                         index: index + 1,
                         isTopLevel: isTopLevel,
+                        token: token,
                         completion: completion
                     )
                 }
@@ -679,6 +740,7 @@ final class QuestViewModel: ObservableObject {
                     blocks,
                     index: index + 1,
                     isTopLevel: isTopLevel,
+                    token: token,
                     completion: completion
                 )
             }
@@ -690,6 +752,7 @@ final class QuestViewModel: ObservableObject {
                     blocks,
                     index: index + 1,
                     isTopLevel: isTopLevel,
+                    token: token,
                     completion: completion
                 )
             }
@@ -701,6 +764,7 @@ final class QuestViewModel: ObservableObject {
                         blocks,
                         index: index + 1,
                         isTopLevel: isTopLevel,
+                        token: token,
                         completion: completion
                     )
                 }
@@ -710,6 +774,9 @@ final class QuestViewModel: ObservableObject {
             let repeatCount = Int(current.value ?? "1") ?? 1
 
             func runRepeat(_ remaining: Int) {
+                
+                guard self.isTokenValid(token) else { return } // 반복마다 stop 체크
+                
                 // 반복문 종료 시점
                 if remaining <= 0 {
                     // 다음 블럭으로 진행
@@ -717,6 +784,7 @@ final class QuestViewModel: ObservableObject {
                         blocks,
                         index: index + 1,
                         isTopLevel: isTopLevel,
+                        token: token,
                         completion: completion
                     )
                     return
@@ -729,9 +797,9 @@ final class QuestViewModel: ObservableObject {
 
                 // 2. 잠깐 깜빡이게 딜레이
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    guard self.isTokenValid(token) else { return }
 
-                    // 3. 내부 블록 실행
-                    self.executeBlocks(current.children) {
+                    self.executeBlocks(current.children, token: token) {
                         runRepeat(remaining - 1)
                     }
                 }
@@ -748,31 +816,40 @@ final class QuestViewModel: ObservableObject {
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                guard self.isTokenValid(token) else { return }
 
                 if shouldRun {
-                    // 조건 true → 내부 블록 실행
-                    self.executeBlocks(current.children) {
+                    self.executeBlocks(current.children, token: token) {
                         self.executeBlocks(
                             blocks,
                             index: index + 1,
                             isTopLevel: isTopLevel,
+                            token: token,
                             completion: completion
                         )
                     }
                 } else {
-                    // 조건 false → 스킵
                     self.executeBlocks(
                         blocks,
                         index: index + 1,
                         isTopLevel: isTopLevel,
+                        token: token,
                         completion: completion
                     )
                 }
             }
 
+
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.executeBlocks(blocks, index: index + 1, completion: completion)
+                guard self.isTokenValid(token) else { return }
+                self.executeBlocks(
+                    blocks,
+                    index: index + 1,
+                    isTopLevel: isTopLevel,
+                    token: token,
+                    completion: completion
+                )
             }
         }
     }
@@ -1339,6 +1416,10 @@ final class QuestViewModel: ObservableObject {
     // MARK: - 실패 시 초기화
     func resetToStart() {
         DispatchQueue.main.async {
+            // 실패도 "현재 실행 세션" 무효화(겹침 방지)
+            self.executionToken = UUID()
+            self.didStopExecution = false
+            
             self.didFailExecution = true
             self.isExecuting = false
             self.currentExecutingBlockID = nil
@@ -1351,6 +1432,10 @@ final class QuestViewModel: ObservableObject {
     }
 
     func resetExecution() {
+        // reset도 세션 무효화(겹침 방지)
+        executionToken = UUID()
+        didStopExecution = false
+        
         didFailExecution = false
         isExecuting = false
         currentExecutingBlockID = nil
