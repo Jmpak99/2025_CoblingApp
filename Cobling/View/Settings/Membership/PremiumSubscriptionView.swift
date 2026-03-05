@@ -53,7 +53,6 @@ struct PremiumSubscriptionView: View {
             .safeAreaInsets.bottom ?? 0
     }
     
-    
     // DB에서 읽은 "현재 프리미엄 활성 여부"
     private var dbIsPremiumActive: Bool {
         authVM.userProfile?.premium?.isActive ?? false
@@ -64,6 +63,11 @@ struct PremiumSubscriptionView: View {
     private var dbCurrentPlan: PremiumPlan {
         let raw = authVM.userProfile?.premium?.plan
         return PremiumPlan(fromFirestore: raw) ?? .monthly
+    }
+    
+    // 평생 이용 중인지(이 값이 true면 월간을 막습니다)
+    private var isLifetimeUser: Bool {
+        dbIsPremiumActive && dbCurrentPlan == .lifetime
     }
     
     // 현재 선택 플랜이 “현재 플랜”인지 (DB 기준)
@@ -98,9 +102,17 @@ struct PremiumSubscriptionView: View {
         }
         // 화면 진입 시, DB의 현재 플랜을 선택 상태로 맞추기(UX 깔끔)
         .onAppear {
-            // 프리미엄 활성이고 plan이 있으면 그걸 선택 상태로 동기화
-            // 비활성이라도 plan이 저장돼 있으면 그걸 기본 선택으로 보여줄 수도 있음
-            selectedPlan = dbCurrentPlan
+            // "평생 이용중"이면 lifetime 고정
+            // 그 외에는 DB에 값이 있으면 동기화, 없으면 현재 selectedPlan 유지
+            if isLifetimeUser {
+                selectedPlan = .lifetime
+            } else {
+                let raw = authVM.userProfile?.premium?.plan
+                if let fromDB = PremiumPlan(fromFirestore: raw) {
+                    selectedPlan = fromDB
+                }
+                // else: DB에 값이 없으면 기본값(.lifetime) 유지 (원하시면 .monthly로 바꿔도 됩니다)
+            }
         }
         // 앱 안에서 Safari 열기
         .sheet(isPresented: $showSafari) {
@@ -184,7 +196,7 @@ struct PremiumSubscriptionView: View {
         VStack(spacing: 12) {
 
             PremiumPlanCard(
-                title: "평생 구독",
+                title: "평생 이용권",
                 subtitle: "1회 결제",
                 priceText: "₩29,000",
                 unitText: "/영구적",
@@ -203,15 +215,23 @@ struct PremiumSubscriptionView: View {
                 subtitle: "1개월마다 결제",
                 priceText: "₩3,300",
                 unitText: "/월",
-                highlightText: nil,
+                //  평생 이용중이면 안내 문구를 보여주기(선택)
+                highlightText: isLifetimeUser ? "평생 이용 중인 계정은 월간 구독을 이용할 수 없어요" : nil,
                 isSelected: selectedPlan == .monthly,
                 showCurrentBadge: dbIsPremiumActive && dbCurrentPlan == .monthly, // DB 기준으로 배지
                 badgeColor: coblingGreen
             )
+            // 평생 이용중이면 탭으로 선택 못하게 막기
             .onTapGesture {
+                guard !isLifetimeUser else {
+                    UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                    return
+                }
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 selectedPlan = .monthly
             }
+            // 평생 이용중이면 카드 자체도 비활성화 느낌 처리
+            .opacity(isLifetimeUser ? 0.45 : 1.0)
         }
         .padding(.top, 6)
     }
@@ -221,6 +241,12 @@ struct PremiumSubscriptionView: View {
         Button {
             // TODO: StoreKit 결제 연결 시 여기서 purchase 실행
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            
+            // 평생 이용중이면 버튼 액션 자체를 막아 안전장치
+            if isLifetimeUser && selectedPlan == .monthly {
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                return
+            }
             
             // StoreKit 연결 전까지 "테스트용"으로 DB에 premium 업데이트
             Task {
@@ -237,14 +263,20 @@ struct PremiumSubscriptionView: View {
         }
         .buttonStyle(.plain)
         .padding(.top, 6)
-        .disabled(isCurrentSelectedPlan)
-        .opacity(isCurrentSelectedPlan ? 0.9 : 1.0)
+        // 평생 이용중이면 monthly 선택 상태 자체가 안 되지만, 혹시 모를 경우까지 disable
+        .disabled(isCurrentSelectedPlan || (isLifetimeUser && selectedPlan == .monthly))
+        .opacity((isCurrentSelectedPlan || (isLifetimeUser && selectedPlan == .monthly)) ? 0.9 : 1.0)
     }
 
     private var buttonTitle: String {
         if isCurrentSelectedPlan {
             return "현재 이용 중인 플랜입니다"
         }
+        
+        // 평생 이용중인데 monthly가 선택된 경우(이론상 막혔지만 안전 문구)
+        if isLifetimeUser && selectedPlan == .monthly {             return "평생 이용 중인 계정입니다"
+        }
+        
         switch selectedPlan {
         case .lifetime:  return "구매하기 - ₩29,000"
         case .monthly: return "구독하기 - ₩3,300"
@@ -279,7 +311,7 @@ struct PremiumSubscriptionView: View {
             VStack(spacing: 6) {
                 Text("• 월간 구독은 자동 갱신됩니다")
                 Text("• 갱신 24시간 전에 취소하지 않으면 자동으로 갱신됩니다")
-                Text("• 평생 구독(1회 결제)은 추가 결제 없이 계속 이용할 수 있습니다")
+                Text("• 평생 이용권(1회 결제)은 추가 결제 없이 계속 이용할 수 있습니다")
                 Text("• 구독은 언제든지 App Store에서 관리 및 취소할 수 있습니다")
             }
             .font(.pretendardMedium10)
