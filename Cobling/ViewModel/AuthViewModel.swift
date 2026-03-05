@@ -37,6 +37,11 @@ final class AuthViewModel: ObservableObject {
 
     // Firestore 프로필 (UI에서 바인딩 가능)
     @Published var userProfile: UserProfile? = nil
+    
+    // 프리미엄 활성 여부(뷰에서 바로 쓰기 편하게)
+    var isPremiumActive: Bool {
+        userProfile?.premium?.isActive == true
+    }
 
     #if canImport(FirebaseAuth)
     private var authListener: AuthStateDidChangeListenerHandle?
@@ -380,7 +385,16 @@ final class AuthViewModel: ObservableObject {
                 evolutionToStage: "egg"
             ),
             settings: .init(notificationsEnabled: true, darkMode: false),
-            lastLogin: Date()
+            lastLogin: Date(),
+            premium: .init( // 디버그 프로필에도 premium 기본값 추가(없어도 되지만 모델 일관성)
+                isActive: false,
+                plan: nil,
+                productId: nil,
+                source: "none",
+                since: nil,
+                expiresAt: nil,
+                updatedAt: nil
+            )
         )
     }
 
@@ -437,6 +451,16 @@ struct UserSettings: Codable {
     var darkMode: Bool
 }
 
+struct UserPremium: Codable {
+    var isActive: Bool
+    var plan: String?
+    var productId: String?
+    var source: String?
+    var since: Date?
+    var expiresAt: Date?
+    var updatedAt: Date?
+}
+
 struct UserProfile: Codable, Identifiable {
     @DocumentID var id: String?
     var nickname: String
@@ -448,6 +472,8 @@ struct UserProfile: Codable, Identifiable {
     var character: UserCharacter
     var settings: UserSettings
     @ServerTimestamp var lastLogin: Date?
+    
+    var premium: UserPremium?
 }
 
 // MARK: - Profile & Account Updates

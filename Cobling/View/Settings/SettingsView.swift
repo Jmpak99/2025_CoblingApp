@@ -7,6 +7,11 @@
 
 import SwiftUI
 
+// MARK: - Preview 감지
+private enum BuildEnv {
+    static let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+}
+
 struct SettingsView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @State private var isEditProfileActive = false
@@ -19,20 +24,30 @@ struct SettingsView: View {
     // 플로팅 탭바 높이(프로젝트 값에 맞게)
     private let floatingTabBarHeight: CGFloat = 72
 
-    // ✅ 로그아웃 확인 다이얼로그
+    // 로그아웃 확인 다이얼로그
     @State private var showLogoutConfirm = false
     @State private var isLoggingOut = false
 
-    // ✅ [수정] 프리뷰에서도 바꾸기 쉽게 init으로 주입 가능하게 변경
+    // 프리뷰에서도 바꾸기 쉽게 init으로 주입 가능하게 변경
     @State private var isPremiumMember: Bool
     @State private var pushToMembership: Bool = false
+    
+    // 프리뷰/실사용 공통: 현재 배너에서 사용할 "실제 프리미엄 상태"
+    // - 실사용: authVM.isPremiumActive(= Firestore premium.isActive)
+    // - 프리뷰: init으로 주입한 isPremiumMember
+    private var effectivePremiumActive: Bool {
+        if BuildEnv.isPreview {
+            return isPremiumMember
+        }
+        return authVM.isPremiumActive
+    }
 
-    // ✅ [추가] 기본 init (실사용)
+    // 기본 init (실사용)
     init() {
         _isPremiumMember = State(initialValue: false)
     }
 
-    // ✅ [추가] 프리뷰 전용 init (원하는 멤버십 상태로 프리뷰 가능)
+    // 프리뷰 전용 init (원하는 멤버십 상태로 프리뷰 가능)
     init(previewIsPremiumMember: Bool) {
         _isPremiumMember = State(initialValue: previewIsPremiumMember)
     }
@@ -52,7 +67,7 @@ struct SettingsView: View {
                     // MARK: - 유저 정보 카드
                     userCard
 
-                    // ✅ 멤버십 배너 카드 (유저 카드 바로 아래)
+                    // 멤버십 배너 카드 (유저 카드 바로 아래)
                     membershipBannerCard
 
                     // MARK: - 추가 기능
@@ -198,28 +213,31 @@ struct SettingsView: View {
 
     // MARK: - 멤버십 배너 카드 (프리미엄/일반 분기)
     private var membershipBannerCard: some View {
-        Button {
+        // 배너/아이콘/문구에 쓸 상태를 한 번만 계산
+        let premium = effectivePremiumActive
+
+        return Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             pushToMembership = true
         } label: {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(isPremiumMember ? Color(hex: "#FFF1D6") : Color(hex: "#F3F6FF"))
+                        .fill(premium ? Color(hex: "#FFF1D6") : Color(hex: "#F3F6FF"))
                         .frame(width: 52, height: 52)
 
-                    Image(systemName: isPremiumMember ? "star.fill" : "star")
+                    Image(systemName: premium ? "star.fill" : "star")
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(isPremiumMember ? Color(hex: "#C08A2D") : Color(hex: "#5B6B9A"))
+                        .foregroundColor(premium ? Color(hex: "#C08A2D") : Color(hex: "#5B6B9A"))
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(isPremiumMember ? "프리미엄 멤버" : "코블링 프리미엄")
+                    Text(premium ? "프리미엄 멤버" : "코블링 프리미엄")
                         .font(.pretendardBold18)
                         .foregroundColor(.black)
                         .lineLimit(1)
 
-                    Text(isPremiumMember
+                    Text(premium
                          ? "현재 프리미엄 이용 중이에요."
                          : "광고 제거 · EXP +5% · 추가 챕터 혜택을 받아보세요!")
                         .font(.pretendardMedium14)
@@ -229,7 +247,7 @@ struct SettingsView: View {
 
                 Spacer()
 
-                if isPremiumMember {
+                if premium {
                     Text("이용중")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Color(hex: "#6B8F5D"))

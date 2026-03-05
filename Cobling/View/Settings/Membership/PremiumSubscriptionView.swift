@@ -6,15 +6,23 @@
 //
 
 import SwiftUI
-import SafariServices // ✅ [추가] 인앱 Safari(SFSafariViewController) 사용
+import SafariServices //  인앱 Safari(SFSafariViewController) 사용
 
+#if canImport(FirebaseAuth)
+import FirebaseAuth //  DB 업데이트(테스트용)
+#endif
 
+#if canImport(FirebaseFirestore)
+import FirebaseFirestore // DB 업데이트(테스트용)
+#endif
 
 struct PremiumSubscriptionView: View {
     @Environment(\.dismiss) private var dismiss
+    
+    @EnvironmentObject var authVM: AuthViewModel // AuthViewModel에서 premium 상태를 읽기 위해
 
     // 선택된 플랜
-    @State private var selectedPlan: PremiumPlan = .yearly
+    @State private var selectedPlan: PremiumPlan = .lifetime
 
     // 현재 프리미엄 결제중 여부 + 현재 플랜(임시)
     // - 나중에 StoreKit/Firestore 값으로 교체
@@ -24,13 +32,44 @@ struct PremiumSubscriptionView: View {
     // 코블링 메인 컬러(프로젝트 컬러에 맞게 사용)
     private let coblingGreen = Color(hex: "#FFD27B")
 
-    // ✅ [추가] 인앱 Safari 띄우기 상태 + 선택된 URL
+    // 인앱 Safari 띄우기 상태 + 선택된 URL
     @State private var showSafari = false
     @State private var selectedURL: URL? = nil
 
-    // ✅ [추가] 각각 다른 URL
+    // 각각 다른 URL
     private let termsURL = URL(string: "https://certain-exoplanet-9bc.notion.site/Cobling-Terms-of-Service-31720a2218b1807e9cf0e802f279e0bd?source=copy_link")!
     private let privacyURL = URL(string: "https://certain-exoplanet-9bc.notion.site/Cobling-Privacy-Policy-31720a2218b1808783b3da4379d1ec9f?source=copy_link")!
+    
+    // 플로팅 탭바 높이(프로젝트 값과 동일하게)
+    private let floatingTabBarHeight: CGFloat = 72
+    
+    // 홈 인디케이터/안전영역 하단 inset(가려짐 방지용)
+    private var safeAreaBottomInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?
+            .windows
+            .first?
+            .safeAreaInsets.bottom ?? 0
+    }
+    
+    
+    // DB에서 읽은 "현재 프리미엄 활성 여부"
+    private var dbIsPremiumActive: Bool {
+        authVM.userProfile?.premium?.isActive ?? false
+    }
+    
+    // DB에서 읽은 "현재 플랜"
+    // - premium.plan이 nil/Null이면 기본값(.monthly)로 처리(원하시면 nil 처리로 바꿔도 됩니다)
+    private var dbCurrentPlan: PremiumPlan {
+        let raw = authVM.userProfile?.premium?.plan
+        return PremiumPlan(fromFirestore: raw) ?? .monthly
+    }
+    
+    // 현재 선택 플랜이 “현재 플랜”인지 (DB 기준)
+    private var isCurrentSelectedPlan: Bool {
+        dbIsPremiumActive && selectedPlan == dbCurrentPlan
+    }
 
     var body: some View {
         ZStack {
@@ -53,21 +92,22 @@ struct PremiumSubscriptionView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 10)
-                .padding(.bottom, 24)
+                .padding(.bottom, floatingTabBarHeight)
             }
             .navigationBarHidden(true)
         }
-        // ✅ [추가] 앱 안에서 Safari 열기
+        // 화면 진입 시, DB의 현재 플랜을 선택 상태로 맞추기(UX 깔끔)
+        .onAppear {
+            // 프리미엄 활성이고 plan이 있으면 그걸 선택 상태로 동기화
+            // 비활성이라도 plan이 저장돼 있으면 그걸 기본 선택으로 보여줄 수도 있음
+            selectedPlan = dbCurrentPlan
+        }
+        // 앱 안에서 Safari 열기
         .sheet(isPresented: $showSafari) {
             if let url = selectedURL {
                 SafariView(url: url)
             }
         }
-    }
-
-    // 현재 선택 플랜이 “현재 플랜”인지
-    private var isCurrentSelectedPlan: Bool {
-        isPremiumActive && selectedPlan == currentPlan
     }
 
     // MARK: - Header
@@ -144,18 +184,18 @@ struct PremiumSubscriptionView: View {
         VStack(spacing: 12) {
 
             PremiumPlanCard(
-                title: "연간 구독",
-                subtitle: "1년마다 결제",
+                title: "평생 구독",
+                subtitle: "1회 결제",
                 priceText: "₩29,000",
-                unitText: "/년",
-                highlightText: "월 ₩2,417으로 더 저렴하게!",
-                isSelected: selectedPlan == .yearly,
-                showCurrentBadge: isPremiumActive && currentPlan == .yearly,
+                unitText: "/영구적",
+                highlightText: "한 번 결제로 영구 이용!",
+                isSelected: selectedPlan == .lifetime,
+                showCurrentBadge: dbIsPremiumActive && dbCurrentPlan == .lifetime, // DB 기준으로 배지
                 badgeColor: coblingGreen
             )
             .onTapGesture {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                selectedPlan = .yearly
+                selectedPlan = .lifetime
             }
 
             PremiumPlanCard(
@@ -165,7 +205,7 @@ struct PremiumSubscriptionView: View {
                 unitText: "/월",
                 highlightText: nil,
                 isSelected: selectedPlan == .monthly,
-                showCurrentBadge: isPremiumActive && currentPlan == .monthly,
+                showCurrentBadge: dbIsPremiumActive && dbCurrentPlan == .monthly, // DB 기준으로 배지
                 badgeColor: coblingGreen
             )
             .onTapGesture {
@@ -179,8 +219,13 @@ struct PremiumSubscriptionView: View {
     // MARK: - Subscribe Button
     private var subscribeButton: some View {
         Button {
-            // ✅ TODO: StoreKit 결제 연결 시 여기서 purchase 실행
+            // TODO: StoreKit 결제 연결 시 여기서 purchase 실행
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            
+            // StoreKit 연결 전까지 "테스트용"으로 DB에 premium 업데이트
+            Task {
+                await setPremiumInFirestore(plan: selectedPlan)
+            }
         } label: {
             Text(buttonTitle)
                 .font(.pretendardBold18)
@@ -201,7 +246,7 @@ struct PremiumSubscriptionView: View {
             return "현재 이용 중인 플랜입니다"
         }
         switch selectedPlan {
-        case .yearly:  return "구독하기 - ₩29,000"
+        case .lifetime:  return "구매하기 - ₩29,000"
         case .monthly: return "구독하기 - ₩3,300"
         }
     }
@@ -210,11 +255,11 @@ struct PremiumSubscriptionView: View {
     private var footerNotice: some View {
         VStack(spacing: 10) {
 
-            // ✅ [수정] 이용약관/개인정보처리방침을 AttributedString 링크로 처리
+            // 이용약관/개인정보처리방침을 AttributedString 링크로 처리
             Text(makePolicyText())
-                .font(.pretendardMedium12)              // ✅ 기존 폰트 유지
-                .foregroundColor(.gray)                  // ✅ 색상 유지
-                .tint(.gray)                             // ✅ 링크 색상도 회색 유지(요청: 색상 바꾸지 말기)
+                .font(.pretendardMedium12)
+                .foregroundColor(.gray)
+                .tint(.gray)
                 .multilineTextAlignment(.center)
                 .environment(\.openURL, OpenURLAction { url in
                     switch url.absoluteString {
@@ -232,34 +277,35 @@ struct PremiumSubscriptionView: View {
                 })
 
             VStack(spacing: 6) {
-                Text("• 구독은 자동 갱신됩니다")
+                Text("• 월간 구독은 자동 갱신됩니다")
                 Text("• 갱신 24시간 전에 취소하지 않으면 자동으로 갱신됩니다")
+                Text("• 평생 구독(1회 결제)은 추가 결제 없이 계속 이용할 수 있습니다")
                 Text("• 구독은 언제든지 App Store에서 관리 및 취소할 수 있습니다")
             }
-            .font(.pretendardMedium10)                  // ✅ 기존 폰트 유지
-            .foregroundColor(.gray.opacity(0.9))        // ✅ 기존 색상 유지
+            .font(.pretendardMedium10)
+            .foregroundColor(.gray.opacity(0.9))
         }
         .multilineTextAlignment(.center)
         .padding(.top, 6)
     }
 
-    // ✅ [추가] 약관 문구 AttributedString 생성 (살짝 굵게 + 밑줄)
+    //약관 문구 AttributedString 생성 (살짝 굵게 + 밑줄)
     private func makePolicyText() -> AttributedString {
         var result = AttributedString("구매 시 ")
 
         // 이용약관 (SemiBold + Underline + 링크)
         var terms = AttributedString("이용약관")
         terms.link = URL(string: "terms")
-        terms.font = .pretendardSemiBold12            // ✅ 살짝 굵게
-        terms.underlineStyle = .single                // ✅ 밑줄
+        terms.font = .pretendardSemiBold12
+        terms.underlineStyle = .single
 
         let middle = AttributedString(" 및 ")
 
         // 개인정보처리방침 (SemiBold + Underline + 링크)
         var privacy = AttributedString("개인정보처리방침")
         privacy.link = URL(string: "privacy")
-        privacy.font = .pretendardSemiBold12          // ✅ 살짝 굵게
-        privacy.underlineStyle = .single              // ✅ 밑줄
+        privacy.font = .pretendardSemiBold12
+        privacy.underlineStyle = .single
 
         let tail = AttributedString("에 동의하게 됩니다.")
 
@@ -270,12 +316,65 @@ struct PremiumSubscriptionView: View {
 
         return result
     }
+    
+    // (StoreKit 연결 전) 테스트용: Firestore에 premium 정보 업데이트
+    @MainActor
+    private func setPremiumInFirestore(plan: PremiumPlan) async {
+        #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        let uid = authVM.currentUserId
+        guard !uid.isEmpty else { return }
+
+        let userRef = Firestore.firestore().collection("users").document(uid)
+
+        do {
+            try await userRef.setData(
+                [
+                    "premium": [
+                        "isActive": true,
+                        "plan": plan.firestoreValue, // "monthly"/"yearly"
+                        "source": "debug",           // 나중에 "appstore"로 변경
+                        "updatedAt": FieldValue.serverTimestamp()
+                    ]
+                ],
+                merge: true
+            )
+
+            // 저장 직후 UI 반영이 늦을 수 있어서 1회 강제 리프레시(옵션)
+            await authVM.refreshUserProfileIfNeeded()
+        } catch {
+            // 필요하면 authVM.authError로 노출해도 됨
+            // authVM.authError = error.localizedDescription
+            print("❌ premium update failed:", error.localizedDescription)
+        }
+        #else
+        // Firebase 없는 빌드/프리뷰에서는 아무것도 하지 않음
+        #endif
+    }
 }
 
 // MARK: - Plan Enum
 private enum PremiumPlan {
-    case yearly
+    case lifetime
     case monthly
+    
+    // Firestore에 저장할 문자열 값
+    var firestoreValue: String {
+        switch self {
+        case .lifetime:  return "lifetime"
+        case .monthly: return "monthly"
+        }
+    }
+
+    // Firestore 문자열 -> PremiumPlan 변환
+    init?(fromFirestore raw: String?) {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !raw.isEmpty else { return nil }
+        switch raw {
+        case "lifetime", "lifetime_one_time", "permanent": self = .lifetime
+        case "monthly", "month": self = .monthly
+        default: return nil
+        }
+    }
 }
 
 // MARK: - Benefit Card
@@ -388,5 +487,6 @@ private struct PremiumPlanCard: View {
 #Preview("프리미엄 구독") {
     NavigationStack {
         PremiumSubscriptionView()
+            .environmentObject(AuthViewModel()) // 환경오브젝트 주입(크래시 방지)
     }
 }
