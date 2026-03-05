@@ -6,20 +6,81 @@
 //
 
 import UIKit
+import UserNotifications
 import FirebaseCore
+import FirebaseMessaging
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
 
+        // Preview에서는 Firebase/푸시 초기화 생략
         if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
             return true
         }
 
+        // Firebase 초기화
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
         }
 
+        // 알림 델리게이트 연결
+        UNUserNotificationCenter.current().delegate = self
+        Messaging.messaging().delegate = self
+
+        // 알림 권한 요청
+        let options: UNAuthorizationOptions = [.alert, .badge, .sound]
+        UNUserNotificationCenter.current().requestAuthorization(options: options) { granted, err in
+            print("🔔 Notification permission granted:", granted,
+                  "error:", err?.localizedDescription ?? "nil")
+        }
+        
+        // APNs 등록(원격 푸시 토큰 받기)
+        application.registerForRemoteNotifications()
+
         return true
+    }
+    
+    // APNs 디바이스 토큰 등록 성공
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+
+        // Firebase Messaging에 APNs 토큰 전달
+        Messaging.messaging().apnsToken = deviceToken
+        print("✅ APNs device token registered")
+    }
+
+    // APNs 디바이스 토큰 등록 실패
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("❌ Failed to register for remote notifications:", error.localizedDescription)
+    }
+}
+
+// MARK: - UNUserNotificationCenterDelegate
+extension AppDelegate: UNUserNotificationCenterDelegate {
+
+    ///  앱이 켜져있을 때(포그라운드)도 배너/사운드 표시
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound, .badge])
+    }
+
+    ///  알림 탭했을 때(필요하면 나중에 딥링크 처리)
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        // 여기서 response.notification.request.content.userInfo 로 라우팅 처리 가능
+        completionHandler()
+    }
+}
+
+// MARK: - MessagingDelegate
+extension AppDelegate: MessagingDelegate {
+
+    /// ✅ FCM 토큰 수신(이게 찍히면 푸시 준비 완료)
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        print("🔥 FCM Token:", fcmToken ?? "nil")
     }
 }
