@@ -68,7 +68,7 @@ struct SettingsView: View {
                     userCard
 
                     // 멤버십 배너 카드 (유저 카드 바로 아래)
-                    membershipBannerCard
+                    // membershipBannerCard
 
                     // MARK: - 추가 기능
                     VStack(spacing: 0) {
@@ -211,65 +211,65 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 멤버십 배너 카드 (프리미엄/일반 분기)
-    private var membershipBannerCard: some View {
-        // 배너/아이콘/문구에 쓸 상태를 한 번만 계산
-        let premium = effectivePremiumActive
-
-        return Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            pushToMembership = true
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(premium ? Color(hex: "#FFF1D6") : Color(hex: "#F3F6FF"))
-                        .frame(width: 52, height: 52)
-
-                    Image(systemName: premium ? "star.fill" : "star")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(premium ? Color(hex: "#C08A2D") : Color(hex: "#5B6B9A"))
-                }
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(premium ? "프리미엄 멤버" : "코블링 프리미엄")
-                        .font(.pretendardBold18)
-                        .foregroundColor(.black)
-                        .lineLimit(1)
-
-                    Text(premium
-                         ? "현재 프리미엄 이용 중이에요."
-                         : "광고 제거 · EXP +5% · 추가 챕터 혜택을 받아보세요!")
-                        .font(.pretendardMedium14)
-                        .foregroundColor(.gray)
-                        .lineLimit(2)
-                }
-
-                Spacer()
-
-                if premium {
-                    Text("이용중")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color(hex: "#6B8F5D"))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color(hex: "#E9F2E6"))
-                        .clipShape(Capsule())
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.gray.opacity(0.8))
-                }
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.gray.opacity(0.18), lineWidth: 1)
-            )
-            .padding(.horizontal)
-        }
-        .buttonStyle(.plain)
-    }
+//    // MARK: - 멤버십 배너 카드 (프리미엄/일반 분기)
+//    private var membershipBannerCard: some View {
+//        // 배너/아이콘/문구에 쓸 상태를 한 번만 계산
+//        let premium = effectivePremiumActive
+//
+//        return Button {
+//            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+//            pushToMembership = true
+//        } label: {
+//            HStack(spacing: 12) {
+//                ZStack {
+//                    RoundedRectangle(cornerRadius: 14)
+//                        .fill(premium ? Color(hex: "#FFF1D6") : Color(hex: "#F3F6FF"))
+//                        .frame(width: 52, height: 52)
+//
+//                    Image(systemName: premium ? "star.fill" : "star")
+//                        .font(.system(size: 22, weight: .semibold))
+//                        .foregroundColor(premium ? Color(hex: "#C08A2D") : Color(hex: "#5B6B9A"))
+//                }
+//
+//                VStack(alignment: .leading, spacing: 5) {
+//                    Text(premium ? "프리미엄 멤버" : "코블링 프리미엄")
+//                        .font(.pretendardBold18)
+//                        .foregroundColor(.black)
+//                        .lineLimit(1)
+//
+//                    Text(premium
+//                         ? "현재 프리미엄 이용 중이에요."
+//                         : "광고 제거 · EXP +5% · 추가 챕터 혜택을 받아보세요!")
+//                        .font(.pretendardMedium14)
+//                        .foregroundColor(.gray)
+//                        .lineLimit(2)
+//                }
+//
+//                Spacer()
+//
+//                if premium {
+//                    Text("이용중")
+//                        .font(.system(size: 12, weight: .semibold))
+//                        .foregroundColor(Color(hex: "#6B8F5D"))
+//                        .padding(.horizontal, 10)
+//                        .padding(.vertical, 6)
+//                        .background(Color(hex: "#E9F2E6"))
+//                        .clipShape(Capsule())
+//                } else {
+//                    Image(systemName: "chevron.right")
+//                        .font(.system(size: 14, weight: .semibold))
+//                        .foregroundColor(.gray.opacity(0.8))
+//                }
+//            }
+//            .padding(16)
+//            .background(
+//                RoundedRectangle(cornerRadius: 14)
+//                    .stroke(Color.gray.opacity(0.18), lineWidth: 1)
+//            )
+//            .padding(.horizontal)
+//        }
+//        .buttonStyle(.plain)
+//    }
 
     // MARK: - 섹션 타이틀
     private func sectionTitle(_ title: String) -> some View {
