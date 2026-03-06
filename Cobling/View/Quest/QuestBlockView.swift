@@ -23,9 +23,23 @@ struct QuestBlockView: View {
     // MARK: - State / ViewModel
     @StateObject private var dragManager = DragManager()
     @StateObject private var viewModel = QuestViewModel()
+    
+    // 튜토리얼 전용 ViewModel
+    @StateObject private var tutorialVM = QuestTutorialViewModel()
 
     // 팔레트 영역 프레임 (삭제 판별용)
     @State private var paletteFrame: CGRect = .zero
+    
+    // 튜토리얼 하이라이트 대상 frame들
+    @State private var storyButtonFrame: CGRect = .zero
+    @State private var blockPaletteFrame: CGRect = .zero
+    @State private var blockCanvasFrame: CGRect = .zero
+    @State private var playButtonFrame: CGRect = .zero
+    @State private var stopButtonFrame: CGRect = .zero
+    @State private var flagFrame: CGRect = .zero
+
+    // 첫 튜토리얼 중복 표시 방지
+    @State private var hasPresentedInitialTutorial: Bool = false
 
     // waiting / locked 상태
     @State private var isWaitingOverlay = false
@@ -55,6 +69,16 @@ struct QuestBlockView: View {
         let lv = authViewModel.userProfile?.character.evolutionLevel ?? 0
         return [5, 10, 15].contains(lv) ? lv : nil
     }
+    
+    // 1-1(= ch1 / sq1) 에서만 튜토리얼 표시
+    private var isTutorialTargetQuest: Bool {
+        chapterId.lowercased() == "ch1" && subQuestId.lowercased() == "sq1"
+    }
+
+    // UserDefaults 저장 키
+    private var tutorialStorageKey: String {
+        "tutorial.quest.\(chapterId.lowercased()).\(subQuestId.lowercased())"
+    }
 
 
     // MARK: - 삭제 영역 판별
@@ -81,7 +105,12 @@ struct QuestBlockView: View {
                 if let subQuest = viewModel.subQuest {
                     GameMapView(
                         viewModel: viewModel,
-                        questTitle: subQuest.title
+                        questTitle: subQuest.title,
+                        // GameMapView에서 버튼/깃발 frame 전달받기
+                        storyButtonFrame: $storyButtonFrame,
+                        playButtonFrame: $playButtonFrame,
+                        stopButtonFrame: $stopButtonFrame,
+                        flagFrame: $flagFrame
                     )
                     .frame(height: 450)
                 } else {
@@ -132,21 +161,33 @@ struct QuestBlockView: View {
                         }
                         .background(Color.white)
                         .onAppear {
-                            paletteFrame = geo.frame(in: .global)
+                            let frame = geo.frame(in: .global)
+                            paletteFrame = frame
+                            blockPaletteFrame = frame // 팔레트 frame 저장
                         }
                         .onChange(of: dragManager.dragPosition) { _ in
-                            paletteFrame = geo.frame(in: .global)
+                            let frame = geo.frame(in: .global)
+                            paletteFrame = frame
+                            blockPaletteFrame = frame //  팔레트 frame 저장
                         }
                     }
                     .frame(width: 140)
 
                     // ---------- 캔버스 ----------
-                    BlockCanvasView(
-                        paletteFrame: $paletteFrame
-                    )
-                    .environmentObject(dragManager)
-                    .environmentObject(viewModel)
-                    .background(Color.gray.opacity(0.1))
+                    GeometryReader { canvasGeo in
+                        BlockCanvasView(
+                            paletteFrame: $paletteFrame
+                        )
+                        .environmentObject(dragManager)
+                        .environmentObject(viewModel)
+                        .background(Color.gray.opacity(0.1))
+                        .onAppear {
+                            blockCanvasFrame = canvasGeo.frame(in: .global)
+                        }
+                        .onChange(of: dragManager.dragPosition) { _ in
+                            blockCanvasFrame = canvasGeo.frame(in: .global)
+                        }
+                    }
                 }
             }
             
@@ -313,19 +354,49 @@ struct QuestBlockView: View {
                 )
                 .zIndex(60)
             }
+            
+            // 컷신 종료 후 게임 화면 위에 튜토리얼 오버레이 표시
+            if tutorialVM.isActive {
+                QuestTutorialOverlayView(
+                    viewModel: tutorialVM,
+                    storyButtonFrame: storyButtonFrame == .zero ? nil : storyButtonFrame,
+                    blockPaletteFrame: blockPaletteFrame == .zero ? nil : blockPaletteFrame,
+                    blockCanvasFrame: blockCanvasFrame == .zero ? nil : blockCanvasFrame,
+                    playButtonFrame: playButtonFrame == .zero ? nil : playButtonFrame,
+                    stopButtonFrame: stopButtonFrame == .zero ? nil : stopButtonFrame,
+                    flagFrame: flagFrame == .zero ? nil : flagFrame
+                )
+                .zIndex(65)
+            }
         }
         .environmentObject(dragManager)
         .environmentObject(viewModel)
         
-        // 컷신 닫히는 순간 감지 -> 예약된 경우에만 다음 진행
+
+        // 컷신 닫히는 순간 감지
+        // 1) 아웃트로 컷신이면 다음 퀘스트 진행
+        // 2) 인트로 컷신이 끝난 1-1이면 튜토리얼 시작
         .onChange(of: viewModel.isShowingCutscene) { isShowing in
             if !isShowing, shouldGoNextAfterCutscene {
                 shouldGoNextAfterCutscene = false
                 waitingRetryCount = 0
                 isWaitingOverlay = true
                 tryGoNextHandlingWaiting()
+                return
+            }
+
+            if !isShowing,
+               isTutorialTargetQuest,
+               !hasPresentedInitialTutorial,
+               !shouldGoNextAfterCutscene {
+                hasPresentedInitialTutorial = true
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    tutorialVM.startTutorial(tutorialKey: tutorialStorageKey)
+                }
             }
         }
+
 
 
         // =================================================
@@ -334,6 +405,8 @@ struct QuestBlockView: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onEnded { value in
+                    guard !tutorialVM.isActive else { return } 
+
                     dragManager.finishDrag(at: value.location) {
                         endPos, source, type, block in
 
@@ -473,17 +546,38 @@ struct QuestBlockView: View {
         .onAppear {
             appState.isInGame = true
             tabBarViewModel.isTabBarVisible = false
+
+            // 새 진입 시 frame / 표시 상태 초기화
+            storyButtonFrame = .zero
+            blockPaletteFrame = .zero
+            blockCanvasFrame = .zero
+            playButtonFrame = .zero
+            stopButtonFrame = .zero
+            flagFrame = .zero
+            hasPresentedInitialTutorial = false
+
             viewModel.fetchSubQuest(
                 chapterId: chapterId,
                 subQuestId: subQuestId
             )
         }
+
         
         .onChange(of: subQuestId) { newId in
             print("🧹 새 서브퀘스트 진입, 블록 초기화:", newId)
 
             // 1️⃣ 블록 상태 완전 초기화
             viewModel.resetForNewSubQuest()
+            
+            // 다음 서브퀘스트 진입 시 튜토리얼 상태/프레임 초기화
+            tutorialVM.resetTutorial()
+            storyButtonFrame = .zero
+            blockPaletteFrame = .zero
+            blockCanvasFrame = .zero
+            playButtonFrame = .zero
+            stopButtonFrame = .zero
+            flagFrame = .zero
+            hasPresentedInitialTutorial = false
 
             // 2️⃣ 새 퀘스트 데이터 로드
             viewModel.fetchSubQuest(

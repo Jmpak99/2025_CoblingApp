@@ -11,15 +11,21 @@ struct GameMapView: View {
     @ObservedObject var viewModel: QuestViewModel
     var questTitle: String
 
+    // MARK: - Tutorial Highlight Frames
+    @Binding var storyButtonFrame: CGRect
+    @Binding var playButtonFrame: CGRect
+    @Binding var stopButtonFrame: CGRect
+    @Binding var flagFrame: CGRect
+
     @EnvironmentObject var tabBarViewModel: TabBarViewModel
     @EnvironmentObject var authVM: AuthViewModel
-    
+
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var appState: AppState
 
     @State private var isHintOn = false
     @State private var isStoryOn = false
-    
+
     // DB stage → 에셋 prefix (게임 캐릭터용)
     private var gameCharacterAssetPrefix: String {
         let stage = (authVM.userProfile?.character.stage ?? "egg")
@@ -31,7 +37,7 @@ struct GameMapView: View {
 
         return "cobling_stage_\(safeStage)"
     }
-    
+
     // 방향 → suffix 매핑
     // up    -> back
     // down  -> front
@@ -45,7 +51,7 @@ struct GameMapView: View {
         case .right: return "right"
         }
     }
-    
+
     // 최종 캐릭터 에셋 이름
     // ex) "cobling_stage_kid_front"
     private var gameCharacterDirectionalAssetName: String {
@@ -58,9 +64,9 @@ struct GameMapView: View {
             // MARK: - Background
             Color(hex: "#FFF2DC")
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 4) {
-                // 상단 노치	
+                // 상단 노치
                 Spacer().frame(height: 42)
 
                 // MARK: - 타이틀
@@ -84,8 +90,18 @@ struct GameMapView: View {
                                 .font(.system(size: 32, weight: .bold))
                                 .foregroundColor(Color(hex: "#58ED98"))
                         }
-                        
-                        
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .onAppear {
+                                        playButtonFrame = geo.frame(in: .global)
+                                    }
+                                    .onChange(of: viewModel.isExecuting) { _ in
+                                        playButtonFrame = geo.frame(in: .global)
+                                    }
+                            }
+                        )
+
                         // 멈춤 버튼
                         Button {
                             viewModel.stopExecution()   // 실행 중단
@@ -95,7 +111,17 @@ struct GameMapView: View {
                                 .foregroundColor(Color(hex: "#E85A5A"))
                                 .frame(width: 28, height: 28)
                         }
-
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .onAppear {
+                                        stopButtonFrame = geo.frame(in: .global)
+                                    }
+                                    .onChange(of: viewModel.isExecuting) { _ in
+                                        stopButtonFrame = geo.frame(in: .global)
+                                    }
+                            }
+                        )
 
 //                        Button {
 //                            withAnimation {
@@ -163,6 +189,20 @@ struct GameMapView: View {
                                                 .scaledToFit()
                                                 .frame(width: 36, height: 36)
                                                 .offset(y: -15)
+                                                .background(
+                                                    GeometryReader { geo in
+                                                        Color.clear
+                                                            .onAppear {
+                                                                flagFrame = geo.frame(in: .global)
+                                                            }
+                                                            .onChange(of: viewModel.characterPosition.row) { _ in
+                                                                flagFrame = geo.frame(in: .global)
+                                                            }
+                                                            .onChange(of: viewModel.characterPosition.col) { _ in
+                                                                flagFrame = geo.frame(in: .global)
+                                                            }
+                                                    }
+                                                )
                                         }
                                     }
                                     .frame(width: tileSize, height: tileSize)
@@ -206,12 +246,12 @@ struct GameMapView: View {
 
                     ZStack(alignment: .trailing) {
                         if isStoryOn,
-                            let message = viewModel.storyMessage {
-                                SpeechBubbleView(message: message)
-                                    .transition(.opacity)
-                                    .padding(.trailing, 50)
+                           let message = viewModel.storyMessage {
+                            SpeechBubbleView(message: message)
+                                .transition(.opacity)
+                                .padding(.trailing, 50)
                         }
-                        
+
                         Button {
                             withAnimation {
                                 isStoryOn.toggle()
@@ -221,6 +261,17 @@ struct GameMapView: View {
                                 .resizable()
                                 .frame(width: 40, height: 40)
                         }
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .onAppear {
+                                        storyButtonFrame = geo.frame(in: .global)
+                                    }
+                                    .onChange(of: isStoryOn) { _ in
+                                        storyButtonFrame = geo.frame(in: .global)
+                                    }
+                            }
+                        )
                     }
                     .padding(.trailing, 30)
                 }
@@ -243,6 +294,26 @@ struct GameMapView: View {
                     Spacer()
                 }
             }
+        }
+        .onAppear {
+            refreshTutorialFrames()
+        }
+        .onChange(of: viewModel.characterPosition.row) { _ in
+            refreshTutorialFrames()
+        }
+        .onChange(of: viewModel.characterPosition.col) { _ in
+            refreshTutorialFrames()
+        }
+        .onChange(of: viewModel.characterDirection) { _ in
+            refreshTutorialFrames()
+        }
+    }
+
+    // MARK: - Tutorial Frame Refresh
+    private func refreshTutorialFrames() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+            // 각 GeometryReader의 onAppear / onChange에서 개별 반영되므로
+            // 여기서는 레이아웃 갱신 타이밍을 한 번 더 보정하는 용도입니다.
         }
     }
 }

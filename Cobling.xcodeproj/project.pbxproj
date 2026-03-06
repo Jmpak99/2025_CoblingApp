@@ -44,7 +44,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		880C50F42F598B73006127B5 /* Exceptions for "Cobling" folder in "Cobling" target */ = {
+		880C52C52F5B0542006127B5 /* Exceptions for "Cobling" folder in "Cobling" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -57,7 +57,7 @@
 		8857E7DE2E049CFF001FBEFC /* Cobling */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				880C50F42F598B73006127B5 /* Exceptions for "Cobling" folder in "Cobling" target */,
+				880C52C52F5B0542006127B5 /* Exceptions for "Cobling" folder in "Cobling" target */,
 			);
 			path = Cobling;
 			sourceTree = "<group>";
