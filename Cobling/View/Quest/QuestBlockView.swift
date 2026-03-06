@@ -131,7 +131,7 @@ struct QuestBlockView: View {
                             // 삭제 오버레이 (팔레트 영역 전체, 여백 없음)
                             // =================================================
                             if isOverPalette() {
-                                GeometryReader { geo in
+                                GeometryReader { _ in
                                     HStack(spacing: 0) {
                                         // 🔴 팔레트 영역만 붉게
                                         Color.red.opacity(0.35)
@@ -368,6 +368,18 @@ struct QuestBlockView: View {
                 )
                 .zIndex(65)
             }
+            
+//            // 컷신 종료 후 게임 화면 위에 튜토리얼 오버레이 표시 (테스트용)
+//            if tutorialVM.isActive {
+//                Color.black.opacity(0.45)
+//                    .ignoresSafeArea()
+//                    .overlay(
+//                        Text("튜토리얼 테스트")
+//                            .font(.largeTitle.bold())
+//                            .foregroundColor(.white)
+//                    )
+//                    .zIndex(999)
+//            }
         }
         .environmentObject(dragManager)
         .environmentObject(viewModel)
@@ -377,6 +389,11 @@ struct QuestBlockView: View {
         // 1) 아웃트로 컷신이면 다음 퀘스트 진행
         // 2) 인트로 컷신이 끝난 1-1이면 튜토리얼 시작
         .onChange(of: viewModel.isShowingCutscene) { isShowing in
+            print("🎬 isShowingCutscene:", isShowing)
+            print("🎬 shouldGoNextAfterCutscene:", shouldGoNextAfterCutscene)
+            print("🎬 hasPresentedInitialTutorial:", hasPresentedInitialTutorial)
+            print("🎬 isTutorialTargetQuest:", isTutorialTargetQuest)
+
             if !isShowing, shouldGoNextAfterCutscene {
                 shouldGoNextAfterCutscene = false
                 waitingRetryCount = 0
@@ -389,14 +406,39 @@ struct QuestBlockView: View {
                isTutorialTargetQuest,
                !hasPresentedInitialTutorial,
                !shouldGoNextAfterCutscene {
+                print("✅ 컷신 종료 후 튜토리얼 시작 조건 충족")
                 hasPresentedInitialTutorial = true
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    tutorialVM.startTutorial(tutorialKey: tutorialStorageKey)
+                    tutorialVM.startTutorial(
+                        tutorialKey: tutorialStorageKey,
+                        // forceStart: true // 디버깅용 강제 시작
+                    )
                 }
             }
         }
 
+        // ✅ [수정] subQuest 로드 후 보조 튜토리얼 시작 트리거 추가
+        .onChange(of: viewModel.subQuest?.id) { _ in
+            print("📦 subQuest loaded:", viewModel.subQuest?.id ?? "nil")
+            print("📦 isShowingCutscene:", viewModel.isShowingCutscene)
+            print("📦 isTutorialTargetQuest:", isTutorialTargetQuest)
+            print("📦 hasPresentedInitialTutorial:", hasPresentedInitialTutorial)
+
+            if isTutorialTargetQuest,
+               !viewModel.isShowingCutscene,
+               !hasPresentedInitialTutorial {
+                print("✅ subQuest 로드 후 튜토리얼 시작")
+                hasPresentedInitialTutorial = true
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    tutorialVM.startTutorial(
+                        tutorialKey: tutorialStorageKey,
+                        // forceStart: true // ✅ [수정] 디버깅용 강제 시작
+                    )
+                }
+            }
+        }
 
 
         // =================================================
@@ -405,7 +447,7 @@ struct QuestBlockView: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onEnded { value in
-                    guard !tutorialVM.isActive else { return } 
+                    guard !tutorialVM.isActive else { return } // 튜토리얼 중 드래그 금지
 
                     dragManager.finishDrag(at: value.location) {
                         endPos, source, type, block in
@@ -544,6 +586,13 @@ struct QuestBlockView: View {
 
         // 초기 로딩
         .onAppear {
+            // 디버깅 로그 추가
+            print("📌 chapterId:", chapterId)
+            print("📌 subQuestId:", subQuestId)
+            print("📌 tutorialStorageKey:", tutorialStorageKey)
+            print("📌 isTutorialTargetQuest:", isTutorialTargetQuest)
+            print("📌 saved tutorial:", UserDefaults.standard.bool(forKey: tutorialStorageKey))
+
             appState.isInGame = true
             tabBarViewModel.isTabBarVisible = false
 

@@ -5,207 +5,206 @@
 //  Created by 박종민 on 3/6/26.
 //
 
+
 import SwiftUI
 
-struct QuestTutorialBubbleView: View {
+struct QuestTutorialOverlayView: View {
     @ObservedObject var viewModel: QuestTutorialViewModel
 
+    /// 화면에서 강조할 대상들의 frame 정보
+    let storyButtonFrame: CGRect?
+    let blockPaletteFrame: CGRect?
+    let blockCanvasFrame: CGRect?
+    let playButtonFrame: CGRect?
+    let stopButtonFrame: CGRect?
+    let flagFrame: CGRect?
+
     var body: some View {
-        VStack(spacing: 0) {
-            headerSection
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                tutorialDimmedBackground(in: geometry)
 
-            Divider()
-                .overlay(Color.black.opacity(0.06))
+                if let highlightFrame = currentHighlightFrame {
+                    let expanded = expandedFrame(from: highlightFrame)
 
-            contentSection
+                    TutorialHighlightBox(
+                        frame: expanded,
+                        cornerRadius: currentCornerRadius
+                    )
+                    .transition(.opacity)
+                }
 
-            Divider()
-                .overlay(Color.black.opacity(0.06))
-
-            bottomButtonSection
+                QuestTutorialBubbleView(viewModel: viewModel)
+                    .padding(.bottom, 18)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 0.2), value: viewModel.currentStep)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 10)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.black.opacity(0.05), lineWidth: 1)
-        )
-        .padding(.horizontal, 20)
+        .allowsHitTesting(true)
     }
 }
 
-// MARK: - Header
-private extension QuestTutorialBubbleView {
-    var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 10) {
-                Text(viewModel.title)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.black)
-
-                Spacer()
-
-                if let current = viewModel.visibleStepNumber {
-                    Text("\(current) / \(viewModel.totalVisibleSteps)")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color.black.opacity(0.55))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.06))
-                        )
-                }
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.black.opacity(0.08))
-                        .frame(height: 8)
-
-                    Capsule()
-                        .fill(Color(hex: "#6B8F5D"))
-                        .frame(
-                            width: max(8, geo.size.width * viewModel.progressValue),
-                            height: 8
-                        )
-                }
-            }
-            .frame(height: 8)
+// MARK: - Background
+private extension QuestTutorialOverlayView {
+    @ViewBuilder
+    func tutorialDimmedBackground(in geometry: GeometryProxy) -> some View {
+        if let highlightFrame = currentHighlightFrame {
+            DimmedOverlayWithCutout(
+                highlightFrame: expandedFrame(from: highlightFrame),
+                cornerRadius: 18
+            )
+            .ignoresSafeArea()
+        } else {
+            Color.black.opacity(0.45)
+                .ignoresSafeArea()
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 16)
-    }
-}
-
-// MARK: - Content
-private extension QuestTutorialBubbleView {
-    var contentSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(viewModel.message)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Color.black.opacity(0.82))
-                .lineSpacing(6)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let focusDescription = focusDescriptionText {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "hand.point.up.left.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "#6B8F5D"))
-                        .padding(.top, 2)
-
-                    Text(focusDescription)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color(hex: "#6B8F5D"))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 18)
     }
 
-    var focusDescriptionText: String? {
+    var currentHighlightFrame: CGRect? {
         switch viewModel.focusTarget {
         case .storyButton:
-            return "스토리 버튼 위치를 눈여겨보세요."
+            return storyButtonFrame
         case .blockPalette:
-            return "왼쪽 블록 영역을 확인해보세요."
+            return blockPaletteFrame
         case .blockCanvas:
-            return "블록을 놓는 오른쪽 캔버스 영역을 확인해보세요."
+            return blockCanvasFrame
         case .playButton:
-            return "시작 버튼 위치를 확인해보세요."
+            return playButtonFrame
         case .stopButton:
-            return "멈춤 버튼 위치를 확인해보세요."
+            return stopButtonFrame
         case .flag:
-            return "깃발이 목표 지점이에요."
+            return flagFrame
         case .none:
             return nil
         }
     }
+    
+    var currentCornerRadius: CGFloat {
+        switch viewModel.focusTarget {
+        case .flag:
+            return 22
+        default:
+            return 18
+        }
+    }
+
+    func expandedFrame(from frame: CGRect) -> CGRect {
+        switch viewModel.focusTarget {
+        case .flag:
+            return frame.insetBy(dx: -16, dy: -16) // 깃발은 더 넉넉하게
+        default:
+            return frame.insetBy(dx: -8, dy: -8)
+        }
+    }
 }
 
-// MARK: - Buttons
-private extension QuestTutorialBubbleView {
-    var bottomButtonSection: some View {
-        HStack(spacing: 10) {
-            Button {
-                viewModel.goToPreviousStep()
-            } label: {
-                Text("이전")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(viewModel.currentStep.previousStep == nil ? Color.gray.opacity(0.5) : Color.black.opacity(0.75))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.black.opacity(0.05))
-                    )
-            }
-            .disabled(viewModel.currentStep.previousStep == nil)
+// MARK: - Highlight Box
+private struct TutorialHighlightBox: View {
+    let frame: CGRect
+    let cornerRadius: CGFloat
 
-            if viewModel.showsSkipButton {
-                Button {
-                    viewModel.skipTutorial()
-                } label: {
-                    Text("건너뛰기")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(Color.black.opacity(0.72))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color(hex: "#FFF2DC"))
-                        )
-                }
-            }
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .stroke(Color.white, lineWidth: 3)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(0.14))
+            )
+            .frame(width: frame.width, height: frame.height)
+            .position(
+                x: frame.midX,
+                y: frame.midY
+            )
+            .shadow(color: .white.opacity(0.45), radius: 16, x: 0, y: 0)
+            .allowsHitTesting(false)
+    }
+}
 
-            Button {
-                viewModel.handlePrimaryButtonTap()
-            } label: {
-                Text(viewModel.primaryButtonTitle)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color(hex: "#6B8F5D"))
-                    )
-            }
+// MARK: - Dimmed Overlay With Cutout
+private struct DimmedOverlayWithCutout: View {
+    let highlightFrame: CGRect
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            let fullRect = CGRect(origin: .zero, size: size)
+            let overlayPath = Path(fullRect)
+
+            let cutoutPath = Path(
+                roundedRect: highlightFrame,
+                cornerRadius: cornerRadius
+            )
+
+            var combined = overlayPath
+            combined.addPath(cutoutPath)
+
+            context.fill(
+                combined,
+                with: .color(Color.black.opacity(0.45)),
+                style: FillStyle(eoFill: true)
+            )
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 20)
+        .allowsHitTesting(false)
     }
 }
 
 #Preview {
     ZStack {
-        Color.black.opacity(0.08).ignoresSafeArea()
+        Color(hex: "#F8F4EC").ignoresSafeArea()
 
-        QuestTutorialBubblePreviewWrapper()
-            .padding(.horizontal, 8)
+        VStack {
+            HStack(spacing: 16) {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.orange.opacity(0.5))
+                    .frame(width: 70, height: 44)
+
+                Spacer()
+
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.green.opacity(0.5))
+                    .frame(width: 70, height: 44)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 80)
+
+            Spacer()
+
+            HStack(alignment: .bottom, spacing: 20) {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.blue.opacity(0.25))
+                    .frame(width: 120, height: 260)
+
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.purple.opacity(0.18))
+                    .frame(width: 190, height: 260)
+            }
+
+            Spacer()
+        }
+
+        QuestTutorialOverlayPreviewWrapper()
     }
 }
 
-private struct QuestTutorialBubblePreviewWrapper: View {
+private struct QuestTutorialOverlayPreviewWrapper: View {
     @StateObject private var viewModel = QuestTutorialViewModel()
 
     var body: some View {
-        QuestTutorialBubbleView(viewModel: viewModel)
-            .onAppear {
-                viewModel.startTutorial(
-                    tutorialKey: "tutorial.quest.ch1.sq1",
-                    forceStart: true
-                )
-            }
+        QuestTutorialOverlayView(
+            viewModel: viewModel,
+            storyButtonFrame: CGRect(x: 28, y: 86, width: 70, height: 44),
+            blockPaletteFrame: CGRect(x: 36, y: 360, width: 120, height: 260),
+            blockCanvasFrame: CGRect(x: 186, y: 360, width: 190, height: 260),
+            playButtonFrame: CGRect(x: 306, y: 86, width: 70, height: 44),
+            stopButtonFrame: CGRect(x: 306, y: 146, width: 70, height: 44),
+            flagFrame: CGRect(x: 292, y: 268, width: 34, height: 34)
+        )
+        .onAppear {
+            viewModel.startTutorial(
+                tutorialKey: "tutorial.quest.ch1.sq1",
+                forceStart: true
+            )
+        }
     }
 }

@@ -55,7 +55,7 @@ extension QuestTutorialStep {
     var message: String {
         switch self {
         case .storyIntro:
-            return "코블링이 깨어나기 위해서는 블록의 도움이 필요해요. 먼저 게임 화면에서 어떤 기능을 사용할지 같이 알아볼까요?"
+            return "코블링이 깨어나기 위해서는 도움이 필요해요. \n먼저 게임 화면에서 어떤 기능을 사용할지 같이 알아볼까요?"
         case .explainStoryButton:
             return "스토리 버튼을 누르면 현재 퀘스트의 스토리와 설명을 다시 확인할 수 있어요."
         case .explainBlockPalette:
@@ -69,7 +69,7 @@ extension QuestTutorialStep {
         case .explainReachFlag:
             return "코블링이 깃발에 도착하면 퀘스트 성공이에요!"
         case .readyToStart:
-            return "이제 게임 방법을 모두 확인했어요. 직접 블록을 배치해서 코블링을 움직여볼까요?"
+            return "이제 게임 방법을 모두 확인했어요. \n직접 블록을 배치해서 코블링을 움직여볼까요?"
         case .completed:
             return "튜토리얼이 종료되었어요."
         }

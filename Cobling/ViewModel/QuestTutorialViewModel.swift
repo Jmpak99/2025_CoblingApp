@@ -96,8 +96,14 @@ final class QuestTutorialViewModel: ObservableObject {
         forceStart: Bool = false
     ) {
         self.tutorialKey = tutorialKey
+        
+        print("🟢 startTutorial 호출")
+        print("🟢 tutorialKey:", tutorialKey)
+        print("🟢 forceStart:", forceStart)
+        print("🟢 saved:", UserDefaults.standard.bool(forKey: tutorialKey))
 
         if hasSeenTutorial(for: tutorialKey), !forceStart {
+            print("🔴 이미 본 튜토리얼이라 종료")
             isActive = false
             isFinished = true
             return
@@ -107,6 +113,9 @@ final class QuestTutorialViewModel: ObservableObject {
         isFinished = false
         isSkipped = false
         currentStep = .storyIntro
+        
+        print("🟢 startTutorial 완료 - isActive:", isActive)
+        print("🟢 currentStep:", currentStep)
     }
 
     /// 메인 버튼 탭 처리
