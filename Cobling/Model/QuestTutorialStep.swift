@@ -15,11 +15,12 @@ enum QuestTutorialStep: Int, CaseIterable, Identifiable {
     case explainStoryButton  // 2. 스토리 버튼 소개
     case explainBlockPalette // 3. 왼쪽 블록 설명
     case explainPlaceBlock   // 4. 블록 배치 설명
-    case explainPlayButton   // 5. 시작 버튼 설명
-    case explainStopButton   // 6. 멈춤 버튼 설명
-    case explainReachFlag    // 7. 깃발 도착 설명
-    case readyToStart        // 8. 이제 직접 시작하기
-    case completed           // 9. 종료
+    case explainRemoveBlock  // 5. 블록 제거 설명
+    case explainPlayButton   // 6. 시작 버튼 설명
+    case explainStopButton   // 7. 멈춤 버튼 설명
+    case explainReachFlag    // 8. 깃발 도착 설명
+    case readyToStart        // 9. 이제 직접 시작하기
+    case completed           // 10. 종료
 
     var id: Int { rawValue }
 }
@@ -38,6 +39,8 @@ extension QuestTutorialStep {
             return "블록 사용하기"
         case .explainPlaceBlock:
             return "블록 배치하기"
+        case .explainRemoveBlock:
+            return "블록 제거하기"
         case .explainPlayButton:
             return "시작 버튼"
         case .explainStopButton:
@@ -62,6 +65,8 @@ extension QuestTutorialStep {
             return "왼쪽에는 코블링을 움직일 수 있는 블록들이 있어요. 필요한 블록을 골라 사용할 수 있어요."
         case .explainPlaceBlock:
             return "블록을 드래그해서 시작 블록 아래에 순서대로 배치하면 코블링의 행동이 만들어져요."
+        case .explainRemoveBlock:
+            return "배치한 블록을 다시 왼쪽 팔레트 영역으로 드래그하면 블록을 제거할 수 있어요."
         case .explainPlayButton:
             return "블록 배치가 끝나면 시작 버튼을 눌러 코블링을 움직일 수 있어요."
         case .explainStopButton:
@@ -86,6 +91,8 @@ extension QuestTutorialStep {
             return .blockPalette
         case .explainPlaceBlock:
             return .blockCanvas
+        case .explainRemoveBlock:
+            return .blockPalette
         case .explainPlayButton:
             return .playButton
         case .explainStopButton:
@@ -143,14 +150,16 @@ extension QuestTutorialStep {
             return 3
         case .explainPlaceBlock:
             return 4
-        case .explainPlayButton:
+        case .explainRemoveBlock:
             return 5
-        case .explainStopButton:
+        case .explainPlayButton:
             return 6
-        case .explainReachFlag:
+        case .explainStopButton:
             return 7
-        case .readyToStart:
+        case .explainReachFlag:
             return 8
+        case .readyToStart:
+            return 9
         case .completed:
             return nil
         }
@@ -158,9 +167,10 @@ extension QuestTutorialStep {
 
     /// 진행 표시용 전체 단계 수
     var totalVisibleSteps: Int {
-        8
+        9
     }
 }
+
 
 // MARK: - Step Navigation
 extension QuestTutorialStep {
@@ -175,6 +185,8 @@ extension QuestTutorialStep {
         case .explainBlockPalette:
             return .explainPlaceBlock
         case .explainPlaceBlock:
+            return .explainRemoveBlock
+        case .explainRemoveBlock:
             return .explainPlayButton
         case .explainPlayButton:
             return .explainStopButton
@@ -200,8 +212,10 @@ extension QuestTutorialStep {
             return .explainStoryButton
         case .explainPlaceBlock:
             return .explainBlockPalette
-        case .explainPlayButton:
+        case .explainRemoveBlock:
             return .explainPlaceBlock
+        case .explainPlayButton:
+            return .explainRemoveBlock
         case .explainStopButton:
             return .explainPlayButton
         case .explainReachFlag:
