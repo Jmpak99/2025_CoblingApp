@@ -104,7 +104,7 @@ function nowKeySeoul() {
 }
 
 /**
- * ✅ [미션보상수정] EXP 테이블 공통화 (중복 줄이기)
+ * EXP 테이블 공통화 (중복 줄이기)
  */
 function getExpTable() {
   return {
@@ -131,7 +131,7 @@ function getExpTable() {
 }
 
 /**
- * ✅✅ [추가] missions/{daily|monthly} 설정(목표치/보상) Firestore에서 읽기
+ * missions/{daily|monthly} 설정(목표치/보상) Firestore에서 읽기
  * - 컬렉션: missions
  * - 문서: daily, monthly
  * - 필드 예:
@@ -144,19 +144,19 @@ function getExpTable() {
 const _missionConfigCache = {
   daily: { at: 0, data: null },
   monthly: { at: 0, data: null },
-}; // ✅✅ [추가]
+}; 
 
 async function getMissionConfig(missionId, defaults) {
   try {
     const now = Date.now();
-    const ttlMs = 60 * 1000; // ✅✅ [추가] 60초 캐시 (원하시면 늘려도 됩니다)
+    const ttlMs = 60 * 1000; // 60초 캐시 (원하시면 늘려도 됩니다)
 
     const cached = _missionConfigCache[missionId];
     if (cached?.data && now - cached.at < ttlMs) {
       return cached.data;
     }
 
-    const ref = db.collection("missions").doc(missionId); // ✅✅ [추가] missions/daily, missions/monthly
+    const ref = db.collection("missions").doc(missionId); // missions/daily, missions/monthly
     const snap = await ref.get();
 
     const raw = snap.exists ? snap.data() : null;
@@ -180,10 +180,10 @@ async function getMissionConfig(missionId, defaults) {
     console.error("❌ getMissionConfig failed:", missionId, e?.message || e);
     return { ...defaults, isEnabled: true };
   }
-} // ✅✅ [추가]
+} 
 
 /**
- * ✅ [미션보상수정] 미션 보상 EXP 지급 (프리미엄 보너스 적용 안 함)
+ * 미션 보상 EXP 지급 (프리미엄 보너스 적용 안 함)
  * - 트랜잭션(t) 안에서 호출 전용
  * - 유저 exp/level + 진화 로직은 기존과 동일
  */
@@ -264,7 +264,7 @@ async function ensureMissionProgressDocs(userId) {
         isCompleted: false,
         updatedAt: FieldValue.serverTimestamp(),
 
-        // ✅ [미션보상수정] 보상 중복 지급 방지 필드 기본값
+        // 보상 중복 지급 방지 필드 기본값
         rewardGranted: false,
         rewardExpGranted: 0,
         rewardGrantedAt: null,
@@ -284,7 +284,7 @@ async function ensureMissionProgressDocs(userId) {
         isCompleted: false,
         updatedAt: FieldValue.serverTimestamp(),
 
-        // ✅ [미션보상수정] 보상 중복 지급 방지 필드 기본값
+        // 보상 중복 지급 방지 필드 기본값
         rewardGranted: false,
         rewardExpGranted: 0,
         rewardGrantedAt: null,
@@ -305,17 +305,32 @@ async function ensureMissionProgressDocs(userId) {
  * - 문서 없으면 생성
  * - dateKey 바뀌면 자동 리셋 후 증가
  *
- * ✅ [미션보상수정]
+ * [미션보상수정]
  * - 일일 미션 "클리어 전환 순간(미완료->완료)"에만 EXP 지급
  * - 프리미엄/퍼펙트 무관, 1일 1회만
  *
- * ✅✅ [추가]
+ * 
  * - targetCount / rewardExp를 missions/daily에서 읽어서 적용
+ *
+ * 
+ * - 이번 클리어에서 "방금 완료됐는지"를 호출부가 알 수 있도록
+ *   결과 객체를 return 하도록 변경
  */
 async function incrementDailyMission(userId, targetCount = 2, rewardExp = 120) {
   const { dateKey } = nowKeySeoul();
-  const userRef = db.collection("users").doc(userId); // ✅ [미션보상수정]
+  const userRef = db.collection("users").doc(userId); 
   const ref = userRef.collection("missionProgress").doc("daily");
+
+  // 호출부에서 사용할 결과값
+  let result = {
+    wasCompleted: false,
+    isCompleted: false,
+    didJustComplete: false,
+    rewardGrantedNow: false,
+    rewardExpGranted: 0,
+    count: 0,
+    dateKey,
+  };
 
   await db.runTransaction(async (t) => {
     const snap = await t.get(ref);
@@ -325,7 +340,7 @@ async function incrementDailyMission(userId, targetCount = 2, rewardExp = 120) {
     let count = data?.count || 0;
     let isCompleted = !!data?.isCompleted;
 
-    // ✅ [미션보상수정] 보상 지급 여부
+    // 보상 지급 여부
     let rewardGranted = !!data?.rewardGranted;
 
     // 날짜가 바뀌면 리셋
@@ -333,21 +348,32 @@ async function incrementDailyMission(userId, targetCount = 2, rewardExp = 120) {
       count = 0;
       isCompleted = false;
 
-      // ✅ [미션보상수정] 날짜 바뀌면 보상 플래그도 리셋
+      // 날짜 바뀌면 보상 플래그도 리셋
       rewardGranted = false;
     }
 
-    const wasCompleted = isCompleted; // ✅ [미션보상수정]
+    const wasCompleted = isCompleted; 
 
     count += 1;
     if (count >= targetCount) isCompleted = true;
 
-    // ✅ [미션보상수정] "이번 트랜잭션에서" 완료로 전환되었는지
+    // "이번 트랜잭션에서" 완료로 전환되었는지
     const becameCompletedNow = !wasCompleted && isCompleted;
 
-    // ✅✅ [추가] 완료 전환 + 아직 보상 미지급이면 (missions/daily의 rewardExp) 지급
+    // 기본 결과 먼저 세팅
+    result = {
+      wasCompleted,
+      isCompleted,
+      didJustComplete: becameCompletedNow,
+      rewardGrantedNow: false,
+      rewardExpGranted: 0,
+      count,
+      dateKey,
+    };
+
+    // 완료 전환 + 아직 보상 미지급이면 (missions/daily의 rewardExp) 지급
     if (becameCompletedNow && !rewardGranted) {
-      const dailyRewardExp = rewardExp; // ✅✅ [추가] 하드코딩 제거
+      const dailyRewardExp = rewardExp; // 하드코딩 제거
       await grantMissionRewardInTransaction(t, userRef, dailyRewardExp);
 
       rewardGranted = true;
@@ -366,6 +392,17 @@ async function incrementDailyMission(userId, targetCount = 2, rewardExp = 120) {
         { merge: true }
       );
 
+      // 보상 지급까지 반영한 결과값
+      result = {
+        wasCompleted,
+        isCompleted,
+        didJustComplete: true,
+        rewardGrantedNow: true,
+        rewardExpGranted: dailyRewardExp,
+        count,
+        dateKey,
+      };
+
       console.log("🎁 Daily mission reward granted:", { userId, dateKey, exp: dailyRewardExp });
       return;
     }
@@ -383,6 +420,9 @@ async function incrementDailyMission(userId, targetCount = 2, rewardExp = 120) {
       { merge: true }
     );
   });
+
+  // 호출부에서 사용할 수 있도록 반환
+  return result;
 }
 
 /**
@@ -390,17 +430,32 @@ async function incrementDailyMission(userId, targetCount = 2, rewardExp = 120) {
  * - 문서 없으면 생성
  * - monthKey 바뀌면 자동 리셋 후 증가
  *
- * ✅ [미션보상수정]
+ * [미션보상수정]
  * - 월간 미션 "성공 전환 순간(미완료->완료)"에만 EXP 지급
  * - 프리미엄/퍼펙트 무관, 1달 1회만
  *
- * ✅✅ [추가]
+ * 
  * - targetCount / rewardExp를 missions/monthly에서 읽어서 적용
+ *
+ * 
+ * - 이번 클리어에서 "방금 완료됐는지"를 호출부가 알 수 있도록
+ *   결과 객체를 return 하도록 변경
  */
 async function incrementMonthlyMission(userId, targetCount = 1, rewardExp = 400) {
   const { monthKey } = nowKeySeoul();
-  const userRef = db.collection("users").doc(userId); // ✅ [미션보상수정]
+  const userRef = db.collection("users").doc(userId); // 
   const ref = userRef.collection("missionProgress").doc("monthly");
+
+  // 호출부에서 사용할 결과값
+  let result = {
+    wasCompleted: false,
+    isCompleted: false,
+    didJustComplete: false,
+    rewardGrantedNow: false,
+    rewardExpGranted: 0,
+    count: 0,
+    monthKey,
+  };
 
   await db.runTransaction(async (t) => {
     const snap = await t.get(ref);
@@ -410,7 +465,7 @@ async function incrementMonthlyMission(userId, targetCount = 1, rewardExp = 400)
     let count = data?.count || 0;
     let isCompleted = !!data?.isCompleted;
 
-    // ✅ [미션보상수정] 보상 지급 여부
+    // 보상 지급 여부
     let rewardGranted = !!data?.rewardGranted;
 
     // 월이 바뀌면 리셋
@@ -418,21 +473,32 @@ async function incrementMonthlyMission(userId, targetCount = 1, rewardExp = 400)
       count = 0;
       isCompleted = false;
 
-      // ✅ [미션보상수정] 월 바뀌면 보상 플래그도 리셋
+      // 월 바뀌면 보상 플래그도 리셋
       rewardGranted = false;
     }
 
-    const wasCompleted = isCompleted; // ✅ [미션보상수정]
+    const wasCompleted = isCompleted; // 
 
     count += 1;
     if (count >= targetCount) isCompleted = true;
 
-    // ✅ [미션보상수정] "이번 트랜잭션에서" 완료로 전환되었는지
+    // "이번 트랜잭션에서" 완료로 전환되었는지
     const becameCompletedNow = !wasCompleted && isCompleted;
 
-    // ✅✅ [추가] 완료 전환 + 아직 보상 미지급이면 (missions/monthly의 rewardExp) 지급
+    // 기본 결과 먼저 세팅
+    result = {
+      wasCompleted,
+      isCompleted,
+      didJustComplete: becameCompletedNow,
+      rewardGrantedNow: false,
+      rewardExpGranted: 0,
+      count,
+      monthKey,
+    };
+
+    // 완료 전환 + 아직 보상 미지급이면 (missions/monthly의 rewardExp) 지급
     if (becameCompletedNow && !rewardGranted) {
-      const monthlyRewardExp = rewardExp; // ✅✅ [추가] 하드코딩 제거
+      const monthlyRewardExp = rewardExp; // 하드코딩 제거
       await grantMissionRewardInTransaction(t, userRef, monthlyRewardExp);
 
       rewardGranted = true;
@@ -451,6 +517,17 @@ async function incrementMonthlyMission(userId, targetCount = 1, rewardExp = 400)
         { merge: true }
       );
 
+      // 보상 지급까지 반영한 결과값
+      result = {
+        wasCompleted,
+        isCompleted,
+        didJustComplete: true,
+        rewardGrantedNow: true,
+        rewardExpGranted: monthlyRewardExp,
+        count,
+        monthKey,
+      };
+
       console.log("🎁 Monthly mission reward granted:", { userId, monthKey, exp: monthlyRewardExp });
       return;
     }
@@ -468,6 +545,9 @@ async function incrementMonthlyMission(userId, targetCount = 1, rewardExp = 400)
       { merge: true }
     );
   });
+
+  // 호출부에서 사용할 수 있도록 반환
+  return result;
 }
 
 /**
@@ -572,7 +652,7 @@ async function applyUnlockSafely({ userId, fromChapterId, fromSubQuestId, target
   const userRef = db.collection("users").doc(userId);
 
   // 유저 프리미엄 여부를 해금 로직에서도 확인 (ch6~ 프리미엄 잠금 유지)
-  const userSnap = await userRef.get(); // ✅ [추가]
+  const userSnap = await userRef.get(); 
   const userDoc = userSnap.exists ? userSnap.data() : null;
   const premiumActive = isPremiumActive(userDoc);
 
@@ -601,7 +681,7 @@ async function applyUnlockSafely({ userId, fromChapterId, fromSubQuestId, target
           {
             questId: nextChapterId,
             subQuestId: nextSubQuestId,
-            state: "premiumLocked", // ✅ [추가]
+            state: "premiumLocked", 
             updatedAt: FieldValue.serverTimestamp(),
           },
           { merge: true }
@@ -825,6 +905,27 @@ exports.updateUserExpOnClear = onDocumentUpdated(
     // - 챕터 보너스까지 있는 케이스는 챕터 트랜잭션 끝난 뒤에만 settled 찍어야 함
     let shouldSettleAfterChapterBonus = false;
 
+    // 성공 다이얼로그에서 사용할 "이번 클리어 기준 미션 결과" 기본값
+    let dailyMissionResult = {
+      wasCompleted: false,
+      isCompleted: false,
+      didJustComplete: false,
+      rewardGrantedNow: false,
+      rewardExpGranted: 0,
+      count: 0,
+      dateKey: null,
+    };
+
+    let monthlyMissionResult = {
+      wasCompleted: false,
+      isCompleted: false,
+      didJustComplete: false,
+      rewardGrantedNow: false,
+      rewardExpGranted: 0,
+      count: 0,
+      monthKey: null,
+    };
+
     // ----- (A) EXP 업데이트: earnedExp 증가분만 반영 -----
     const beforeExp = before.earnedExp || 0;
     const afterExp = after.earnedExp || 0;
@@ -855,7 +956,7 @@ exports.updateUserExpOnClear = onDocumentUpdated(
           `⭐ premium=${!!user?.premium?.isActive} deltaExp=${deltaExp} -> applied=${deltaExpWithPremium}`
         );
 
-        const expTable = getExpTable(); // ✅ [미션보상수정] 공통 함수 사용
+        const expTable = getExpTable(); // 공통 함수 사용
 
         while (exp >= (expTable[level] || Infinity)) {
           exp -= expTable[level];
@@ -929,14 +1030,20 @@ exports.updateUserExpOnClear = onDocumentUpdated(
     // 오늘의 미션: 서브퀘스트 completed 전환 순간에 +1
     if (becameCompletedNow) {
       try {
-        // ✅✅ [추가] missions/daily에서 목표치/보상치 읽어서 적용
-        const dailyCfg = await getMissionConfig("daily", { targetCount: 2, rewardExp: 120 }); // ✅✅ [추가]
+        // missions/daily에서 목표치/보상치 읽어서 적용
+        const dailyCfg = await getMissionConfig("daily", { targetCount: 2, rewardExp: 120 }); 
         if (dailyCfg.isEnabled) {
-          await incrementDailyMission(userId, dailyCfg.targetCount, dailyCfg.rewardExp); // ✅✅ [추가]
+          // 반환값을 받아서 "방금 완료 여부" 추적
+          dailyMissionResult = await incrementDailyMission(userId, dailyCfg.targetCount, dailyCfg.rewardExp);
         } else {
           console.log("ℹ️ Daily mission disabled (missions/daily.isEnabled=false)");
         }
-        console.log("✅ [미션추가] daily mission incremented:", { userId, chapterId, subQuestId });
+        console.log("✅ [미션추가] daily mission incremented:", {
+          userId,
+          chapterId,
+          subQuestId,
+          dailyMissionResult,
+        });
       } catch (e) {
         console.error("❌ [미션추가] daily mission increment failed:", e?.message || e);
       }
@@ -950,7 +1057,19 @@ exports.updateUserExpOnClear = onDocumentUpdated(
       if (chapterSnap.exists && chapterSnap.data().chapterBonusGranted) {
         console.log(`⚠️ Chapter ${chapterId} 보너스 이미 지급됨`);
 
-        await markRewardSettled(subQuestProgressRef, { settledBy: "chapterBonusAlreadyGranted" });
+        // settled 시점에 이번 클리어 결과(일일/월간)를 함께 기록
+        await markRewardSettled(subQuestProgressRef, {
+          settledBy: "chapterBonusAlreadyGranted",
+          didJustCompleteDailyMission: !!dailyMissionResult.didJustComplete,
+          isDailyMissionCompleted: !!dailyMissionResult.isCompleted,
+          dailyMissionRewardGrantedNow: !!dailyMissionResult.rewardGrantedNow,
+          dailyMissionRewardExpGranted: dailyMissionResult.rewardExpGranted || 0,
+
+          didJustCompleteMonthlyMission: !!monthlyMissionResult.didJustComplete,
+          isMonthlyMissionCompleted: !!monthlyMissionResult.isCompleted,
+          monthlyMissionRewardGrantedNow: !!monthlyMissionResult.rewardGrantedNow,
+          monthlyMissionRewardExpGranted: monthlyMissionResult.rewardExpGranted || 0,
+        });
       } else {
         const subQuestsSnap = await chapterProgressRef.collection("subQuests").get();
         const allCompleted =
@@ -976,7 +1095,7 @@ exports.updateUserExpOnClear = onDocumentUpdated(
 
             const prevLevel = level;
 
-            const expTable = getExpTable(); // ✅ [미션보상수정] 공통 함수 사용
+            const expTable = getExpTable(); // 공통 함수 사용
 
             exp += bonusExp;
 
@@ -1034,20 +1153,41 @@ exports.updateUserExpOnClear = onDocumentUpdated(
           try {
             await ensureMissionProgressDocs(userId); // 혹시 없으면 생성
 
-            // ✅✅ [추가] missions/monthly에서 목표치/보상치 읽어서 적용
-            const monthlyCfg = await getMissionConfig("monthly", { targetCount: 1, rewardExp: 400 }); // ✅✅ [추가]
+            // missions/monthly에서 목표치/보상치 읽어서 적용
+            const monthlyCfg = await getMissionConfig("monthly", { targetCount: 1, rewardExp: 400 }); 
             if (monthlyCfg.isEnabled) {
-              await incrementMonthlyMission(userId, monthlyCfg.targetCount, monthlyCfg.rewardExp); // ✅✅ [추가]
+              // 반환값을 받아서 "방금 완료 여부" 추적
+              monthlyMissionResult = await incrementMonthlyMission(
+                userId,
+                monthlyCfg.targetCount,
+                monthlyCfg.rewardExp
+              );
             } else {
               console.log("ℹ️ Monthly mission disabled (missions/monthly.isEnabled=false)");
             }
 
-            console.log("✅ [미션추가] monthly mission incremented:", { userId, chapterId });
+            console.log("✅ [미션추가] monthly mission incremented:", {
+              userId,
+              chapterId,
+              monthlyMissionResult,
+            });
           } catch (e) {
             console.error("❌ [미션추가] monthly mission increment failed:", e?.message || e);
           }
 
-          await markRewardSettled(subQuestProgressRef, { settledBy: "chapterBonusGranted" });
+          // settled 시점에 이번 클리어 결과(일일/월간)를 함께 기록
+          await markRewardSettled(subQuestProgressRef, {
+            settledBy: "chapterBonusGranted",
+            didJustCompleteDailyMission: !!dailyMissionResult.didJustComplete,
+            isDailyMissionCompleted: !!dailyMissionResult.isCompleted,
+            dailyMissionRewardGrantedNow: !!dailyMissionResult.rewardGrantedNow,
+            dailyMissionRewardExpGranted: dailyMissionResult.rewardExpGranted || 0,
+
+            didJustCompleteMonthlyMission: !!monthlyMissionResult.didJustComplete,
+            isMonthlyMissionCompleted: !!monthlyMissionResult.isCompleted,
+            monthlyMissionRewardGrantedNow: !!monthlyMissionResult.rewardGrantedNow,
+            monthlyMissionRewardExpGranted: monthlyMissionResult.rewardExpGranted || 0,
+          });
         }
       }
     }
@@ -1059,7 +1199,19 @@ exports.updateUserExpOnClear = onDocumentUpdated(
     }
 
     if (!shouldSettleAfterChapterBonus) {
-      await markRewardSettled(subQuestProgressRef, { settledBy: "subQuestClearOnly" });
+      // 일반 서브퀘스트 클리어도 settled 시점에 이번 미션 결과 기록
+      await markRewardSettled(subQuestProgressRef, {
+        settledBy: "subQuestClearOnly",
+        didJustCompleteDailyMission: !!dailyMissionResult.didJustComplete,
+        isDailyMissionCompleted: !!dailyMissionResult.isCompleted,
+        dailyMissionRewardGrantedNow: !!dailyMissionResult.rewardGrantedNow,
+        dailyMissionRewardExpGranted: dailyMissionResult.rewardExpGranted || 0,
+
+        didJustCompleteMonthlyMission: !!monthlyMissionResult.didJustComplete,
+        isMonthlyMissionCompleted: !!monthlyMissionResult.isCompleted,
+        monthlyMissionRewardGrantedNow: !!monthlyMissionResult.rewardGrantedNow,
+        monthlyMissionRewardExpGranted: monthlyMissionResult.rewardExpGranted || 0,
+      });
     }
 
     let fullKey = `${chapterId}:${subQuestId}`;

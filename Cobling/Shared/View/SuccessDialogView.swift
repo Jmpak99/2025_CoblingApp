@@ -205,6 +205,41 @@ struct SuccessDialogView: View {
                     .background(Color(hex: "FFF3CD"))
                     .cornerRadius(10)
                 }
+                
+                // 미션 배지 영역
+                VStack(spacing: 8) {
+                    if reward.didJustCompleteDailyMission {
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar.badge.checkmark")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(hex: "2E7D32"))
+
+                            Text("일일 미션 달성!")
+                                .font(.pretendardMedium12)
+                                .foregroundColor(Color(hex: "1B5E20"))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color(hex: "E8F5E9"))
+                        .cornerRadius(10)
+                    }
+
+                    if reward.didJustCompleteMonthlyMission {
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(hex: "6A1B9A"))
+
+                            Text("월간 미션 달성!")
+                                .font(.pretendardMedium12)
+                                .foregroundColor(Color(hex: "4A148C"))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color(hex: "F3E5F5"))
+                        .cornerRadius(10)
+                    }
+                }
 
                 HStack(spacing: 14) {
                     Button(action: onRetry) {
@@ -222,7 +257,7 @@ struct SuccessDialogView: View {
                         // - 정산 중: "정산 중..."
                         // - 챕터 클리어(=아웃트로 컷신 뜸): "다음(아웃트로)"
                         // - 일반: "다음 퀘스트로"
-                        Text(nextButtonTitle) // ✅ [수정]
+                        Text(nextButtonTitle) //
                             .font(.pretendardMedium16)
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
@@ -269,63 +304,24 @@ struct SuccessDialogView: View {
 #if DEBUG
 struct SuccessDialogView_Previews: PreviewProvider {
     static var previews: some View {
-        Group {
-
-            // 🟢 1️⃣ 일반 클리어 (챕터 보너스 없음)
-            SuccessDialogView(
-                reward: SuccessReward(
-                    level: 2,
-                    currentExp: 35,
-                    maxExp: 120,
-                    gainedExp: 9,
-                    isPerfectClear: false,
-                    chapterBonusExp: 0,
-                    isChapterCleared: false
-                ),
-                characterStage: "egg",
-                onRetry: {},
-                onNext: {}
-            )
-            // Preview에서 EnvironmentObject 주입 필요
-            .environmentObject(QuestViewModel())
-            .previewDisplayName("기본 클리어")
-
-            // 🟡 2️⃣ 챕터 보너스 포함 (2단계 연출)
-            SuccessDialogView(
-                reward: SuccessReward(
-                    level: 2,
-                    currentExp: 20,
-                    maxExp: 120,
-                    gainedExp: 63,
-                    isPerfectClear: false,
-                    chapterBonusExp: 30,
-                    isChapterCleared: true
-                ),
-                characterStage: "kid",
-                onRetry: {},
-                onNext: {}
-            )
-            .environmentObject(QuestViewModel())
-            .previewDisplayName("챕터 보너스 포함")
-
-            // 🏆 3️⃣ 완벽 클리어 + 챕터 보너스
-            SuccessDialogView(
-                reward: SuccessReward(
-                    level: 3,
-                    currentExp: 10,
-                    maxExp: 160,
-                    gainedExp: 11,
-                    isPerfectClear: true,
-                    chapterBonusExp: 140,
-                    isChapterCleared: true
-                ),
-                characterStage: "legend",
-                onRetry: {},
-                onNext: {}
-            )
-            .environmentObject(QuestViewModel())
-            .previewDisplayName("완벽 + 챕터 보너스")
-        }
+        SuccessDialogView(
+            reward: SuccessReward(
+                level: 3,
+                currentExp: 10,
+                maxExp: 160,
+                gainedExp: 11,
+                isPerfectClear: true,
+                chapterBonusExp: 140,
+                isChapterCleared: true,
+                didJustCompleteDailyMission: true,
+                didJustCompleteMonthlyMission: true,
+                isDailyMissionCompleted: true,
+                isMonthlyMissionCompleted: true
+            ),
+            characterStage: "legend",
+            onRetry: {},
+            onNext: {}
+        )
         .background(Color.gray.opacity(0.2))
         .previewLayout(.sizeThatFits)
     }

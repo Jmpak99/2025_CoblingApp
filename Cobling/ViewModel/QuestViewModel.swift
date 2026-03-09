@@ -64,7 +64,6 @@ final class QuestViewModel: ObservableObject {
     // 실행 세션 토큰 (asyncAfter가 남아있어도 무효화)
     private var executionToken: UUID = UUID()
 
-    
     // MARK: - Success Reward
     @Published var successReward: SuccessReward? = nil
     
@@ -839,7 +838,6 @@ final class QuestViewModel: ObservableObject {
                 }
             }
 
-
         default:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 guard self.isTokenValid(token) else { return }
@@ -916,7 +914,6 @@ final class QuestViewModel: ObservableObject {
         return (lv, e)
     }
 
-    
     // MARK: - USERS 업데이트를 기다리는 헬퍼
     private func waitForUserUpdate(
         userRef: DocumentReference,
@@ -994,6 +991,52 @@ final class QuestViewModel: ObservableObject {
         }
     }
     
+    // 미션 결과 정보를 읽어오는 헬퍼
+    // - index.js 에서 subQuest progress 문서에 저장한
+    //   didJustCompleteDailyMission / didJustCompleteMonthlyMission /
+    //   isDailyMissionCompleted / isMonthlyMissionCompleted 값을 읽어옵니다.
+    private func fetchMissionResultInfo(
+        userId: String,
+        chapterId: String,
+        subQuestId: String,
+        completion: @escaping (
+            _ didJustCompleteDailyMission: Bool,
+            _ didJustCompleteMonthlyMission: Bool,
+            _ isDailyMissionCompleted: Bool,
+            _ isMonthlyMissionCompleted: Bool
+        ) -> Void
+    ) {
+        let ref = db.collection("users")
+            .document(userId)
+            .collection("progress")
+            .document(chapterId)
+            .collection("subQuests")
+            .document(subQuestId)
+
+        ref.getDocument(source: FirestoreSource.server) { snap, _ in
+            let data = snap?.data() ?? [:]
+
+            let didJustCompleteDailyMission =
+                data["didJustCompleteDailyMission"] as? Bool ?? false
+
+            let didJustCompleteMonthlyMission =
+                data["didJustCompleteMonthlyMission"] as? Bool ?? false
+
+            let isDailyMissionCompleted =
+                data["isDailyMissionCompleted"] as? Bool ?? false
+
+            let isMonthlyMissionCompleted =
+                data["isMonthlyMissionCompleted"] as? Bool ?? false
+
+            completion(
+                didJustCompleteDailyMission,
+                didJustCompleteMonthlyMission,
+                isDailyMissionCompleted,
+                isMonthlyMissionCompleted
+            )
+        }
+    }
+    
     // 챕터 보너스 필드가 "늦게 들어오는" 레이스 해결:
     // - users 문서(level/exp)가 먼저 갱신되고
     // - subQuest progress 문서의 chapterBonusExpGranted가 나중에 merge 될 수 있으므로
@@ -1057,8 +1100,6 @@ final class QuestViewModel: ObservableObject {
             }
         }
     }
-    
-    
 
     // MARK: - 퀘스트 클리어 처리
     private func handleQuestClear(subQuest: SubQuestDocument, usedBlocks: Int) {
@@ -1127,21 +1168,32 @@ final class QuestViewModel: ObservableObject {
                             "subId:", subId
                         )
 
-                        DispatchQueue.main.async {
-                            self.successReward = SuccessReward(
-                                level: level,
-                                currentExp: CGFloat(exp),
-                                maxExp: CGFloat(maxExp),
-                                gainedExp: 0,
-                                isPerfectClear: false,
-                                chapterBonusExp: chapterBonus,
-                                isChapterCleared: isCleared
-                            )
-                        }
+                        // 미션 결과도 함께 읽기
+                        self.fetchMissionResultInfo(
+                            userId: userId,
+                            chapterId: self.currentChapterId,
+                            subQuestId: subId
+                        ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                            DispatchQueue.main.async {
+                                self.successReward = SuccessReward(
+                                    level: level,
+                                    currentExp: CGFloat(exp),
+                                    maxExp: CGFloat(maxExp),
+                                    gainedExp: 0,
+                                    isPerfectClear: false,
+                                    chapterBonusExp: chapterBonus,
+                                    isChapterCleared: isCleared,
+                                    didJustCompleteDailyMission: didJustDaily,
+                                    didJustCompleteMonthlyMission: didJustMonthly,
+                                    isDailyMissionCompleted: isDailyCompleted,
+                                    isMonthlyMissionCompleted: isMonthlyCompleted
+                                )
+                            }
 
-                        // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
-                        self.endRewardLoadingAndShowSuccess {
-                            self.showSuccessDialog = true
+                            // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
+                            self.endRewardLoadingAndShowSuccess {
+                                self.showSuccessDialog = true
+                            }
                         }
                     }
                 }
@@ -1197,19 +1249,31 @@ final class QuestViewModel: ObservableObject {
                             // 🔧 [수정] 보너스가 없으면(또는 cleared 아님) 그냥 1단계 값으로 표시
                             guard isCleared, chapterBonus > 0 else {
                                 let maxExp = self.maxExpForLevel(afterSubquestLevel)
-                                DispatchQueue.main.async {
-                                    self.successReward = SuccessReward(
-                                        level: afterSubquestLevel,
-                                        currentExp: CGFloat(afterSubquestExp),
-                                        maxExp: CGFloat(maxExp),
-                                        gainedExp: earned,
-                                        isPerfectClear: isPerfect,
-                                        chapterBonusExp: 0,
-                                        isChapterCleared: false
-                                    )
-                                }
-                                self.endRewardLoadingAndShowSuccess {
-                                    self.showSuccessDialog = true
+
+                                // 미션 결과도 함께 읽기
+                                self.fetchMissionResultInfo(
+                                    userId: userId,
+                                    chapterId: self.currentChapterId,
+                                    subQuestId: subId
+                                ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                                    DispatchQueue.main.async {
+                                        self.successReward = SuccessReward(
+                                            level: afterSubquestLevel,
+                                            currentExp: CGFloat(afterSubquestExp),
+                                            maxExp: CGFloat(maxExp),
+                                            gainedExp: earned,
+                                            isPerfectClear: isPerfect,
+                                            chapterBonusExp: 0,
+                                            isChapterCleared: false,
+                                            didJustCompleteDailyMission: didJustDaily,
+                                            didJustCompleteMonthlyMission: didJustMonthly,
+                                            isDailyMissionCompleted: isDailyCompleted,
+                                            isMonthlyMissionCompleted: isMonthlyCompleted
+                                        )
+                                    }
+                                    self.endRewardLoadingAndShowSuccess {
+                                        self.showSuccessDialog = true
+                                    }
                                 }
                                 return
                             }
@@ -1224,20 +1288,31 @@ final class QuestViewModel: ObservableObject {
                                     guard let self else { return }
                                     let maxExp = self.maxExpForLevel(finalLevel)
 
-                                    DispatchQueue.main.async {
-                                        self.successReward = SuccessReward(
-                                            level: finalLevel,
-                                            currentExp: CGFloat(finalExp),
-                                            maxExp: CGFloat(maxExp),
-                                            gainedExp: earned,              // 1단계(서브퀘스트)
-                                            isPerfectClear: isPerfect,
-                                            chapterBonusExp: chapterBonus,  // 2단계(챕터 보너스)
-                                            isChapterCleared: true
-                                        )
-                                    }
+                                    // 미션 결과도 함께 읽기
+                                    self.fetchMissionResultInfo(
+                                        userId: userId,
+                                        chapterId: self.currentChapterId,
+                                        subQuestId: subId
+                                    ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                                        DispatchQueue.main.async {
+                                            self.successReward = SuccessReward(
+                                                level: finalLevel,
+                                                currentExp: CGFloat(finalExp),
+                                                maxExp: CGFloat(maxExp),
+                                                gainedExp: earned,              // 1단계(서브퀘스트)
+                                                isPerfectClear: isPerfect,
+                                                chapterBonusExp: chapterBonus,  // 2단계(챕터 보너스)
+                                                isChapterCleared: true,
+                                                didJustCompleteDailyMission: didJustDaily,
+                                                didJustCompleteMonthlyMission: didJustMonthly,
+                                                isDailyMissionCompleted: isDailyCompleted,
+                                                isMonthlyMissionCompleted: isMonthlyCompleted
+                                            )
+                                        }
 
-                                    self.endRewardLoadingAndShowSuccess {
-                                        self.showSuccessDialog = true
+                                        self.endRewardLoadingAndShowSuccess {
+                                            self.showSuccessDialog = true
+                                        }
                                     }
                                 },
                                 onTimeout: { [weak self] in
@@ -1256,20 +1331,31 @@ final class QuestViewModel: ObservableObject {
                                           "exp:", applied.exp,
                                           "bonus:", chapterBonus)
 
-                                    DispatchQueue.main.async {
-                                        self.successReward = SuccessReward(
-                                            level: applied.level,
-                                            currentExp: CGFloat(applied.exp),
-                                            maxExp: CGFloat(maxExp),
-                                            gainedExp: earned,
-                                            isPerfectClear: isPerfect,
-                                            chapterBonusExp: chapterBonus,
-                                            isChapterCleared: true
-                                        )
-                                    }
+                                    // 미션 결과도 함께 읽기
+                                    self.fetchMissionResultInfo(
+                                        userId: userId,
+                                        chapterId: self.currentChapterId,
+                                        subQuestId: subId
+                                    ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                                        DispatchQueue.main.async {
+                                            self.successReward = SuccessReward(
+                                                level: applied.level,
+                                                currentExp: CGFloat(applied.exp),
+                                                maxExp: CGFloat(maxExp),
+                                                gainedExp: earned,
+                                                isPerfectClear: isPerfect,
+                                                chapterBonusExp: chapterBonus,
+                                                isChapterCleared: true,
+                                                didJustCompleteDailyMission: didJustDaily,
+                                                didJustCompleteMonthlyMission: didJustMonthly,
+                                                isDailyMissionCompleted: isDailyCompleted,
+                                                isMonthlyMissionCompleted: isMonthlyCompleted
+                                            )
+                                        }
 
-                                    self.endRewardLoadingAndShowSuccess {
-                                        self.showSuccessDialog = true
+                                        self.endRewardLoadingAndShowSuccess {
+                                            self.showSuccessDialog = true
+                                        }
                                     }
                                 }
                             )
@@ -1291,21 +1377,33 @@ final class QuestViewModel: ObservableObject {
                                 chapterId: self.currentChapterId,
                                 subQuestId: subId
                             ) { isCleared, chapterBonus in
-                                DispatchQueue.main.async {
-                                    self.successReward = SuccessReward(
-                                        level: level,
-                                        currentExp: CGFloat(exp),
-                                        maxExp: CGFloat(maxExp),
-                                        gainedExp: earned,
-                                        isPerfectClear: isPerfect,
-                                        chapterBonusExp: chapterBonus,
-                                        isChapterCleared: isCleared
-                                    )
-                                }
 
-                                // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
-                                self.endRewardLoadingAndShowSuccess {
-                                    self.showSuccessDialog = true
+                                // 미션 결과도 함께 읽기
+                                self.fetchMissionResultInfo(
+                                    userId: userId,
+                                    chapterId: self.currentChapterId,
+                                    subQuestId: subId
+                                ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                                    DispatchQueue.main.async {
+                                        self.successReward = SuccessReward(
+                                            level: level,
+                                            currentExp: CGFloat(exp),
+                                            maxExp: CGFloat(maxExp),
+                                            gainedExp: earned,
+                                            isPerfectClear: isPerfect,
+                                            chapterBonusExp: chapterBonus,
+                                            isChapterCleared: isCleared,
+                                            didJustCompleteDailyMission: didJustDaily,
+                                            didJustCompleteMonthlyMission: didJustMonthly,
+                                            isDailyMissionCompleted: isDailyCompleted,
+                                            isMonthlyMissionCompleted: isMonthlyCompleted
+                                        )
+                                    }
+
+                                    // 최소 표시시간 보장 후 오버레이 OFF → 성공 다이얼로그 ON
+                                    self.endRewardLoadingAndShowSuccess {
+                                        self.showSuccessDialog = true
+                                    }
                                 }
                             }
                         }
@@ -1315,8 +1413,6 @@ final class QuestViewModel: ObservableObject {
         }
     }
 
-
-    
     private func countUsedBlocks() -> Int {
         func dfs(_ blocks: [Block]) -> Int {
             var total = 0
