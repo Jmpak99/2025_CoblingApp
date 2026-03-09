@@ -30,6 +30,10 @@ struct QuestBlockView: View {
     // 팔레트 영역 프레임 (삭제 판별용)
     @State private var paletteFrame: CGRect = .zero
     
+    // 블록 소개 팝업
+    @State private var currentBlockIntroType: BlockIntroType? = nil
+    @State private var hasPresentedInitialBlockIntro: Bool = false
+    
     // 튜토리얼 하이라이트 대상 frame들
     @State private var storyButtonFrame: CGRect = .zero
     @State private var blockPaletteFrame: CGRect = .zero
@@ -73,6 +77,28 @@ struct QuestBlockView: View {
     // 1-1(= ch1 / sq1) 에서만 튜토리얼 표시
     private var isTutorialTargetQuest: Bool {
         chapterId.lowercased() == "ch1" && subQuestId.lowercased() == "sq1"
+    }
+    
+    // 2-1 / 3-1 / 4-1 에서만 블록 소개 표시
+    private var blockIntroTypeForCurrentQuest: BlockIntroType? {
+        let ch = chapterId.lowercased()
+        let sq = subQuestId.lowercased()
+
+        switch (ch, sq) {
+        case ("ch2", "sq1"):
+            return .attack
+        case ("ch3", "sq1"):
+            return .repeatLoop
+        case ("ch4", "sq1"):
+            return .condition
+        default:
+            return nil
+        }
+    }
+
+    // 현재 퀘스트가 블록 인트로 대상인지 확인
+    private var isBlockIntroTargetQuest: Bool {
+        blockIntroTypeForCurrentQuest != nil
     }
 
     // UserDefaults 저장 키
@@ -369,17 +395,16 @@ struct QuestBlockView: View {
                 .zIndex(65)
             }
             
-//            // 컷신 종료 후 게임 화면 위에 튜토리얼 오버레이 표시 (테스트용)
-//            if tutorialVM.isActive {
-//                Color.black.opacity(0.45)
-//                    .ignoresSafeArea()
-//                    .overlay(
-//                        Text("튜토리얼 테스트")
-//                            .font(.largeTitle.bold())
-//                            .foregroundColor(.white)
-//                    )
-//                    .zIndex(999)
-//            }
+            // 컷신 종료 후 게임 화면 위에 블록 소개 팝업 표시
+            if let introType = currentBlockIntroType {
+                BlockIntroView(
+                    type: introType,
+                    onStart: {
+                        currentBlockIntroType = nil
+                    }
+                )
+                .zIndex(66)
+            }
         }
         .environmentObject(dragManager)
         .environmentObject(viewModel)
@@ -393,7 +418,9 @@ struct QuestBlockView: View {
             print("🎬 shouldGoNextAfterCutscene:", shouldGoNextAfterCutscene)
             print("🎬 hasPresentedInitialTutorial:", hasPresentedInitialTutorial)
             print("🎬 isTutorialTargetQuest:", isTutorialTargetQuest)
+            print("🎬 isBlockIntroTargetQuest:", isBlockIntroTargetQuest)
 
+            // 1) 아웃트로 컷신 종료 후 다음 퀘스트 이동
             if !isShowing, shouldGoNextAfterCutscene {
                 shouldGoNextAfterCutscene = false
                 waitingRetryCount = 0
@@ -402,6 +429,7 @@ struct QuestBlockView: View {
                 return
             }
 
+            // 2) 1-1 튜토리얼
             if !isShowing,
                isTutorialTargetQuest,
                !hasPresentedInitialTutorial,
@@ -411,10 +439,24 @@ struct QuestBlockView: View {
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     tutorialVM.startTutorial(
-                        tutorialKey: tutorialStorageKey,
-                        // forceStart: true // 디버깅용 강제 시작
+                        tutorialKey: tutorialStorageKey
                     )
                 }
+                return // 튜토리얼 시작 시 아래 분기 진행 방지
+            }
+            
+            // 3) 2-1 / 3-1 / 4-1 블록 인트로
+            if !isShowing,
+               let introType = blockIntroTypeForCurrentQuest,
+               !hasPresentedInitialBlockIntro,
+               !shouldGoNextAfterCutscene {
+                print("✅ 컷신 종료 후 블록 인트로 시작")
+                hasPresentedInitialBlockIntro = true
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    currentBlockIntroType = introType
+                }
+                return
             }
         }
 
@@ -423,8 +465,11 @@ struct QuestBlockView: View {
             print("📦 subQuest loaded:", viewModel.subQuest?.id ?? "nil")
             print("📦 isShowingCutscene:", viewModel.isShowingCutscene)
             print("📦 isTutorialTargetQuest:", isTutorialTargetQuest)
+            print("📦 isBlockIntroTargetQuest:", isBlockIntroTargetQuest)
             print("📦 hasPresentedInitialTutorial:", hasPresentedInitialTutorial)
+            print("📦 hasPresentedInitialBlockIntro:", hasPresentedInitialBlockIntro)
 
+            // 1) 1-1 튜토리얼
             if isTutorialTargetQuest,
                !viewModel.isShowingCutscene,
                !hasPresentedInitialTutorial {
@@ -434,8 +479,20 @@ struct QuestBlockView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     tutorialVM.startTutorial(
                         tutorialKey: tutorialStorageKey,
-                        // forceStart: true // ✅ [수정] 디버깅용 강제 시작
                     )
+                }
+                return // 튜토리얼 시작 시 아래 분기 방지
+            }
+            
+            // 2) 2-1 / 3-1 / 4-1 블록 인트로
+            if let introType = blockIntroTypeForCurrentQuest,
+               !viewModel.isShowingCutscene,
+               !hasPresentedInitialBlockIntro {
+                print("✅ subQuest 로드 후 블록 인트로 시작")
+                hasPresentedInitialBlockIntro = true
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    currentBlockIntroType = introType
                 }
             }
         }
@@ -447,7 +504,8 @@ struct QuestBlockView: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onEnded { value in
-                    guard !tutorialVM.isActive else { return } // 튜토리얼 중 드래그 금지
+                    // 튜토리얼 / 블록 소개 중에는 드래그 금지
+                    guard !tutorialVM.isActive, currentBlockIntroType == nil else { return }
 
                     dragManager.finishDrag(at: value.location) {
                         endPos, source, type, block in
@@ -591,6 +649,7 @@ struct QuestBlockView: View {
             print("📌 subQuestId:", subQuestId)
             print("📌 tutorialStorageKey:", tutorialStorageKey)
             print("📌 isTutorialTargetQuest:", isTutorialTargetQuest)
+            print("📌 isBlockIntroTargetQuest:", isBlockIntroTargetQuest)
             print("📌 saved tutorial:", UserDefaults.standard.bool(forKey: tutorialStorageKey))
 
             appState.isInGame = true
@@ -604,6 +663,8 @@ struct QuestBlockView: View {
             stopButtonFrame = .zero
             flagFrame = .zero
             hasPresentedInitialTutorial = false
+            currentBlockIntroType = nil // 블록 인트로 상태 초기화
+            hasPresentedInitialBlockIntro = false // 블록 인트로 표시 여부 초기화
 
             viewModel.fetchSubQuest(
                 chapterId: chapterId,
@@ -627,6 +688,8 @@ struct QuestBlockView: View {
             stopButtonFrame = .zero
             flagFrame = .zero
             hasPresentedInitialTutorial = false
+            currentBlockIntroType = nil // 블록 인트로 상태 초기화
+            hasPresentedInitialBlockIntro = false // 블록 인트로 표시 여부 초기화
 
             // 2️⃣ 새 퀘스트 데이터 로드
             viewModel.fetchSubQuest(
