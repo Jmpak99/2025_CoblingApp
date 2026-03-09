@@ -19,7 +19,6 @@ struct SuccessDialogView: View {
     // 아웃트로 중복 호출 방지 플래그
     @State private var didTriggerOutro: Bool = false
 
-
     // 게이지 애니메이션과 함께 레벨 텍스트도 같이 변하도록 상태로 분리
     @State private var displayedLevel: Int = 1
     
@@ -30,15 +29,35 @@ struct SuccessDialogView: View {
     @State private var displayedExp: CGFloat = 0
     @State private var displayedMaxExp: CGFloat = 100
 
-    // 2단계(서브퀘스트 → 챕터보너스) 텍스트 연출용 상태
-    @State private var showChapterBonusStage: Bool = false
+    // 기존 chapterBonus 전용 텍스트 연출 상태를
+    // "추가 보상(챕터/일일/월간)" 전체 연출 상태로 사용
+    @State private var showExtraRewardStage: Bool = false
 
     // 2단계 게이지 연출 중이면 Next 비활성화
     @State private var isAnimatingTwoStage: Bool = false
 
-    // 2단계 연출 여부 판단
-    private var shouldShowChapterBonusLine: Bool {
-        reward.isChapterCleared && reward.chapterBonusExp > 0
+    // 일일 미션 보상 EXP
+    private var dailyMissionGain: Int {
+        reward.dailyMissionRewardExp
+    }
+
+    // 월간 미션 보상 EXP
+    private var monthlyMissionGain: Int {
+        reward.monthlyMissionRewardExp
+    }
+
+    // 2단계로 묶어서 보여줄 "추가 보상" 총합
+    // - 챕터 보너스
+    // - 일일 미션 보상
+    // - 월간 미션 보상
+    private var totalExtraRewardGain: Int {
+        reward.chapterBonusExp + dailyMissionGain + monthlyMissionGain
+    }
+
+    // 기존 챕터 보너스 라인 여부가 아니라
+    // "추가 보상 총합"이 있는지로 판별
+    private var shouldShowExtraRewardLine: Bool {
+        totalExtraRewardGain > 0
     }
     
     // 레벨업 여부
@@ -66,8 +85,6 @@ struct SuccessDialogView: View {
         let stage = characterStage.trimmingCharacters(in: .whitespacesAndNewlines)
         return stage.isEmpty ? "cobling_stage_egg" : "cobling_stage_\(stage)"
     }
-    
-
 
     var body: some View {
         ZStack {
@@ -103,15 +120,20 @@ struct SuccessDialogView: View {
                         .foregroundColor(.black)
                 }
 
-
                 VStack(spacing: 6) {
 
                     LevelUpProgressView(
                         finalLevel: reward.level,
                         finalExp: reward.currentExp,
                         subQuestGain: CGFloat(reward.gainedExp),
-                        chapterBonusGain: CGFloat(reward.chapterBonusExp),
-                        enableTwoStage: shouldShowChapterBonusLine,
+
+                        // 기존: chapterBonusExp만 2단계 gain으로 전달
+                        // 변경: 챕터 보너스 + 일일 미션 보상 + 월간 미션 보상 전체를 2단계 gain으로 전달
+                        chapterBonusGain: CGFloat(totalExtraRewardGain),
+
+                        // 기존: reward.isChapterCleared && reward.chapterBonusExp > 0
+                        // 변경: 추가 보상이 하나라도 있으면 2단계 연출
+                        enableTwoStage: shouldShowExtraRewardLine,
                         displayedLevel: $displayedLevel,
 
                         // 분수표기용 바인딩 전달
@@ -129,7 +151,8 @@ struct SuccessDialogView: View {
                         },
                         onSecondStageStart: {
                             withAnimation(.easeInOut(duration: 0.22)) {
-                                showChapterBonusStage = true
+                                // chapter bonus 전용 상태명이 아니라 extra reward 단계 표시
+                                showExtraRewardStage = true
                             }
                         },
                         onAllStagesFinished: {
@@ -141,7 +164,6 @@ struct SuccessDialogView: View {
                             // - 그래서 아웃트로 트리거는 QuestBlockView의 onNext에서 처리합니다.
                             // - (didTriggerOutro도 여기서는 사용하지 않아도 됩니다. 필요하면 완전히 제거 가능)
                         },
-
 
                         // 시작 상태를 받아 startLevel 세팅
                         onStartComputed: { sLevel, sExp, sMax in
@@ -158,29 +180,52 @@ struct SuccessDialogView: View {
                             .foregroundColor(.gray)
                     }
 
-                    // EXP 텍스트는 2줄 유지
+                    // EXP 텍스트 영역
                     VStack(spacing: 4) {
                         Text("+\(reward.gainedExp) EXP")
                             .font(.pretendardMedium12)
                             .foregroundColor(.gray)
 
-                        if shouldShowChapterBonusLine {
-                            Text(showChapterBonusStage ? "+\(reward.chapterBonusExp) EXP (챕터 보너스)" : " ")
+                        // 기존: 챕터 보너스만 따로 표시
+                        // 변경: 추가 보상 전체(챕터/일일/월간) 표시
+                        if shouldShowExtraRewardLine {
+                            Text(showExtraRewardStage ? "+\(totalExtraRewardGain) EXP (추가 보상)" : " ")
                                 .font(.pretendardMedium12)
                                 .foregroundColor(Color(hex: "7A5A00"))
+                        }
+
+                        // 세부 보상 항목 표시
+                        if showExtraRewardStage && reward.chapterBonusExp > 0 {
+                            Text("챕터 보너스 +\(reward.chapterBonusExp) EXP")
+                                .font(.pretendardMedium12)
+                                .foregroundColor(Color(hex: "7A5A00"))
+                        }
+
+                        // 세부 보상 항목 표시
+                        if showExtraRewardStage && dailyMissionGain > 0 {
+                            Text("일일 미션 +\(dailyMissionGain) EXP")
+                                .font(.pretendardMedium12)
+                                .foregroundColor(Color(hex: "1B5E20"))
+                        }
+
+                        // 세부 보상 항목 표시
+                        if showExtraRewardStage && monthlyMissionGain > 0 {
+                            Text("월간 미션 +\(monthlyMissionGain) EXP")
+                                .font(.pretendardMedium12)
+                                .foregroundColor(Color(hex: "4A148C"))
                         }
                     }
                 }
 
                 // 챕터 클리어를 완벽보다 위로 이동 (우선순위 강조)
-                if shouldShowChapterBonusLine {
+                if reward.isChapterCleared {
                     HStack(spacing: 6) {
                         Image(systemName: "crown.fill")
-                            .font(.system(size: 13)) //
+                            .font(.system(size: 13))
                             .foregroundColor(Color(hex: "FFD475"))
 
                         Text("챕터 클리어!")
-                            .font(.pretendardMedium14) //
+                            .font(.pretendardMedium14)
                             .foregroundColor(.black)
                     }
                     .padding(.horizontal, 14)
@@ -257,7 +302,7 @@ struct SuccessDialogView: View {
                         // - 정산 중: "정산 중..."
                         // - 챕터 클리어(=아웃트로 컷신 뜸): "다음(아웃트로)"
                         // - 일반: "다음 퀘스트로"
-                        Text(nextButtonTitle) //
+                        Text(nextButtonTitle)
                             .font(.pretendardMedium16)
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
@@ -276,8 +321,14 @@ struct SuccessDialogView: View {
         }
         .onAppear {
             displayedLevel = reward.level
-            isAnimatingTwoStage = shouldShowChapterBonusLine
-            showChapterBonusStage = false
+
+            // 기존: 챕터 보너스 여부 기준
+            // 변경: 추가 보상 총합 기준
+            isAnimatingTwoStage = shouldShowExtraRewardLine
+
+            // 기존: showChapterBonusStage
+            // 변경: showExtraRewardStage
+            showExtraRewardStage = false
             
             // 새로 뜰 때마다 중복 방지 플래그 초기화
             didTriggerOutro = false
@@ -286,6 +337,8 @@ struct SuccessDialogView: View {
                 "🟡 SuccessDialog reward 확인",
                 "isChapterCleared:", reward.isChapterCleared,
                 "chapterBonusExp:", reward.chapterBonusExp,
+                "dailyMissionRewardExp:", reward.dailyMissionRewardExp,
+                "monthlyMissionRewardExp:", reward.monthlyMissionRewardExp,
                 "gainedExp:", reward.gainedExp,
                 "level:", reward.level,
                 "exp:", reward.currentExp,
@@ -293,10 +346,10 @@ struct SuccessDialogView: View {
             )
 
             print(
-                "🟡 shouldShowChapterBonusLine:",
-                shouldShowChapterBonusLine
+                "🟡 shouldShowExtraRewardLine:",
+                shouldShowExtraRewardLine
             )
-            print("🟡 characterStage:" , characterStage, "asset: ", characterAssetName)
+            print("🟡 characterStage:", characterStage, "asset:", characterAssetName)
         }
     }
 }
@@ -316,7 +369,9 @@ struct SuccessDialogView_Previews: PreviewProvider {
                 didJustCompleteDailyMission: true,
                 didJustCompleteMonthlyMission: true,
                 isDailyMissionCompleted: true,
-                isMonthlyMissionCompleted: true
+                isMonthlyMissionCompleted: true,
+                dailyMissionRewardExp: 120,
+                monthlyMissionRewardExp: 400   
             ),
             characterStage: "legend",
             onRetry: {},

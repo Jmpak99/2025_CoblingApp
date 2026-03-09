@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import CoreGraphics // CGFloat 사용을 명확하게 위해 추가
 
 struct SuccessReward {
     
@@ -30,4 +31,10 @@ struct SuccessReward {
     // 필요하면 현재 완료 상태도 같이 보관 가능
     let isDailyMissionCompleted: Bool
     let isMonthlyMissionCompleted: Bool
+    
+    // 이번 클리어에서 실제 지급된 미션 보상 EXP
+    // - 프로그레스바 역산(totalGain) 계산용
+    // - SuccessDialogView에서 텍스트 표시용으로도 사용 가능
+    let dailyMissionRewardExp: Int
+    let monthlyMissionRewardExp: Int
 }

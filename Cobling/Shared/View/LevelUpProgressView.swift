@@ -8,6 +8,11 @@ struct LevelUpProgressView: View {
 
     // 1단계/2단계 획득량
     let subQuestGain: CGFloat
+
+    // 기존에는 "챕터 보너스 gain"만 받는 용도였지만,
+    // 지금은 SuccessDialogView에서
+    // chapterBonus + dailyMissionReward + monthlyMissionReward
+    // 를 합산해서 2단계 gain으로 넘겨줄 수 있음
     let chapterBonusGain: CGFloat
 
     // 2단계 여부
@@ -28,8 +33,7 @@ struct LevelUpProgressView: View {
     var onAllStagesFinished: () -> Void = {}
     
     // 시작 상태 계산 결과를 바깥에 알려주는 콜백
-    var onStartComputed: (_ startLevel: Int, _ startExp: CGFloat, _ startMaxExp: CGFloat) -> Void = { _,_,_  in }
-
+    var onStartComputed: (_ startLevel: Int, _ startExp: CGFloat, _ startMaxExp: CGFloat) -> Void = { _, _, _ in }
 
     // ====== 내부 애니메이션 상태 ======
     @State private var animLevel: Int = 1
@@ -37,9 +41,8 @@ struct LevelUpProgressView: View {
     @State private var animMaxExp: CGFloat = 100
     
     // 1단계 → 2단계 연출 템포 조절용 상수
-    private let stage2TextDelay: TimeInterval = 0.65   // 1단계 끝나고 "챕터 보너스 텍스트" 보여주기까지 텀
-    private let stage2GaugeDelay: TimeInterval = 0.85  // 1단계 끝나고 "챕터 보너스 게이지" 시작까지 텀 (텍스트보다 늦게)
-
+    private let stage2TextDelay: TimeInterval = 0.65   // 1단계 끝나고 "추가 보상 텍스트" 보여주기까지 텀
+    private let stage2GaugeDelay: TimeInterval = 0.85  // 1단계 끝나고 "추가 보상 게이지" 시작까지 텀 (텍스트보다 늦게)
 
     private var progressRatio: CGFloat {
         guard animMaxExp > 0 else { return 0 }
@@ -77,6 +80,13 @@ struct LevelUpProgressView: View {
 
     // MARK: - 시작 상태 계산 + 실행
     private func setupStartStateAndPlay() {
+        // totalGain은 "최종 상태에서 얼마나 되돌아가야 하는지" 계산할 때 사용
+        // 지금 chapterBonusGain에는
+        // - 챕터 보너스
+        // - 일일 미션 보상
+        // - 월간 미션 보상
+        // 이 합산되어 들어올 수 있으므로,
+        // 미션 클리어 EXP까지 포함한 정확한 역산이 가능해짐
         let totalGain: CGFloat = enableTwoStage ? (subQuestGain + chapterBonusGain) : subQuestGain
 
         // “최종 상태”에서 역으로 totalGain을 빼서 시작 상태 계산
@@ -92,7 +102,6 @@ struct LevelUpProgressView: View {
         onStartComputed(animLevel, animExp, animMaxExp)
         displayedExp = animExp
         displayedMaxExp = animMaxExp
-
 
         // 1단계 시작
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -117,7 +126,6 @@ struct LevelUpProgressView: View {
             }
         }
     }
-
 
     // MARK: - 레벨 경계 넘기는 gain 애니메이션 (핵심)
     private func animateGain(_ amount: CGFloat, completion: @escaping () -> Void) {
@@ -190,7 +198,7 @@ struct LevelUpProgressView: View {
         var remain = max(0, subtract)
 
         // exp는 “현재 레벨 안에서의 exp”라고 가정 (users.exp가 그렇게 저장된 구조일 때)
-        // 만약 users.exp가 누적exp라면 여기 로직이 달라져야 해요(말해주시면 바로 바꿔드릴게요).
+        // 만약 users.exp가 누적exp라면 여기 로직이 달라져야 해요.
         while remain > 0 {
             if exp >= remain {
                 exp -= remain

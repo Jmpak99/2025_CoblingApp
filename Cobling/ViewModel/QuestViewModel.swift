@@ -991,10 +991,12 @@ final class QuestViewModel: ObservableObject {
         }
     }
     
-    // 미션 결과 정보를 읽어오는 헬퍼
+    // 미션 결과 + 미션 보상 EXP를 함께 읽어오는 헬퍼로 확장
     // - index.js 에서 subQuest progress 문서에 저장한
     //   didJustCompleteDailyMission / didJustCompleteMonthlyMission /
-    //   isDailyMissionCompleted / isMonthlyMissionCompleted 값을 읽어옵니다.
+    //   isDailyMissionCompleted / isMonthlyMissionCompleted /
+    //   dailyMissionRewardExpGranted / monthlyMissionRewardExpGranted
+    //   값을 읽어옵니다.
     private func fetchMissionResultInfo(
         userId: String,
         chapterId: String,
@@ -1003,7 +1005,9 @@ final class QuestViewModel: ObservableObject {
             _ didJustCompleteDailyMission: Bool,
             _ didJustCompleteMonthlyMission: Bool,
             _ isDailyMissionCompleted: Bool,
-            _ isMonthlyMissionCompleted: Bool
+            _ isMonthlyMissionCompleted: Bool,
+            _ dailyMissionRewardExp: Int,
+            _ monthlyMissionRewardExp: Int
         ) -> Void
     ) {
         let ref = db.collection("users")
@@ -1028,11 +1032,22 @@ final class QuestViewModel: ObservableObject {
             let isMonthlyMissionCompleted =
                 data["isMonthlyMissionCompleted"] as? Bool ?? false
 
+            // 일일/월간 미션 보상 EXP 읽기
+            let dailyMissionRewardExp =
+                data["dailyMissionRewardExpGranted"] as? Int
+                ?? Int(data["dailyMissionRewardExpGranted"] as? Double ?? 0)
+
+            let monthlyMissionRewardExp =
+                data["monthlyMissionRewardExpGranted"] as? Int
+                ?? Int(data["monthlyMissionRewardExpGranted"] as? Double ?? 0)
+
             completion(
                 didJustCompleteDailyMission,
                 didJustCompleteMonthlyMission,
                 isDailyMissionCompleted,
-                isMonthlyMissionCompleted
+                isMonthlyMissionCompleted,
+                dailyMissionRewardExp,
+                monthlyMissionRewardExp
             )
         }
     }
@@ -1173,7 +1188,7 @@ final class QuestViewModel: ObservableObject {
                             userId: userId,
                             chapterId: self.currentChapterId,
                             subQuestId: subId
-                        ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                        ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted, dailyMissionRewardExp, monthlyMissionRewardExp in
                             DispatchQueue.main.async {
                                 self.successReward = SuccessReward(
                                     level: level,
@@ -1186,7 +1201,9 @@ final class QuestViewModel: ObservableObject {
                                     didJustCompleteDailyMission: didJustDaily,
                                     didJustCompleteMonthlyMission: didJustMonthly,
                                     isDailyMissionCompleted: isDailyCompleted,
-                                    isMonthlyMissionCompleted: isMonthlyCompleted
+                                    isMonthlyMissionCompleted: isMonthlyCompleted,
+                                    dailyMissionRewardExp: dailyMissionRewardExp,
+                                    monthlyMissionRewardExp: monthlyMissionRewardExp
                                 )
                             }
 
@@ -1255,7 +1272,7 @@ final class QuestViewModel: ObservableObject {
                                     userId: userId,
                                     chapterId: self.currentChapterId,
                                     subQuestId: subId
-                                ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                                ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted, dailyMissionRewardExp, monthlyMissionRewardExp in
                                     DispatchQueue.main.async {
                                         self.successReward = SuccessReward(
                                             level: afterSubquestLevel,
@@ -1268,7 +1285,9 @@ final class QuestViewModel: ObservableObject {
                                             didJustCompleteDailyMission: didJustDaily,
                                             didJustCompleteMonthlyMission: didJustMonthly,
                                             isDailyMissionCompleted: isDailyCompleted,
-                                            isMonthlyMissionCompleted: isMonthlyCompleted
+                                            isMonthlyMissionCompleted: isMonthlyCompleted,
+                                            dailyMissionRewardExp: dailyMissionRewardExp,
+                                            monthlyMissionRewardExp: monthlyMissionRewardExp
                                         )
                                     }
                                     self.endRewardLoadingAndShowSuccess {
@@ -1293,7 +1312,7 @@ final class QuestViewModel: ObservableObject {
                                         userId: userId,
                                         chapterId: self.currentChapterId,
                                         subQuestId: subId
-                                    ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                                    ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted, dailyMissionRewardExp, monthlyMissionRewardExp in
                                         DispatchQueue.main.async {
                                             self.successReward = SuccessReward(
                                                 level: finalLevel,
@@ -1306,7 +1325,9 @@ final class QuestViewModel: ObservableObject {
                                                 didJustCompleteDailyMission: didJustDaily,
                                                 didJustCompleteMonthlyMission: didJustMonthly,
                                                 isDailyMissionCompleted: isDailyCompleted,
-                                                isMonthlyMissionCompleted: isMonthlyCompleted
+                                                isMonthlyMissionCompleted: isMonthlyCompleted,
+                                                dailyMissionRewardExp: dailyMissionRewardExp,
+                                                monthlyMissionRewardExp: monthlyMissionRewardExp
                                             )
                                         }
 
@@ -1336,7 +1357,7 @@ final class QuestViewModel: ObservableObject {
                                         userId: userId,
                                         chapterId: self.currentChapterId,
                                         subQuestId: subId
-                                    ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                                    ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted, dailyMissionRewardExp, monthlyMissionRewardExp in
                                         DispatchQueue.main.async {
                                             self.successReward = SuccessReward(
                                                 level: applied.level,
@@ -1349,7 +1370,9 @@ final class QuestViewModel: ObservableObject {
                                                 didJustCompleteDailyMission: didJustDaily,
                                                 didJustCompleteMonthlyMission: didJustMonthly,
                                                 isDailyMissionCompleted: isDailyCompleted,
-                                                isMonthlyMissionCompleted: isMonthlyCompleted
+                                                isMonthlyMissionCompleted: isMonthlyCompleted,
+                                                dailyMissionRewardExp: dailyMissionRewardExp,
+                                                monthlyMissionRewardExp: monthlyMissionRewardExp
                                             )
                                         }
 
@@ -1383,7 +1406,7 @@ final class QuestViewModel: ObservableObject {
                                     userId: userId,
                                     chapterId: self.currentChapterId,
                                     subQuestId: subId
-                                ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted in
+                                ) { didJustDaily, didJustMonthly, isDailyCompleted, isMonthlyCompleted, dailyMissionRewardExp, monthlyMissionRewardExp in
                                     DispatchQueue.main.async {
                                         self.successReward = SuccessReward(
                                             level: level,
@@ -1396,7 +1419,9 @@ final class QuestViewModel: ObservableObject {
                                             didJustCompleteDailyMission: didJustDaily,
                                             didJustCompleteMonthlyMission: didJustMonthly,
                                             isDailyMissionCompleted: isDailyCompleted,
-                                            isMonthlyMissionCompleted: isMonthlyCompleted
+                                            isMonthlyMissionCompleted: isMonthlyCompleted,
+                                            dailyMissionRewardExp: dailyMissionRewardExp,
+                                            monthlyMissionRewardExp: monthlyMissionRewardExp
                                         )
                                     }
 
