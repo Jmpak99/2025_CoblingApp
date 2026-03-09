@@ -12,6 +12,8 @@ enum BlockIntroType {
     case attack
     case repeatLoop
     case condition
+    case turnLeft
+    case turnRight
 }
 
 // MARK: - 블록 소개 데이터 모델
@@ -64,6 +66,30 @@ extension BlockIntroType {
                 exampleCaption: "앞이 막혀있으면 공격하도록 만들 수 있어요.",
                 imageName: "block_if",
                 exampleImageName: "example_if",
+                buttonTitle: "시작하기"
+            )
+            
+        case .turnLeft:
+            return BlockIntroContent(
+                title: "새로운 블록을 배웠어요!",
+                subtitle: "왼쪽으로 돌기 블록",
+                description: "캐릭터가 제자리에서 왼쪽을 바라보도록 방향을 바꿔요.\n이동하지 않고, 제자리에서 방향만 바꾸는 블록이에요.",
+                exampleTitle: "사용 예시",
+                exampleCaption: "앞으로 가기 전에 왼쪽으로 돌기 블록을 사용하면, 캐릭터가 제자리에서 왼쪽 방향을 바라보게 돼요.",
+                imageName: "block_turn_left",
+                exampleImageName: nil,
+                buttonTitle: "시작하기"
+            )
+
+        case .turnRight:
+            return BlockIntroContent(
+                title: "새로운 블록을 배웠어요!",
+                subtitle: "오른쪽으로 돌기 블록",
+                description: "캐릭터가 제자리에서 오른쪽을 바라보도록 방향을 바꿔요.\n이동하지 않고, 제자리에서 방향만 바꾸는 블록이에요.",
+                exampleTitle: "사용 예시",
+                exampleCaption: "앞으로 가기 전에 오른쪽으로 돌기 블록을 사용하면, 캐릭터가 제자리에서 오른쪽 방향을 바라보게 돼요.",
+                imageName: "block_turn_right",
+                exampleImageName: nil,
                 buttonTitle: "시작하기"
             )
         }
@@ -209,6 +235,10 @@ private extension BlockIntroView {
             return "repeat"
         case .condition:
             return "questionmark.circle.fill"
+        case .turnLeft:
+            return "arrow.uturn.left.circle.fill"
+        case .turnRight:
+            return "arrow.uturn.right.circle.fill"
         }
     }
 
@@ -234,5 +264,16 @@ private extension BlockIntroView {
 #Preview("조건 블록") {
     BlockIntroView(type: .condition) {
         print("조건 블록 시작")
+    }
+}
+#Preview("왼쪽으로 돌기 블록") {
+    BlockIntroView(type: .turnLeft) {
+        print("왼쪽으로 돌기 블록 시작")
+    }
+}
+
+#Preview("오른쪽으로 돌기 블록") {
+    BlockIntroView(type: .turnRight) {
+        print("오른쪽으로 돌기 블록 시작")
     }
 }

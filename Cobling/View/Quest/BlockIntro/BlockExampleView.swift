@@ -20,6 +20,12 @@ struct BlockExampleView: View {
 
        case .condition:
            ConditionBlockExampleSection()
+           
+       case .turnLeft:
+           TurnLeftBlockExampleSection()
+
+       case .turnRight:
+           TurnRightBlockExampleSection()
        }
    }
 }
@@ -93,4 +99,42 @@ private struct ConditionBlockExampleSection: View {
        }
        .frame(maxWidth: .infinity, alignment: .leading)
    }
+}
+
+// MARK: - 왼쪽으로 돌기 예시
+private struct TurnLeftBlockExampleSection: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image("block_turn_left")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 34)
+
+            Text("→")
+
+            Text("왼쪽으로 방향 전환")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Color(hex: "#5A6E52"))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - 오른쪽으로 돌기 예시
+private struct TurnRightBlockExampleSection: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image("block_turn_right")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 34)
+
+            Text("→")
+
+            Text("오른쪽으로 방향 전환")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Color(hex: "#5A6E52"))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }

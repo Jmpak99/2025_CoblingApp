@@ -79,12 +79,16 @@ struct QuestBlockView: View {
         chapterId.lowercased() == "ch1" && subQuestId.lowercased() == "sq1"
     }
     
-    // 2-1 / 3-1 / 4-1 에서만 블록 소개 표시
+    // 1-3 / 1-4 / 2-1 / 3-1 / 4-1 에서만 블록 소개 표시
     private var blockIntroTypeForCurrentQuest: BlockIntroType? {
         let ch = chapterId.lowercased()
         let sq = subQuestId.lowercased()
 
         switch (ch, sq) {
+        case ("ch1", "sq3"):
+            return .turnLeft
+        case ("ch1", "sq4"):
+            return .turnRight
         case ("ch2", "sq1"):
             return .attack
         case ("ch3", "sq1"):
@@ -446,7 +450,7 @@ struct QuestBlockView: View {
                 return // 튜토리얼 시작 시 아래 분기 진행 방지
             }
             
-            // 3) 2-1 / 3-1 / 4-1 블록 인트로
+            // 3) 1-3 / 1-4 / 2-1 / 3-1 / 4-1 블록 인트로
             if !isShowing,
                let introType = blockIntroTypeForCurrentQuest,
                !hasPresentedInitialBlockIntro,
@@ -485,7 +489,7 @@ struct QuestBlockView: View {
                 return // 튜토리얼 시작 시 아래 분기 방지
             }
             
-            // 2) 2-1 / 3-1 / 4-1 블록 인트로
+            // 2) 1-3 / 1-4 / 2-1 / 3-1 / 4-1 블록 인트로
             if let introType = blockIntroTypeForCurrentQuest,
                !viewModel.isShowingCutscene,
                !hasPresentedInitialBlockIntro {
