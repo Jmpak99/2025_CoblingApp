@@ -10,6 +10,7 @@ import SwiftUI
 struct GameMapView: View {
     @ObservedObject var viewModel: QuestViewModel
     var questTitle: String
+    let subQuestId: String // 서브퀘스트 변경 감지용
 
     // MARK: - Tutorial Highlight Frames
     @Binding var storyButtonFrame: CGRect
@@ -306,6 +307,10 @@ struct GameMapView: View {
         }
         .onChange(of: viewModel.characterDirection) { _ in
             refreshTutorialFrames()
+        }
+        .onChange(of: subQuestId) { _ in // 다음 스테이지로 넘어가면 상태 초기화
+            isStoryOn = false             // 스토리 OFF
+            isHintOn = false              // 힌트 OFF
         }
     }
 

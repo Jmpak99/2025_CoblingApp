@@ -66,7 +66,7 @@ struct EditProfileView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("닉네임")
                                     .font(.pretendardBold14)
-                                TextField("이름을 입력하세요.", text: $nickname)
+                                TextField("닉네임을 입력하세요.", text: $nickname)
                                     .padding()
                                     .background(Color.white)
                                     .cornerRadius(10)

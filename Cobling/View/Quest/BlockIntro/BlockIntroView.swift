@@ -61,7 +61,7 @@ extension BlockIntroType {
                 subtitle: "조건 블록",
                 description: "상황에 따라 다른 행동을 할 수 있어요.\n앞이 막혀 있는지, 적이 있는지 확인하고 알맞게 움직여보세요.",
                 exampleTitle: "사용 예시",
-                exampleCaption: "앞에 적이 있으면 공격하도록 만들 수 있어요.",
+                exampleCaption: "앞이 막혀있으면 공격하도록 만들 수 있어요.",
                 imageName: "block_if",
                 exampleImageName: "example_if",
                 buttonTitle: "시작하기"

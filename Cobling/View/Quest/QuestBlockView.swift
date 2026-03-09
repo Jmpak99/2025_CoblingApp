@@ -132,6 +132,7 @@ struct QuestBlockView: View {
                     GameMapView(
                         viewModel: viewModel,
                         questTitle: subQuest.title,
+                        subQuestId: subQuestId, // 현재 서브퀘스트 ID 전달
                         // GameMapView에서 버튼/깃발 frame 전달받기
                         storyButtonFrame: $storyButtonFrame,
                         playButtonFrame: $playButtonFrame,

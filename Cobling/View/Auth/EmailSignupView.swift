@@ -71,8 +71,8 @@ struct EmailSignupView: View {
                     .padding(.top, 8)
 
                     Group {
-                        fieldLabel("이름")
-                        inputTextField("이름을 입력하세요.", text: $name)
+                        fieldLabel("닉네임")
+                        inputTextField("닉네임을 입력하세요.", text: $name)
 
                         fieldLabel("이메일")
                         inputTextField("email@email.com", text: $email)
