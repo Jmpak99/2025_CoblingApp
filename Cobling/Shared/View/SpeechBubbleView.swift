@@ -15,7 +15,7 @@ struct SpeechBubbleView: View {
             HStack(spacing: 6) {
                 Image("spirit_forest") // 아이콘
                     .resizable()
-                    .frame(width: 20, height: 20)
+                    .frame(width: 40, height: 40)
 
                 Text("정령의 속삭임")
                     .font(.system(size: 14, weight: .bold))
