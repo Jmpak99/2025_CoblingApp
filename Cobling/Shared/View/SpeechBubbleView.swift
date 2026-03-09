@@ -13,11 +13,11 @@ struct SpeechBubbleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Image("cobling_character_egg") // 아이콘
+                Image("spirit_forest") // 아이콘
                     .resizable()
                     .frame(width: 20, height: 20)
 
-                Text("코블링의 메시지")
+                Text("정령의 속삭임")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.black)
             }
