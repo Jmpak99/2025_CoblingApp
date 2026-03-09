@@ -33,10 +33,16 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: options) { granted, err in
             print("🔔 Notification permission granted:", granted,
                   "error:", err?.localizedDescription ?? "nil")
+
+            // 권한 요청 완료 후 메인 스레드에서 APNs 등록
+            DispatchQueue.main.async {
+                application.registerForRemoteNotifications()
+            }
         }
-        
-        // APNs 등록(원격 푸시 토큰 받기)
-        application.registerForRemoteNotifications()
+
+        // 여기서 바로 registerForRemoteNotifications()를 호출하던 코드는 제거
+        // 이유:
+        // 권한 요청 콜백 안에서 등록하도록 하면 흐름이 더 명확하고 안전합니다.
 
         return true
     }
@@ -48,6 +54,26 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Firebase Messaging에 APNs 토큰 전달
         Messaging.messaging().apnsToken = deviceToken
         print("✅ APNs device token registered")
+
+        // APNs token 등록 후 FCM token 재요청
+        // 이유:
+        // "No APNS token specified before fetching FCM Token" 문제 방지
+        Messaging.messaging().token { token, error in
+            if let error = error {
+                print("❌ APNs 등록 후 FCM token 재요청 실패:", error.localizedDescription)
+                return
+            }
+
+            guard let token = token, !token.isEmpty else {
+                print("❌ APNs 등록 후 FCM token이 비어있음")
+                return
+            }
+
+            print("✅ APNs 등록 후 FCM Token:", token)
+
+            // AuthViewModel로 전달
+            NotificationCenter.default.post(name: .didReceiveFcmToken, object: token)
+        }
     }
 
     // APNs 디바이스 토큰 등록 실패
@@ -60,14 +86,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 // MARK: - UNUserNotificationCenterDelegate
 extension AppDelegate: UNUserNotificationCenterDelegate {
 
-    ///  앱이 켜져있을 때(포그라운드)도 배너/사운드 표시
+    /// 앱이 켜져있을 때(포그라운드)도 배너/사운드 표시
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .sound, .badge])
     }
 
-    ///  알림 탭했을 때(필요하면 나중에 딥링크 처리)
+    /// 알림 탭했을 때(필요하면 나중에 딥링크 처리)
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
@@ -79,8 +105,12 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 // MARK: - MessagingDelegate
 extension AppDelegate: MessagingDelegate {
 
-    /// ✅ FCM 토큰 수신(이게 찍히면 푸시 준비 완료)
+    /// FCM 토큰 수신(이게 찍히면 푸시 준비 완료)
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         print("🔥 FCM Token:", fcmToken ?? "nil")
+
+        // AuthViewModel로 FCM token 전달
+        guard let fcmToken = fcmToken, !fcmToken.isEmpty else { return }
+        NotificationCenter.default.post(name: .didReceiveFcmToken, object: fcmToken)
     }
 }

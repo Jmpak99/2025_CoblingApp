@@ -33,7 +33,7 @@ extension QuestTutorialStep {
         case .storyIntro:
             return "스토리 소개"
         case .explainStoryButton:
-            return "스토리 버튼"
+            return "힌트 버튼"
         case .explainBlockPalette:
             return "블록 사용하기"
         case .explainPlaceBlock:
@@ -57,7 +57,7 @@ extension QuestTutorialStep {
         case .storyIntro:
             return "코블링이 깨어나기 위해서는 도움이 필요해요. \n먼저 게임 화면에서 어떤 기능을 사용할지 같이 알아볼까요?"
         case .explainStoryButton:
-            return "스토리 버튼을 누르면 현재 퀘스트의 스토리와 설명을 다시 확인할 수 있어요."
+            return "힌트 버튼을 누르면 현재 퀘스트의 힌트를 확인할 수 있어요."
         case .explainBlockPalette:
             return "왼쪽에는 코블링을 움직일 수 있는 블록들이 있어요. 필요한 블록을 골라 사용할 수 있어요."
         case .explainPlaceBlock:

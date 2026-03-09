@@ -28,7 +28,6 @@ import FirebaseFirestoreSwift
 import FirebaseMessaging
 #endif
 
-
 private enum BuildEnv {
     static let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
 }
@@ -64,6 +63,9 @@ final class AuthViewModel: ObservableObject {
     private var profileListener: ListenerRegistration?
     #endif
 
+    // AppDelegate에서 전달한 FCM 토큰 알림 옵저버
+    private var fcmTokenObserver: NSObjectProtocol?
+
     // 현재 로그인 UID를 안전하게 꺼내는 공통 프로퍼티
     var currentUserId: String {
         #if canImport(FirebaseAuth)
@@ -88,6 +90,20 @@ final class AuthViewModel: ObservableObject {
             return
         }
 
+        // AppDelegate에서 APNs 등록 후 전달한 FCM 토큰 수신
+        fcmTokenObserver = NotificationCenter.default.addObserver(
+            forName: .didReceiveFcmToken,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            guard let token = notification.object as? String, !token.isEmpty else { return }
+
+            Task {
+                await self.saveFcmTokenToUserDoc(token)
+            }
+        }
+
         // Auth 상태 리스너
         authListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self = self else { return }
@@ -110,9 +126,9 @@ final class AuthViewModel: ObservableObject {
                     }
                 }
                 
-                // 자동 로그인/상태 복원 시점에도 fcmToken을 유저 문서에 동기화
-                // - 로그인 화면을 안 거쳐도 토큰이 DB에 들어가도록 보장
-                Task { await self.syncFcmTokenToUserDocIfPossible(uid: uid) }
+                // 자동 로그인/상태 복원 시점에는 무조건 token() 재요청하지 않음
+                // APNs 토큰이 준비되기 전에 호출되면 에러가 나므로,
+                // AppDelegate에서 APNs 등록 후 전달되는 didReceiveFcmToken 알림으로 처리
             } else {
                 self.profileListener?.remove()
                 self.profileListener = nil
@@ -131,6 +147,11 @@ final class AuthViewModel: ObservableObject {
         profileListener?.remove()
         profileListener = nil
         #endif
+
+        // NotificationCenter 옵저버 해제
+        if let fcmTokenObserver {
+            NotificationCenter.default.removeObserver(fcmTokenObserver)
+        }
     }
 
     // MARK: - 로그인
@@ -146,7 +167,8 @@ final class AuthViewModel: ObservableObject {
             await ensureUserDocumentExists(uid: uid, email: trimmedEmail)
             await updateLastLogin(uid: uid)
 
-            // 로그인 직후 FCM 토큰을 users/{uid}에 저장(또는 갱신)
+            // 로그인 직후에는 APNs 토큰이 아직 없을 수 있으므로
+            // syncFcmTokenToUserDocIfPossible 내부에서 APNs 토큰 존재 여부를 확인한 뒤 진행
             await syncFcmTokenToUserDocIfPossible(uid: uid)
 
             // 로그인 직후 즉시 1회 강제 리프레시(리스너 수신 지연 대비)
@@ -191,7 +213,8 @@ final class AuthViewModel: ObservableObject {
 
             try await createUserDocument(uid: uid, email: trimmedEmail, nickname: nick)
             
-            // 가입 직후 FCM 토큰을 users/{uid}에 저장(또는 갱신)
+            // 가입 직후에도 APNs 토큰이 아직 없을 수 있으므로
+            // 내부에서 APNs 토큰 존재 여부를 확인한 뒤 진행
             await syncFcmTokenToUserDocIfPossible(uid: uid)
             
             // 가입 직후 리스너 수신 전에 1회 리프레시
@@ -294,7 +317,6 @@ final class AuthViewModel: ObservableObject {
                 "expiresAt": NSNull(),
                 "updatedAt": FieldValue.serverTimestamp()
             ]
-            
         ]
         try await db.collection("users").document(uid).setData(data, merge: true)
         #endif
@@ -326,6 +348,40 @@ final class AuthViewModel: ObservableObject {
         }
         #endif
     }
+
+    // 이미 확보된 FCM 토큰을 users/{uid} 문서에 저장하는 전용 함수
+    func saveFcmTokenToUserDoc(_ token: String, uid: String? = nil) async {
+        #if canImport(FirebaseFirestore) && canImport(FirebaseAuth)
+        guard !BuildEnv.isPreview else { return }
+        guard FirebaseApp.app() != nil else { return }
+        guard let db = self.db else { return }
+
+        self.lastFcmToken = token
+
+        let resolvedUid: String = {
+            if let uid, !uid.isEmpty { return uid }
+            return Auth.auth().currentUser?.uid ?? ""
+        }()
+
+        guard !resolvedUid.isEmpty else {
+            print("❌ 로그인된 유저 없음 (토큰은 캐시됨)")
+            return
+        }
+
+        do {
+            try await db.collection("users").document(resolvedUid).setData(
+                [
+                    "fcmToken": token,
+                    "fcmTokenUpdatedAt": FieldValue.serverTimestamp()
+                ],
+                merge: true
+            )
+            print("✅ fcmToken 저장 완료:", token)
+        } catch {
+            print("❌ fcmToken 저장 실패:", error.localizedDescription)
+        }
+        #endif
+    }
     
     // FCM 토큰을 users/{uid} 문서에 저장(또는 갱신)
     // - 로그인 직후 / 회원가입 직후 / 자동로그인(리스너) 시점에 호출
@@ -334,7 +390,13 @@ final class AuthViewModel: ObservableObject {
         #if canImport(FirebaseFirestore) && canImport(FirebaseAuth) && canImport(FirebaseMessaging)
         guard !BuildEnv.isPreview else { return }
         guard FirebaseApp.app() != nil else { return }
-        guard let db = self.db else { return } // ✅ [수정] self.db 명시
+        guard let _ = self.db else { return }
+
+        // APNs 토큰이 아직 없으면 FCM 토큰 요청을 보류
+        guard Messaging.messaging().apnsToken != nil else {
+            print("⏸️ APNS token 아직 없음 - FCM token 요청 보류")
+            return
+        }
 
         // 1) 일단 FCM token을 가져와서 캐시
         Messaging.messaging().token { [weak self] token, error in
@@ -349,32 +411,8 @@ final class AuthViewModel: ObservableObject {
                 return
             }
 
-            self.lastFcmToken = token // ✅ [추가] 캐시 저장
-
-            // 2) uid 결정 (파라미터 > currentUser)
-            let resolvedUid: String = {
-                if let uid, !uid.isEmpty { return uid }
-                return Auth.auth().currentUser?.uid ?? ""
-            }()
-
-            guard !resolvedUid.isEmpty else {
-                print("❌ 로그인된 유저 없음 (토큰은 캐시됨)")
-                return
-            }
-
-            // 3) 유저 문서에 저장
-            db.collection("users").document(resolvedUid).setData(
-                [
-                    "fcmToken": token,
-                    "fcmTokenUpdatedAt": FieldValue.serverTimestamp()
-                ],
-                merge: true
-            ) { err in
-                if let err = err {
-                    print("❌ fcmToken 저장 실패:", err.localizedDescription)
-                } else {
-                    print("✅ fcmToken 저장 완료:", token)
-                }
+            Task {
+                await self.saveFcmTokenToUserDoc(token, uid: uid)
             }
         }
         #endif
@@ -469,7 +507,7 @@ final class AuthViewModel: ObservableObject {
             ),
             settings: .init(notificationsEnabled: true, darkMode: false),
             lastLogin: Date(),
-            premium: .init( // 디버그 프로필에도 premium 기본값 추가(없어도 되지만 모델 일관성)
+            premium: .init(
                 isActive: false,
                 plan: nil,
                 productId: nil,
@@ -479,7 +517,7 @@ final class AuthViewModel: ObservableObject {
                 updatedAt: nil
             )
         )
-        // 디버그 로그인 시에도 fcmToken 저장을 시도(원치 않으면 삭제 가능)
+        // 디버그 로그인도 동일하게 APNs 준비 후에만 저장 시도
         Task { await self.syncFcmTokenToUserDocIfPossible(uid: self.currentUserId) }
     }
 
@@ -693,7 +731,7 @@ extension AuthViewModel {
 // MARK: - Social Login (TODO)
 extension AuthViewModel {
 
-    /// ✅ Apple 로그인 (TODO)
+    ///  Apple 로그인 (TODO)
     /// - 나중에: ASAuthorizationController + Firebase OAuthProvider("apple.com") 연결
     func handleAppleLogin() async {
         authError = nil
@@ -707,7 +745,7 @@ extension AuthViewModel {
         // self.currentUserEmail = "apple@cobling.app"
     }
 
-    /// ✅ Google 로그인 (TODO)
+    /// Google 로그인 (TODO)
     /// - 나중에: GoogleSignIn -> GoogleAuthProvider.credential -> Auth.signIn
     func handleGoogleLogin() async {
         authError = nil
@@ -716,7 +754,7 @@ extension AuthViewModel {
         print("🟦 Google Login Tapped")
     }
 
-    /// ✅ Kakao 로그인 (TODO)
+    /// Kakao 로그인 (TODO)
     /// - 나중에: Kakao SDK 로그인 -> accessToken -> Cloud Functions(custom token) -> Auth.signIn(withCustomToken:)
     func handleKakaoLogin() async {
         authError = nil
@@ -724,4 +762,9 @@ extension AuthViewModel {
         // TODO: Kakao SDK + Firebase Custom Token 연동 구현
         print("🟨 Kakao Login Tapped")
     }
+}
+
+// AppDelegate → AuthViewModel로 FCM 토큰 전달용 Notification 이름
+extension Notification.Name {
+    static let didReceiveFcmToken = Notification.Name("didReceiveFcmToken")
 }
