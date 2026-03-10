@@ -112,22 +112,31 @@ struct QuestBlockView: View {
         "tutorial.quest.\(chapterId.lowercased()).\(subQuestId.lowercased())"
     }
 
-
     // MARK: - 삭제 영역 판별
     private func isOverPalette() -> Bool {
         dragManager.isDragging &&
         dragManager.dragSource == .canvas &&
         paletteFrame.contains(dragManager.dragPosition)
     }
-    
-    
 
+    // 리뷰 팝업을 지금 띄워도 되는 상태인지 확인 후 표시 시도
+    private func tryShowPendingReviewPopup() {
+        guard !viewModel.isShowingCutscene else { return }
+        guard !tutorialVM.isActive else { return }
+        guard currentBlockIntroType == nil else { return }
+        guard !viewModel.showSuccessDialog else { return }
+        guard !viewModel.isRewardLoading else { return }
+
+        reviewManager.consumePendingReviewIfNeeded()
+    }
+    
     var body: some View {
         ZStack {
             
             // 게임 화면 전용 배경 (뒤 화면 완전 차단)
             Color(.white)
                 .ignoresSafeArea()
+            
             // =================================================
             // 메인 콘텐츠
             // =================================================
@@ -182,7 +191,7 @@ struct QuestBlockView: View {
                                         // 나머지 영역은 투명
                                         Color.clear
                                     }
-                                    .ignoresSafeArea()          // 하단 여백 제거 핵심
+                                    .ignoresSafeArea() // 하단 여백 제거 핵심
                                 }
                                 .zIndex(20)
                             }
@@ -201,7 +210,7 @@ struct QuestBlockView: View {
                         .onChange(of: dragManager.dragPosition) { _ in
                             let frame = geo.frame(in: .global)
                             paletteFrame = frame
-                            blockPaletteFrame = frame //  팔레트 frame 저장
+                            blockPaletteFrame = frame // 팔레트 frame 저장
                         }
                     }
                     .frame(width: 140)
@@ -264,8 +273,6 @@ struct QuestBlockView: View {
                     .zIndex(55)
             }
 
-
-
             // =================================================
             // 고스트 블록 (일반 / 반복문 분기)
             // =================================================
@@ -316,7 +323,7 @@ struct QuestBlockView: View {
             if viewModel.showSuccessDialog,
                let reward = viewModel.successReward {
                 SuccessDialogView(
-                    reward : reward,
+                    reward: reward,
                     characterStage: authViewModel.userProfile?.character.stage ?? "egg",
                     onRetry: {
                         withAnimation(.easeInOut(duration: 0.22)) {
@@ -408,6 +415,11 @@ struct QuestBlockView: View {
                     type: introType,
                     onStart: {
                         currentBlockIntroType = nil
+                        
+                        // 블록 인트로 종료 후 대기 중인 리뷰 팝업 다시 시도
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            tryShowPendingReviewPopup()
+                        }
                     }
                 )
                 .zIndex(66)
@@ -432,7 +444,6 @@ struct QuestBlockView: View {
         }
         .environmentObject(dragManager)
         .environmentObject(viewModel)
-        
 
         // 컷신 닫히는 순간 감지
         // 1) 아웃트로 컷신이면 다음 퀘스트 진행
@@ -482,6 +493,22 @@ struct QuestBlockView: View {
                 }
                 return
             }
+            
+            // 컷신이 끝난 시점에 대기 중인 리뷰 팝업 다시 시도
+            if !isShowing {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    tryShowPendingReviewPopup()
+                }
+            }
+        }
+
+        // 튜토리얼 종료 시 대기 중인 리뷰 팝업 다시 시도
+        .onChange(of: tutorialVM.isActive) { isActive in
+            if !isActive {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    tryShowPendingReviewPopup()
+                }
+            }
         }
 
         // subQuest 로드 후 보조 튜토리얼 시작 트리거 추가
@@ -492,6 +519,11 @@ struct QuestBlockView: View {
             print("📦 isBlockIntroTargetQuest:", isBlockIntroTargetQuest)
             print("📦 hasPresentedInitialTutorial:", hasPresentedInitialTutorial)
             print("📦 hasPresentedInitialBlockIntro:", hasPresentedInitialBlockIntro)
+
+            // 다음 스테이지가 실제로 로드된 후 대기 중인 리뷰 팝업 표시 시도
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                tryShowPendingReviewPopup()
+            }
 
             // 1) 1-1 튜토리얼
             if isTutorialTargetQuest,
@@ -520,7 +552,6 @@ struct QuestBlockView: View {
                 }
             }
         }
-
 
         // =================================================
         // 드래그 종료 처리 (유일한 진입점)
@@ -583,7 +614,7 @@ struct QuestBlockView: View {
                         // 캔버스에 있던 블록을 반복문 안으로 드롭했을 때
                         if source == .canvas,
                            let block = block,
-                           dragManager.isOverContainer,                 // 반복문 위에 드롭
+                           dragManager.isOverContainer,
                            let target = dragManager.containerTargetBlock {
                             
                             // 컨테이너를 자기 자신/자기 자손 컨테이너 안으로 넣는 것 금지 (사이클 방지)
@@ -591,8 +622,6 @@ struct QuestBlockView: View {
                                 if target.id == block.id { return } // 자기 자신에게 드롭
                                 if viewModel.isDescendant(target, of: block) { return } // 자기 자손에게 드롭
                             }
-                            
-                            
 
                             // 1️⃣ 기존 위치에서 제거
                             if let parent = viewModel.findParentContainer(of: block) {
@@ -660,8 +689,6 @@ struct QuestBlockView: View {
 
                             viewModel.startBlock.children.insert(block, at: safeIndex)
                         }
-                        
-                        
                     }
                 }
         )
@@ -696,7 +723,6 @@ struct QuestBlockView: View {
             )
         }
 
-        
         .onChange(of: subQuestId) { newId in
             print("🧹 새 서브퀘스트 진입, 블록 초기화:", newId)
 
@@ -722,7 +748,6 @@ struct QuestBlockView: View {
             )
         }
 
-        
         // 알럿
         .alert("⏳ 챕터를 여는 중이에요", isPresented: $showWaitingAlert) {
             Button("확인", role: .cancel) { }
@@ -753,7 +778,7 @@ struct QuestBlockView: View {
         }
     }
     
-    //  Next 플로우: rewardSettled 게이트 추가
+    // Next 플로우: rewardSettled 게이트 추가
     private func handleNextFlowAfterSuccessWithSettlementGate(reward: SuccessReward) {
         // 이미 대기 중이면 중복 방지
         if isWaitingRewardSettled { return }
@@ -761,13 +786,11 @@ struct QuestBlockView: View {
         isWaitingRewardSettled = true
         isWaitingOverlay = true // rewardSettled 대기 중에도 사용자에게 “대기중”을 보여주기 위해 ON
 
-
         // 서버가 rewardSettled를 progress 문서에 찍을 때까지 대기
         waitForRewardSettled(chapterId: chapterId, subQuestId: subQuestId, timeout: 6.0) { settled in
             DispatchQueue.main.async {
                 isWaitingRewardSettled = false
                 isWaitingOverlay = false // 대기 종료 시 OFF (성공/실패 공통)
-
 
                 if !settled {
                     // 타임아웃이면 알럿(이미 보유하신 showRewardDelayAlert 재사용)
@@ -898,16 +921,12 @@ struct QuestBlockView: View {
         tryGoNextHandlingWaiting()
     }
 
-    
-
     // =================================================
     // MARK: - 다음 서브퀘스트 처리 (핵심)
     // =================================================
     private func tryGoNextHandlingWaiting() {
-
         viewModel.goToNextSubQuest { action in
             DispatchQueue.main.async {
-
                 switch action {
 
                 // 🔁 다음 서브퀘스트

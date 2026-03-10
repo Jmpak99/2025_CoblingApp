@@ -18,6 +18,7 @@ final class ReviewManager: ObservableObject {
 
     private let subQuestClearCountKey = "review.subQuestClearCount"
     private let reviewRequestedMilestonesKey = "review.requestedMilestones"
+    private let pendingReviewMilestoneKey = "review.pendingMilestone" // 다음 화면에서 띄울 milestone 저장
     private let reviewMilestones: Set<Int> = [5, 15, 30]
 
     private init() {}
@@ -31,6 +32,11 @@ final class ReviewManager: ObservableObject {
         return Set(array)
     }
 
+    var pendingMilestone: Int? {
+        let value = UserDefaults.standard.integer(forKey: pendingReviewMilestoneKey)
+        return value == 0 ? nil : value
+    }
+
     func recordSubQuestCompletion() {
         let newCount = currentClearCount + 1
         UserDefaults.standard.set(newCount, forKey: subQuestClearCountKey)
@@ -42,14 +48,22 @@ final class ReviewManager: ObservableObject {
         guard reviewMilestones.contains(count) else { return }
         guard !hasRequestedReview(for: count) else { return }
 
-        currentMilestone = count
-        shouldShowReviewPopup = true
+        // 지금 바로 팝업 띄우지 않고 "다음 화면에서 띄울 예정"으로 저장만 함
+        UserDefaults.standard.set(count, forKey: pendingReviewMilestoneKey)
         markReviewRequested(for: count)
+    }
+
+    func consumePendingReviewIfNeeded() { // 다음 스테이지 진입 후 호출
+        guard let milestone = pendingMilestone else { return }
+
+        currentMilestone = milestone
+        shouldShowReviewPopup = true
+        UserDefaults.standard.removeObject(forKey: pendingReviewMilestoneKey)
     }
 
     func handlePositiveFeedback() {
         shouldShowReviewPopup = false
-        requestAppStoreReview() // "좋았어요" 선택 시 시스템 리뷰창 요청
+        requestAppStoreReview()
     }
 
     func handleNegativeFeedback() {
@@ -70,19 +84,20 @@ final class ReviewManager: ObservableObject {
         UserDefaults.standard.set(Array(updated).sorted(), forKey: reviewRequestedMilestonesKey)
     }
 
-    private func requestAppStoreReview() { // 실제 App Store 리뷰 요청 함수
+    private func requestAppStoreReview() {
         guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive }) else {
             return
         }
 
-        SKStoreReviewController.requestReview(in: scene) // iOS 기본 리뷰창 호출
+        SKStoreReviewController.requestReview(in: scene)
     }
 
     func resetAllReviewData() {
         UserDefaults.standard.removeObject(forKey: subQuestClearCountKey)
         UserDefaults.standard.removeObject(forKey: reviewRequestedMilestonesKey)
+        UserDefaults.standard.removeObject(forKey: pendingReviewMilestoneKey) 
         shouldShowReviewPopup = false
         currentMilestone = nil
     }
