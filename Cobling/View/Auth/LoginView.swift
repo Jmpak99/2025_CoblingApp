@@ -79,7 +79,7 @@ struct LoginView: View {
                                 .underline()
                                 .foregroundColor(Color(hex: "#2B3A1E"))
                         }
-                        .disabled(email.isEmpty || isLoading)
+                        .disabled(isLoading) // email.isEmpty일 때도 눌리게 변경
                     }
 
                     if let errorText {
@@ -89,17 +89,17 @@ struct LoginView: View {
                             .padding(.top, 2)
                     }
 
-                    // 데모 로그인 (실제 Firebase 이메일 / 비번 로그인)
-                    Button {
-                        Task { await signInDemo() }
-                    } label: {
-                        Text("테스트 계정으로 로그인")
-                            .font(.gmarketMedium14)
-                            .underline()
-                            .foregroundColor(.gray)
-                    }
-                    .padding(.top, 2)
-                    .disabled(isLoading)
+//                    // 데모 로그인 (실제 Firebase 이메일 / 비번 로그인)
+//                    Button {
+//                        Task { await signInDemo() }
+//                    } label: {
+//                        Text("테스트 계정으로 로그인")
+//                            .font(.gmarketMedium14)
+//                            .underline()
+//                            .foregroundColor(.gray)
+//                    }
+//                    .padding(.top, 2)
+//                    .disabled(isLoading)
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 18)
@@ -150,7 +150,7 @@ struct LoginView: View {
         .toolbar { ToolbarItem(placement: .principal) { EmptyView() } }
         .onAppear {
             if let initialEmail, email.isEmpty {
-                email = initialEmail   // 이메일 프리필
+                email = initialEmail
             }
         }
         .onDisappear { focusedField = nil }
@@ -181,15 +181,14 @@ struct LoginView: View {
         isLoading = true
         let vm = authVM // 🧯
         do {
-            // AuthViewModel에 resetPassword(email:)이 없다면 아래 줄을 주석 처리하세요.
-            try await vm.resetPassword(email: email)
+            try await vm.resetPassword(email: email) // AuthViewModel에 이 함수가 구현되어 있어야 함
             errorText = "비밀번호 재설정 메일을 전송했습니다."
         } catch {
             errorText = vm.authError ?? error.localizedDescription
         }
         isLoading = false
     }
-    
+
     /// 테스트 계정으로 실제 Firebase Login
     private func signInDemo() async {
         guard !isLoading else { return }
@@ -198,7 +197,7 @@ struct LoginView: View {
         let vm = authVM
         do {
             try await vm.signIn(email: DemoAuth.email, password: DemoAuth.password)
-            await MainActor.run { onLoginSuccess() } // 인증 완료 후 화면 전환
+            await MainActor.run { onLoginSuccess() }
         } catch {
             await MainActor.run {
                 errorText = vm.authError ?? error.localizedDescription
@@ -212,30 +211,44 @@ struct LoginView: View {
 private struct CustomTextField: View {
     var placeholder: String
     @Binding var text: String
+
     var body: some View {
         TextField(placeholder, text: $text)
             .textInputAutocapitalization(.never)
             .keyboardType(.emailAddress)
-            .padding(.horizontal, 14).frame(height: 52)
+            .padding(.horizontal, 14)
+            .frame(height: 52)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color.white))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.black.opacity(0.08)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.black.opacity(0.08))
+            )
     }
 }
 
 private struct CustomSecureField: View {
     var placeholder: String
     @Binding var text: String
+
     var body: some View {
         SecureField(placeholder, text: $text)
-            .padding(.horizontal, 14).frame(height: 52)
+            .padding(.horizontal, 14)
+            .frame(height: 52)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color.white))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.black.opacity(0.08)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.black.opacity(0.08))
+            )
     }
 }
 
 #Preview {
     NavigationStack {
-        LoginView(onBack: {}, onLoginSuccess: {}, onTapSignup: {})
-            .environmentObject(AuthViewModel()) // 프리뷰 주입 필수
+        LoginView(
+            onBack: {},
+            onLoginSuccess: {},
+            onTapSignup: {}
+        )
+        .environmentObject(AuthViewModel()) // 프리뷰 주입 필수
     }
 }
