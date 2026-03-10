@@ -24,7 +24,7 @@ struct SplashView: View {
                 
                 //컨텐츠 수직 정렬
                 VStack(spacing: 16) {
-                    Image("cobling_character_super")
+                    Image("cobling_stage_super")
                         .resizable() // 이미지 크기 변경 가능하도록
                         .scaledToFit() // 이미지 비율 유지하며 컨테이너에 맞게 조정
                         .frame(width: 178, height: 178)

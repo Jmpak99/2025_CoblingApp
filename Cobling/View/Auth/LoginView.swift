@@ -44,7 +44,7 @@ struct LoginView: View {
 
                 // 상단 로고/타이틀
                 VStack(spacing: 16) {
-                    Image("cobling_character_super")
+                    Image("cobling_stage_super")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 150, height: 150)

@@ -26,6 +26,8 @@ struct QuestBlockView: View {
     
     // 튜토리얼 전용 ViewModel
     @StateObject private var tutorialVM = QuestTutorialViewModel()
+    
+    @StateObject private var reviewManager = ReviewManager.shared // 리뷰 팝업 상태 연결
 
     // 팔레트 영역 프레임 (삭제 판별용)
     @State private var paletteFrame: CGRect = .zero
@@ -410,6 +412,23 @@ struct QuestBlockView: View {
                 )
                 .zIndex(66)
             }
+            
+            // =================================================
+            // 리뷰 팝업
+            // =================================================
+            if reviewManager.shouldShowReviewPopup,
+               let milestone = reviewManager.currentMilestone {
+                ReviewPromptView(
+                    milestone: milestone,
+                    onNegative: {
+                        reviewManager.handleNegativeFeedback() // "별로에요" 선택 시 팝업 닫기
+                    },
+                    onPositive: {
+                        reviewManager.handlePositiveFeedback() // "좋았어요" 선택 시 시스템 리뷰 요청
+                    }
+                )
+                .zIndex(80) // 다른 오버레이보다 위에 보이도록
+            }
         }
         .environmentObject(dragManager)
         .environmentObject(viewModel)
@@ -465,7 +484,7 @@ struct QuestBlockView: View {
             }
         }
 
-        // ✅ [수정] subQuest 로드 후 보조 튜토리얼 시작 트리거 추가
+        // subQuest 로드 후 보조 튜토리얼 시작 트리거 추가
         .onChange(of: viewModel.subQuest?.id) { _ in
             print("📦 subQuest loaded:", viewModel.subQuest?.id ?? "nil")
             print("📦 isShowingCutscene:", viewModel.isShowingCutscene)
@@ -894,7 +913,7 @@ struct QuestBlockView: View {
                 // 🔁 다음 서브퀘스트
                 case .goToQuest(let nextId):
                     isWaitingOverlay = false
-                    onGoNextSubQuest(nextId)   
+                    onGoNextSubQuest(nextId)
 
                 // 📋 리스트로 이동
                 case .goToList:

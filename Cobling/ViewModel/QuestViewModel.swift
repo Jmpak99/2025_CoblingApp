@@ -1236,6 +1236,8 @@ final class QuestViewModel: ObservableObject {
                     "attempts": FieldValue.increment(Int64(1)),
                     "updatedAt": FieldValue.serverTimestamp()
                 ])
+                
+                ReviewManager.shared.recordSubQuestCompletion()
 
                 // 2) users 문서가 실제로 갱신될 때까지 기다렸다가 reward 생성
                 self.waitForUserUpdate(

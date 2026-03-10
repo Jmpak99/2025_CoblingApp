@@ -28,8 +28,7 @@ struct SignupView: View {
 
                 // 상단 로고/타이틀 영역 (스크린샷 느낌)
                 VStack(spacing: 18) {
-                    // 예시: 기존 "cobling_character_super" 그대로 사용
-                    Image("cobling_character_super")
+                    Image("cobling_stage_super")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 320, height: 180)

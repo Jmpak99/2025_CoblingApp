@@ -121,7 +121,7 @@ struct SettingsView: View {
                             showLogoutConfirm = true
                         }
                     }
-                    .padding(.top, 150)
+                    .padding(.top, 200)
                     .padding(.horizontal, 16)
                     .padding(.bottom, floatingTabBarHeight + 40)
                 }
