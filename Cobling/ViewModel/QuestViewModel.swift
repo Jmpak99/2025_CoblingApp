@@ -1584,8 +1584,10 @@ extension QuestViewModel {
         self.characterDirection = direction
     }
 }
+#endif
 
 // MARK: - Story / Hint (UI 전용 접근자)
+// Release / Archive 빌드에서도 필요하므로 DEBUG 바깥으로 이동
 extension QuestViewModel {
 
     var storyMessage: String? {
@@ -1600,4 +1602,3 @@ extension QuestViewModel {
         return hint.message
     }
 }
-#endif

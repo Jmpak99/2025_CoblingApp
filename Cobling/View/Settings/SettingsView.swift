@@ -83,10 +83,10 @@ struct SettingsView: View {
                     sectionTitle("서비스 정보")
 
                     VStack(spacing: 0) {
-                        NavigationLink(destination: Text("코블링 인스타그램")) {
-                            ServiceRow(iconSystemName: "camera", title: "코블링 인스타그램")
-                        }
-                        Divider().padding(.leading, 52)
+//                        NavigationLink(destination: Text("코블링 인스타그램")) {
+//                            ServiceRow(iconSystemName: "camera", title: "코블링 인스타그램")
+//                        }
+//                        Divider().padding(.leading, 52)
 
                         NavigationLink(destination: ContributionThanksView()) {
                             ServiceRow(iconSystemName: "person.2", title: "코블링에 기여해주세요!")
